@@ -1,0 +1,90 @@
+<%- include('../_header') %>
+<div class="card clinician-card">
+  <%- include('_patient_head') %>
+
+  <% if (escalations.length) { %>
+    <div class="crisis-strip<%= escalations.some(function(e) { return e.tier >= 2; }) ? '' : ' crisis-strip--warn' %>" role="alert">
+      <span aria-hidden="true">⚠</span> <strong>Открыто: <%= escalations.length %></strong>
+      <% escalations.forEach(function(e) { %>
+        — <a href="/crisis/<%= e.ref %>"><%= e.label %></a><% if (e.sla) { %> (<%= e.sla.text %>)<% } %>
+      <% }) %>
+    </div>
+  <% } %>
+
+  <section class="pc-section" aria-labelledby="changes-h">
+    <h2 id="changes-h">Что изменилось</h2>
+    <p class="hint"><%= changes.sinceText %></p>
+    <% if (changes.empty) { %>
+      <p class="pc-unchanged"><span aria-hidden="true">✓</span> <strong><%= changes.unchangedText %></strong></p>
+    <% } else { %>
+      <ul class="pc-changes">
+        <% changes.rows.forEach(function(r) { %>
+          <li><span class="pc-changes__icon" aria-hidden="true"><%= r.icon %></span> <strong><%= r.word %>.</strong>
+            <% if (r.href) { %><a href="<%= r.href %>"><%= r.text %></a><% } else { %><%= r.text %><% } %></li>
+        <% }) %>
+      </ul>
+      <% if (changes.truncated > 0) { %><p class="hint">Показаны первые 8 строк, ещё: <%= changes.truncated %>.</p><% } %>
+    <% } %>
+  </section>
+
+  <section class="pc-section" aria-labelledby="actions-h">
+    <h2 id="actions-h">Быстрые действия</h2>
+    <p class="pc-actions">
+      <% if (consentOk && !archived) { %><a class="btn-link" href="/assignments?patient=<%= patient.id %>">Назначить</a><% } else { %><span class="hint">Назначить нельзя: <%= archived ? 'наблюдение завершено' : 'нет согласия' %>.</span><% } %>
+      <a class="btn-link" href="<%= base %>/offline">Ввести результат</a>
+      <a class="btn-link" href="<%= base %>/visit">К приёму</a>
+    </p>
+  </section>
+
+  <section class="pc-section" aria-labelledby="scores-h">
+    <h2 id="scores-h">Последние баллы</h2>
+    <% if (!consentOk) { %>
+      <p class="empty-state">Данные пациента не передаются врачу без действующего клинического согласия.</p>
+    <% } else if (scores.length === 0) { %>
+      <div class="empty-state"><p class="empty-state__title">Пока нет результатов шкал</p><p>Назначьте тест или введите очный результат — графики появятся сами. Необязательно, заполнять ничего не нужно.</p></div>
+    <% } else { %>
+      <div class="pc-scores">
+        <% scores.forEach(function(s) { %>
+          <div class="pc-score">
+            <div class="pc-score__title"><%- instrumentTag(s.code) %></div>
+            <div class="pc-score__value"><%= s.value %></div>
+            <% if (s.band) { %><div class="hint"><%= s.band %></div><% } %>
+            <% if (s.delta) { %><div class="pc-delta<%= s.delta.worse ? ' is-worse' : '' %>"><%= s.delta.arrow %> <%= s.delta.text %></div><% } else { %><div class="hint">первый результат</div><% } %>
+            <%- s.spark %>
+            <div class="hint"><%= formatDate(s.date) %><%= s.kind === 'online' ? '' : ', очно' %></div>
+          </div>
+        <% }) %>
+      </div>
+      <p><a href="<%= base %>/scales">Графики и таблица →</a></p>
+    <% } %>
+  </section>
+
+  <section class="pc-section" aria-labelledby="cur-h">
+    <h2 id="cur-h">Текущие назначения</h2>
+    <% if (current.length === 0) { %>
+      <div class="empty-state"><p class="empty-state__title">Назначений нет</p><p>Необязательно. Если нужно, нажмите «Назначить» выше.</p></div>
+    <% } else { %>
+      <%- include('_assignment_list', { list: current, back: base, showPatient: false }) %>
+    <% } %>
+    <% if (schedules.length) { %>
+      <h3>Повторы по расписанию</h3>
+      <ul>
+        <% schedules.forEach(function(s) { %>
+          <li><%- instrumentTag(s.instrument) %> — каждые <%= s.every_days %> дн., следующее около <%= formatDate(s.next_due_at.slice(0, 10)) %>
+            <form method="POST" action="/schedules/<%= s.id %>/stop" class="inline"><input type="hidden" name="back" value="<%= base %>" /><button type="submit" class="btn-secondary">Отключить</button></form></li>
+        <% }) %>
+      </ul>
+    <% } %>
+  </section>
+
+  <% if (!archived) { %>
+    <form method="POST" action="/patients/<%= patient.id %>/archive" class="inline pc-archive">
+      <input type="hidden" name="back" value="/patients" />
+      <button type="submit" class="btn-secondary">Завершить наблюдение</button>
+      <span class="hint">Пациент уйдёт в архив; открытые эскалации останутся в очереди до подтверждения. Вернуть можно в любой момент.</span>
+    </form>
+  <% } %>
+  <p class="result-disclaimer"><%= disclaimer %></p>
+</div>
+<script src="/clinician_card.js" defer></script>
+<%- include('../_footer') %>

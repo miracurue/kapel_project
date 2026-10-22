@@ -1,0 +1,53 @@
+<%- include('../_header') %>
+<div class="card admin">
+  <h1>Журналы</h1>
+  <p class="hint">Журналы только на чтение: в сервисе нет действий, которые их изменяют или удаляют. Содержимого клинических записей здесь нет.</p>
+  <nav class="tabs" aria-label="Журнал">
+    <% Object.keys(logs).forEach(function(k) { %>
+      <a class="tabs__tab<%= k === log ? ' is-active' : '' %>" href="/admin/audit?log=<%= k %>"<%= k === log ? ' aria-current="page"' : '' %>><%= logs[k].title %></a>
+    <% }) %>
+  </nav>
+  <p class="hint"><%= def.hint %></p>
+
+  <% if (exportStatus) { %>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-card__label">Пациентов с действующим согласием</div><div class="stat-card__value"><%= exportStatus.eligible %></div></div>
+      <div class="stat-card"><div class="stat-card__label">Отозвали согласие</div><div class="stat-card__value"><%= exportStatus.revoked %></div></div>
+      <div class="stat-card"><div class="stat-card__label">Запусков экспорта</div><div class="stat-card__value"><%= exportStatus.runs %></div><div class="stat-card__hint">последний: <%= exportStatus.lastRun ? formatDate(exportStatus.lastRun) : 'ещё не было' %></div></div>
+      <div class="stat-card"><div class="stat-card__label">Активных псевдонимов</div><div class="stat-card__value"><%= exportStatus.pseudonyms %></div></div>
+    </div>
+  <% } %>
+
+  <form method="GET" action="/admin/audit" class="filter-bar">
+    <input type="hidden" name="log" value="<%= log %>" />
+    <% if (def.actorLabel) { %><label for="f-who"><%= def.actorLabel %> (ФИО, e-mail или №) <input type="search" id="f-who" name="who" value="<%= f.who || '' %>" /></label><% } %>
+    <% if (def.subjectLabel) { %><label for="f-subject"><%= def.subjectLabel %> (ФИО, e-mail или №) <input type="search" id="f-subject" name="subject" value="<%= f.subject || '' %>" /></label><% } %>
+    <label for="f-action">Действие <input type="search" id="f-action" name="action" value="<%= f.action || '' %>" /></label>
+    <label for="f-from">С даты <input type="date" id="f-from" name="from" value="<%= f.from || '' %>" /></label>
+    <label for="f-to">По дату <input type="date" id="f-to" name="to" value="<%= f.to || '' %>" /></label>
+    <button type="submit" class="btn-secondary">Применить</button>
+    <% if (Object.keys(query).length > 1) { %><a href="/admin/audit?log=<%= log %>">Сбросить</a><% } %>
+  </form>
+
+  <% if (total === 0) { %>
+    <div class="empty-state"><p class="empty-state__title">Записей нет</p><p>По выбранным условиям в журнале ничего не найдено. Измените фильтры или период.</p></div>
+  <% } else { %>
+    <p class="hint">Найдено записей: <%= total %>.
+      <a href="/admin/audit?<%= new URLSearchParams(Object.assign({}, query, { format: 'csv' })).toString() %>">Скачать CSV</a> (выгрузка тоже попадёт в журнал администраторов)</p>
+    <div class="table-responsive"><table class="stack-mobile">
+      <thead><tr><% def.columns.forEach(function(c) { %><th><%= c[1] %></th><% }) %><% if (log === 'admin') { %><th>Подробности</th><% } %></tr></thead>
+      <tbody>
+      <% pageRows.forEach(function(r) { %>
+        <tr>
+          <% def.columns.forEach(function(c) { var k = c[0]; %>
+            <td data-label="<%= c[1] %>"><%= k === 'created_at' ? formatDate(r.created_at) : (k === 'action' ? r.actionText : (k === 'detail' ? r.detailText : r[k])) %></td>
+          <% }) %>
+          <% if (log === 'admin') { %><td data-label="Подробности"><span class="hint"><%= r.detailText %></span></td><% } %>
+        </tr>
+      <% }) %>
+      </tbody>
+    </table></div>
+    <%- include('_pager', { base: '/admin/audit', params: query, page: page, pages: pages }) %>
+  <% } %>
+</div>
+<%- include('../_footer') %>

@@ -1,0 +1,21 @@
+<%- include('../_header') %>
+<%- include('_back', { backHref: '/dashboard', backLabel: 'На главную' }) %>
+<div class="card concl">
+  <h1>Заключения</h1>
+  <% if (one) { %>
+    <h2><%= one.signed.title || ('Заключение №' + one.id) %></h2>
+    <p class="hint">Версия <%= one.signed.version %>, подписано <%= one.signed.signed_name %>, <%= one.signed.signed_at %> (UTC). <%= signNotice %></p>
+    <% sections.forEach(function(s) { %>
+      <div class="concl-section"><h3><%= s.label %></h3><div class="pc-note__body"><%= one.signed.sections[s.key] || '—' %></div></div>
+    <% }) %>
+    <p class="result-disclaimer">Это документ специалиста, а не автоматический вывод сервиса. Обсудите его с врачом; он не заменяет консультацию.</p>
+    <p><a href="/my-conclusions">← К списку</a></p>
+  <% } else if (rows.length === 0) { %>
+    <div class="empty-state"><p class="empty-state__title">Пока ничего нет</p><p>Здесь появятся заключения, которые ваш психолог решит вам выдать. Это необязательно.</p></div>
+  <% } else { %>
+    <ul class="pc-journal">
+      <% rows.forEach(function(r) { %><li><a href="/my-conclusions/<%= r.id %>"><%= r.signed.title || ('Заключение №' + r.id) %></a> <span class="hint">выдано <%= formatDate(String(r.released_at).slice(0, 10)) %></span></li><% }) %>
+    </ul>
+  <% } %>
+</div>
+<%- include('../_footer') %>

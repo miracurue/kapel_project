@@ -1,0 +1,55 @@
+<%- include('../_header') %>
+<div class="card clinician-card">
+  <% if (mode === 'duplicate') { %>
+    <h1>Уже назначено</h1>
+    <p class="notice-honest" role="alert">Этот тест уже ожидает выполнения<%= items[0] && items[0].duplicate ? ' (назначен ' + formatDate(String(items[0].duplicate.assigned_at).slice(0, 10)) + ')' : '' %>. По умолчанию дубль не создаётся.</p>
+  <% } else { %>
+    <h1>Предпросмотр назначения</h1>
+    <% if (pkg) { %><p>Пакет «<%= pkg.title %>» — состав демонстрационный, review-required.</p><% } %>
+  <% } %>
+
+  <div class="table-responsive"><table class="stack-mobile">
+    <thead><tr><th>Пациент</th><th>Методика</th><th>Что произойдёт</th></tr></thead>
+    <tbody>
+    <% items.forEach(function(i) { %>
+      <tr>
+        <td><%= i.patientName %></td>
+        <td><%- i.code ? instrumentTag(i.code) : '—' %></td>
+        <td>
+          <% if (i.action === 'create') { %><span class="badge badge-ok">будет назначено</span> <%= i.status === 'waiting_entry' ? '— очная методика, будет ждать вашего ввода' : '— пациент увидит и пройдёт сам' %>
+          <% } else if (i.action === 'duplicate') { %><span class="badge badge-warn">уже назначено</span> <%= formatDate(String(i.duplicate.assigned_at).slice(0, 10)) %>
+          <% } else { %><span class="badge badge-muted">не будет назначено</span> <%= i.reason %><% } %>
+        </td>
+      </tr>
+    <% }) %>
+    </tbody>
+  </table></div>
+  <% var creatable = items.filter(function(i) { return i.action === 'create'; }).length; %>
+  <p>Будет создано назначений: <strong><%= creatable %></strong><%= dupCount ? ' (дублей: ' + dupCount + ')' : '' %>.<% if (due) { %> Срок: <%= formatDate(due) %>.<% } %><% if (repeatDays) { %> Повтор: каждые <%= repeatDays %> дн.<% } %></p>
+  <% if (comment) { %><p>Пояснение пациенту: «<%= comment %>»</p><% } %>
+
+  <form method="POST" action="/assignments">
+    <% patientIds.forEach(function(id) { %><input type="hidden" name="patient_id" value="<%= id %>" /><% }) %>
+    <% if (pkg) { %><input type="hidden" name="package" value="<%= pkg.code %>" /><% } else { codes.forEach(function(c) { %><input type="hidden" name="instrument" value="<%= c %>" /><% }) } %>
+    <input type="hidden" name="due_date" value="<%= due %>" />
+    <input type="hidden" name="comment" value="<%= comment %>" />
+    <input type="hidden" name="repeat_every" value="<%= repeat.every %>" />
+    <input type="hidden" name="repeat_unit" value="<%= repeat.unit %>" />
+    <input type="hidden" name="confirm" value="1" />
+    <% if (mode === 'duplicate') { %>
+      <input type="hidden" name="force" value="1" />
+    <% } else if (dupCount) { %>
+      <fieldset><legend>Дубли</legend>
+        <label class="pc-check"><input type="radio" name="dup" value="skip" checked /> Пропустить дубли (по умолчанию)</label>
+        <label class="pc-check"><input type="radio" name="dup" value="force" /> Всё равно назначить</label>
+      </fieldset>
+    <% } %>
+    <p>
+      <% if (mode === 'duplicate') { %><button type="submit">Всё равно назначить</button>
+      <% } else if (creatable || dupCount) { %><button type="submit">Подтвердить</button><% } %>
+      <a href="/assignments">Отмена</a>
+    </p>
+  </form>
+  <p class="result-disclaimer"><%= STUB_DISCLAIMER %></p>
+</div>
+<%- include('../_footer') %>

@@ -1,0 +1,77 @@
+<%- include('_header') %>
+<% var err = function(f) { return errors.filter(function(e) { return e.field === f; }); }; %>
+<div class="card">
+  <h1>Регистрация</h1>
+  <p class="muted">Регистрация для пациентов. Учётные записи врачей создаёт администратор.</p>
+
+  <% if (errors.length) { %>
+    <div class="flash flash-error" role="alert" data-form-error>
+      <p><strong>Нужно поправить:</strong></p>
+      <ul>
+        <% errors.forEach(function(e) { %><li><a href="#<%= e.field %>"><%= e.text %></a></li><% }) %>
+      </ul>
+    </div>
+  <% } %>
+
+  <form method="POST" action="/register" novalidate>
+    <input type="hidden" name="role" value="patient" />
+
+    <label for="full_name">Как к вам обращаться (имя или псевдоним)</label>
+    <input type="text" id="full_name" name="full_name" value="<%= form.full_name || '' %>" required autocomplete="name" />
+
+    <label for="email">Email</label>
+    <input type="email" id="email" name="email" value="<%= form.email || '' %>" required autocomplete="username" />
+
+    <label for="password">Пароль (не короче 8 символов)</label>
+    <input type="password" id="password" name="password" required minlength="8" autocomplete="new-password" />
+
+    <label for="invite_code">Код от врача (необязательно, можно ввести позже)</label>
+    <input type="text" id="invite_code" name="invite_code" value="<%= form.invite_code || '' %>" autocomplete="off" autocapitalize="characters" />
+
+    <p class="result-disclaimer"><%= crisisOnboardingDisclaimer %></p>
+    <p class="muted">Полный текст всех согласий: <a href="/consent">открыть</a> (версия <%= consentVersion %>).</p>
+
+    <div class="consent-block">
+      <h3>1. Обработка персональных данных и данных о здоровье <span class="tag tag-required">обязательно</span></h3>
+      <p><%= consentParts.personalData.short %></p>
+      <details>
+        <summary>Полный текст согласия</summary>
+        <p><%= consentParts.personalData.full %></p>
+      </details>
+      <label class="consent-checkbox" for="consent_given">
+        <input type="checkbox" id="consent_given" name="consent_given" value="1"<%= form.consent_given ? ' checked' : '' %> />
+        <span><%= consentParts.personalData.checkboxLabel %></span>
+      </label>
+    </div>
+
+    <div class="consent-block">
+      <h3>2. Использование результатов врачом/психологом <span class="tag tag-required">обязательно</span></h3>
+      <p><%= consentParts.clinicalUse.short %></p>
+      <details>
+        <summary>Полный текст согласия</summary>
+        <p><%= consentParts.clinicalUse.full %></p>
+      </details>
+      <label class="consent-checkbox" for="clinical_consent_given">
+        <input type="checkbox" id="clinical_consent_given" name="clinical_consent_given" value="1"<%= form.clinical_consent_given ? ' checked' : '' %> />
+        <span><%= consentParts.clinicalUse.checkboxLabel %></span>
+      </label>
+    </div>
+
+    <div class="consent-block">
+      <h3>3. Научное использование обезличенных данных <span class="tag tag-optional">необязательно</span></h3>
+      <p><%= consentParts.researchExport.short %></p>
+      <details>
+        <summary>Полный текст согласия</summary>
+        <p><%= consentParts.researchExport.full %></p>
+      </details>
+      <label class="consent-checkbox" for="anonymized_export_opt_in">
+        <input type="checkbox" id="anonymized_export_opt_in" name="anonymized_export_opt_in" value="1"<%= form.anonymized_export_opt_in ? ' checked' : '' %> />
+        <span><%= consentParts.researchExport.checkboxLabel %></span>
+      </label>
+    </div>
+
+    <p><button type="submit">Зарегистрироваться</button></p>
+  </form>
+  <p>Уже есть аккаунт? <a href="/login">Войти</a></p>
+</div>
+<%- include('_footer') %>

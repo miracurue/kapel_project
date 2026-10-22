@@ -1,0 +1,86 @@
+<%- include('../_header') %>
+<%- include('../patient/_back', { backHref: '/dashboard', backLabel: 'На главную' }) %>
+<%
+  var statusWord = { taken: 'принято', skipped: 'пропущено', later: 'позже' };
+  function logForm(it, s) { return s; }
+%>
+<div class="card care">
+  <h1>Лечение</h1>
+  <p class="notice"><%= cfg.MED_DISCLAIMER %></p>
+  <p class="muted">Напоминания «утро» и «вечер» появляются на главной, когда вы заходите в сервис. Сообщений на телефон или почту сервис не отправляет.</p>
+</div>
+
+<div class="card care">
+  <h2>План от врача</h2>
+  <% if (plan.length === 0) { %>
+    <div class="empty-state"><p class="empty-state__title">Врач пока ничего не показал здесь</p><p>Это нормально. Свой список можно вести ниже.</p></div>
+  <% } else { %>
+    <ul class="plain-list">
+      <% plan.forEach(function(it) { %>
+        <li class="item-card">
+          <h3><%= it.name %></h3>
+          <% if (it.how_text) { %><p><%= it.how_text %></p><% } %>
+          <p class="muted">от <%= it.author %> · <%= it.slot === 'morning' ? 'утром' : it.slot === 'evening' ? 'вечером' : it.slot === 'both' ? 'утром и вечером' : 'без расписания' %></p>
+          <% it.slots.forEach(function(s) { %>
+            <div class="med-slot">
+              <strong><%= cfg.SLOT_LABEL[s.slot] %></strong>
+              <% if (s.status) { %><span class="badge badge-muted"><%= statusWord[s.status] %></span><% } %>
+              <form method="POST" action="/meds/log" class="inline">
+                <input type="hidden" name="item_id" value="<%= it.id %>" /><input type="hidden" name="slot" value="<%= s.slot %>" />
+                <button type="submit" name="status" value="taken">Принял(а)</button>
+                <button type="submit" name="status" value="later" class="btn-secondary">Позже</button>
+                <button type="submit" name="status" value="skipped" class="btn-secondary">Пропустил(а)</button>
+              </form>
+            </div>
+          <% }) %>
+          <% if (!it.ack_at) { %>
+            <form method="POST" action="/meds/<%= it.id %>/ack" class="inline"><button type="submit" class="btn-secondary">Понял(а) этот пункт</button></form>
+          <% } else { %><p class="muted">Вы отметили, что поняли этот пункт.</p><% } %>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+</div>
+
+<div class="card care">
+  <h2>Мой личный список</h2>
+  <p class="muted"><%= sharesOwn ? 'Врач видит этот список: вы разрешили в разделе «Поделиться с врачом».' : 'Врач не видит этот список, пока вы не разрешите в разделе «Поделиться с врачом».' %></p>
+  <% if (own.length === 0) { %>
+    <div class="empty-state"><p class="empty-state__title">Список пуст</p><p>Необязательно. Можно записать то, что вы принимаете, своими словами.</p></div>
+  <% } else { %>
+    <ul class="plain-list">
+      <% own.forEach(function(it) { %>
+        <li class="item-card">
+          <h3><%= it.name %></h3>
+          <% if (it.how_text) { %><p><%= it.how_text %></p><% } %>
+          <% it.slots.forEach(function(s) { %>
+            <div class="med-slot">
+              <strong><%= it.slot === 'none' ? 'Отметка' : cfg.SLOT_LABEL[s.slot] %></strong>
+              <% if (s.status) { %><span class="badge badge-muted"><%= statusWord[s.status] %></span><% } %>
+              <form method="POST" action="/meds/log" class="inline">
+                <input type="hidden" name="item_id" value="<%= it.id %>" /><input type="hidden" name="slot" value="<%= s.slot %>" />
+                <button type="submit" name="status" value="taken">Принял(а)</button>
+                <button type="submit" name="status" value="later" class="btn-secondary">Позже</button>
+                <button type="submit" name="status" value="skipped" class="btn-secondary">Пропустил(а)</button>
+              </form>
+            </div>
+          <% }) %>
+          <form method="POST" action="/meds/<%= it.id %>/end" class="inline"><button type="submit" class="btn-secondary">Убрать из списка</button></form>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+  <h3>Добавить</h3>
+  <form method="POST" action="/meds">
+    <label for="med-name">Название (своими словами)</label>
+    <input type="text" id="med-name" name="name" maxlength="<%= cfg.NAME_MAX %>" />
+    <label for="med-how">Как принимаете (необязательно)</label>
+    <input type="text" id="med-how" name="how_text" maxlength="<%= cfg.HOW_MAX %>" />
+    <label for="med-slot">Когда напоминать</label>
+    <select id="med-slot" name="slot">
+      <option value="none">Без напоминания</option><option value="morning">Утром</option><option value="evening">Вечером</option><option value="both">Утром и вечером</option>
+    </select>
+    <p><button type="submit">Добавить</button></p>
+  </form>
+</div>
+<%- include('../_footer') %>

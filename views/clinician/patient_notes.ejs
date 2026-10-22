@@ -1,0 +1,47 @@
+<%- include('../_header') %>
+<div class="card clinician-card">
+  <%- include('_patient_head') %>
+  <h2>Заметки</h2>
+  <p class="hint">Видны только вам (коллеге по пациенту не показываются). Всё необязательно: можно сохранить только текст.</p>
+
+  <form method="POST" action="<%= editing ? base + '/notes/' + editing.id : base + '/notes' %>" class="pc-note-new">
+    <label><%= editing ? 'Правка заметки' : 'Новая заметка' %> <textarea name="body" rows="4" maxlength="5000"><%= editing ? (editing.body || '') : '' %></textarea></label>
+    <div class="filter-bar">
+      <label>Теги через запятую <input type="text" name="tags" maxlength="120" value="<%= editing ? (editing.tags || '') : '' %>" /></label>
+      <label>Дата <input type="date" name="note_date" value="<%= editing ? (editing.note_date || '') : '' %>" /></label>
+    </div>
+    <p><button type="submit"><%= editing ? 'Сохранить правку' : 'Сохранить заметку' %></button>
+      <% if (editing) { %><a href="<%= base %>/notes">Отмена</a><% } %></p>
+  </form>
+
+  <% if (total > 0) { %>
+    <form method="GET" action="<%= base %>/notes" class="filter-bar" role="search">
+      <label>Поиск по заметкам <input type="search" name="q" value="<%= q %>" /></label>
+      <% if (allTags.length) { %><label>Тег <select name="tag"><option value="">Все</option><% allTags.forEach(function(t) { %><option value="<%= t %>"<%= tag === t ? ' selected' : '' %>><%= t %></option><% }) %></select></label><% } %>
+      <button type="submit" class="btn-secondary">Найти</button>
+      <% if (q || tag) { %><a href="<%= base %>/notes">Сбросить</a><% } %>
+    </form>
+  <% } %>
+
+  <% if (notes.length === 0) { %>
+    <div class="empty-state">
+      <% if (total > 0) { %><p class="empty-state__title">Ничего не найдено</p><p>Измените запрос или сбросьте фильтр.</p>
+      <% } else { %><p class="empty-state__title">Заметок пока нет</p><p>Необязательно. Заполнять не нужно.</p><% } %>
+    </div>
+  <% } else { %>
+    <ul class="pc-notes">
+      <% notes.forEach(function(n) { %>
+        <li class="pc-note">
+          <div class="hint"><%= formatDate(n.note_date || String(n.created_at).slice(0, 10)) %><% n.tagList.forEach(function(t) { %> <span class="tag tag-optional"><%= t %></span><% }) %><%= n.updated_at ? ' · изменена' : '' %></div>
+          <div class="pc-note__body"><%= n.body || '(без текста)' %></div>
+          <a href="<%= base %>/notes?edit=<%= n.id %>">Править</a>
+          <form method="POST" action="<%= base %>/notes/<%= n.id %>/delete" class="inline">
+            <details class="inline-details"><summary>Удалить</summary><button type="submit" class="btn-danger">Подтвердить удаление</button></details>
+          </form>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+  <p class="result-disclaimer">Заметки — личные рабочие записи врача; не заключение и не диагноз.</p>
+</div>
+<%- include('../_footer') %>

@@ -1,0 +1,11 @@
+<%- include('../../_header') %>
+<div class="card ai-confirm">
+  <h1>Удалить материал?</h1>
+  <p><strong>Материал <%= m.seq %>: <%= m.name %></strong></p>
+  <p>Файл и извлечённый текст будут стёрты без возможности восстановления. Ответы ИИ, уже полученные в диалоге, останутся.</p>
+  <form method="POST" action="<%= base %>/materials/<%= m.id %>/delete" class="ai-confirm__actions">
+    <button type="submit" class="btn-danger">Да, удалить материал</button>
+    <a class="ai-link" href="<%= base %>/t/<%= m.thread_id %>">Отмена</a>
+  </form>
+</div>
+<%- include('../../_footer') %>

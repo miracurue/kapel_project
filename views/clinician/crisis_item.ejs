@@ -1,0 +1,37 @@
+<%- include('../_header') %>
+<div class="card crisis-queue">
+  <p><a href="/crisis">← К кризисной очереди</a></p>
+  <h1><%= item.kind === 'appeal' ? 'Обращение пациента' : 'Эскалация: ' + labels.tierLabel(item.tier) %></h1>
+  <dl class="kv">
+    <dt>Пациент</dt><dd><a href="/patients/<%= item.patient_id %>"><%= item.patient_name %></a></dd>
+    <dt>Создано</dt><dd><%= formatDate(item.created_at) %></dd>
+    <dt>Статус</dt><dd><%= item.status === 'open' ? 'ждёт подтверждения' : 'подтверждено ' + formatDate(item.acknowledged_at) %></dd>
+    <% if (item.status === 'open') { %><dt>SLA</dt><dd><%- include('_sla', { c: item }) %></dd><% } %>
+    <% if (item.kind !== 'appeal') { %>
+      <dt>Источник</dt><dd><%- instrumentTag(item.instrument) %></dd>
+      <dt>Триггеры</dt><dd><%= item.triggers.length ? item.triggers.map(triggerLabel).join(', ') : '—' %></dd>
+    <% } %>
+    <dt>Что сработало</dt><dd><% item.reasons.forEach(function(r) { %><div><%= labels.cleanReason(String(r).slice(0, 200)) %></div><% }) %></dd>
+    <dt>Телефон для срочной связи</dt><dd><%= item.contact_phone ? item.contact_phone : 'пациент не указал (поле необязательное)' %></dd>
+    <% if (item.escalated_to_backup_at) { %><dt>Передача</dt><dd>передано: <%= item.backup_name || 'резерву' %> в <%= formatDate(item.escalated_to_backup_at) %></dd><% } %>
+    <% if (item.unresolved) { %><dt>Резерв</dt><dd><strong>Нет резерва — разбор вручную</strong></dd><% } %>
+    <% if (item.ack_outcome && outcomes[item.ack_outcome]) { %><dt>Исход</dt><dd><%= outcomes[item.ack_outcome] %></dd><% } %>
+  </dl>
+  <% if (item.status === 'open') { %><%- include('_ack_form', { c: item, outcomes: outcomes }) %><% } %>
+
+  <h2>История событий</h2>
+  <% if (item.kind === 'appeal') { %>
+    <p class="hint">Для обращения пациента отдельного журнала событий нет: показаны время создания и подтверждения.</p>
+  <% } else if (events.length === 0) { %>
+    <p class="hint">Событий нет.</p>
+  <% } else { %>
+    <ul class="timeline">
+      <% events.forEach(function(e) { %>
+        <li><%= formatDate(e.created_at) %> — <%= labels.incidentEventLabel(e.event_type) %><% if (e.actor_name) { %> (<%= e.actor_name %>)<% } %>
+          <% if (e.detail && e.detail.outcome) { %> · исход: <%= outcomes[e.detail.outcome] || e.detail.outcome %><% } %></li>
+      <% }) %>
+    </ul>
+  <% } %>
+  <p class="result-disclaimer"><%= TRIAGE_DISCLAIMER %></p>
+</div>
+<%- include('../_footer') %>

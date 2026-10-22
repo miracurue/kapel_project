@@ -1,0 +1,33 @@
+<%- include('../_header') %>
+<%- include('_back', { backHref: '/tests', backLabel: 'К списку тестов (ответы сохранены)' }) %>
+
+<div class="card">
+  <h1>Проверьте ответы</h1>
+  <p class="muted"><%= instrument.code === 'cssrs' ? instrumentLabel('cssrs') : instrument.title %></p>
+  <% if (showSupportInline) { %><%- include('_support') %><% } %>
+
+  <ol class="review-list">
+    <% rows.forEach(function(r) { %>
+      <li>
+        <span><%= r.text %></span><br />
+        <% if (r.answer !== null) { %>
+          <strong><%= r.answer %></strong> · <a href="/assignments/<%= assignment.id %>/take?i=<%= r.idx %>">изменить</a>
+        <% } else { %>
+          <em>нет ответа</em> · <a href="/assignments/<%= assignment.id %>/take?i=<%= r.idx %>">ответить</a>
+        <% } %>
+      </li>
+    <% }) %>
+  </ol>
+
+  <% if (missing.length) { %>
+    <p class="notice">Остались пункты без ответа (<%= missing.length %>). Вернитесь к ним, чтобы отправить результат врачу.</p>
+    <p><a class="btn-link btn-link--primary" href="/assignments/<%= assignment.id %>/take?i=<%= missing[0].idx %>">Вернуться к первому пропущенному</a></p>
+  <% } else { %>
+    <p>После отправки врач сможет увидеть результат. Ответы нельзя будет изменить.</p>
+    <form method="POST" action="/assignments/<%= assignment.id %>/submit" data-once>
+      <button type="submit">Отправить врачу</button>
+      <a class="btn-link" href="/tests">Продолжить позже</a>
+    </form>
+  <% } %>
+</div>
+<%- include('../_footer') %>

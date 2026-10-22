@@ -1,0 +1,59 @@
+<%- include('../_header') %>
+<%- include('_back', { backHref: '/dashboard', backLabel: 'На главную' }) %>
+
+<div class="card">
+  <h1>Напоминания</h1>
+  <p class="muted">Напоминания видны здесь и на главной, когда вы заходите в сервис. Сообщений на телефон или почту сервис не отправляет.</p>
+
+  <% if (missedCount > 0) { %>
+    <details class="quiet">
+      <summary>Пропущено ранее: <%= missedCount %></summary>
+      <form method="POST" action="/reminders/clear-missed"><button type="submit" class="btn-secondary">Очистить</button></form>
+    </details>
+  <% } %>
+
+  <% if (reminders.length === 0) { %>
+    <div class="empty-state">
+      <p class="empty-state__title">Напоминаний пока нет</p>
+      <p>Добавьте первое ниже, например «Принять лекарство» или «Заполнить дневник». Это необязательно.</p>
+    </div>
+  <% } else { %>
+    <p class="muted">Сортировка:
+      <a href="/reminders?sort=time"<%- sort === 'time' ? ' aria-current="true"' : '' %>>по времени</a> ·
+      <a href="/reminders?sort=text"<%- sort === 'text' ? ' aria-current="true"' : '' %>>по названию</a></p>
+    <ul class="plain-list">
+      <% reminders.forEach(function(r) { %>
+        <li class="item-card">
+          <p><strong><%= r.message %></strong>
+            <% if (r.due) { %><span class="badge badge-info">пора</span><% } %></p>
+          <p class="muted"><%= formatDate(r.remind_at) %> · <%= {none: 'один раз', daily: 'каждый день', weekly: 'каждую неделю'}[r.recurrence] %><%= r.mine ? '' : ' · от врача' %></p>
+          <div class="actions">
+            <form method="POST" action="/reminders/<%= r.id %>/done" class="inline"><button type="submit">Готово</button></form>
+            <% if (r.mine) { %>
+              <a class="btn-link" href="/reminders/<%= r.id %>/edit">Изменить</a>
+              <a class="btn-link" href="/reminders/<%= r.id %>/delete">Удалить</a>
+            <% } %>
+          </div>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+</div>
+
+<div class="card">
+  <h2>Новое напоминание</h2>
+  <form method="POST" action="/reminders">
+    <label for="message">Что напомнить</label>
+    <input type="text" id="message" name="message" maxlength="300" required />
+    <label for="remind_at">Когда</label>
+    <input type="datetime-local" id="remind_at" name="remind_at" required />
+    <label for="recurrence">Повтор</label>
+    <select id="recurrence" name="recurrence">
+      <option value="none">Один раз</option>
+      <option value="daily">Каждый день</option>
+      <option value="weekly">Каждую неделю</option>
+    </select>
+    <p><button type="submit">Добавить напоминание</button></p>
+  </form>
+</div>
+<%- include('../_footer') %>

@@ -1,0 +1,9 @@
+<%# Блок поддержки (REQ-PAT-009/010/016). Спокойные цвета, без красного. Текст — REVIEW-REQUIRED (patient_text.js). %>
+<section class="support-block" id="support-block" aria-label="Поддержка">
+  <h2 class="support-block__title">Вы не одни</h2>
+  <p><%= patientText.handoff(typeof hasClinician === 'undefined' ? true : hasClinician) %></p>
+  <p class="support-block__actions">
+    <a class="btn-link btn-link--primary" href="tel:112">Позвонить 112</a>
+    <a class="btn-link" href="/help">Открыть экран помощи</a>
+  </p>
+</section>

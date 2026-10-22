@@ -1,0 +1,192 @@
+/* Кабинет пациента: Дневник (общая раскладка Р2), Тесты, Лекарства, Визиты, Врач, Аудио и видео.
+   Только значения из tokens.css. Дневник — public/diary.css, чат и цветок — app.css, flower.css. */
+
+/* ===== Раскладка Р2 (Дневник и страницы с прокруткой) ===== */
+main.page-wrap[data-page="P-29"] { max-width: none; padding: 0; }
+.pwork { container-type: inline-size; width: 100%; max-width: var(--w-work); margin: 0 auto; padding: var(--page-top) var(--gutter) var(--s-7); }
+.p-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--s-4); flex-wrap: wrap; }
+.p-head h1 { margin: 0; }
+.p-sub { margin: 4px 0 0; color: var(--ink-2); font-size: var(--fs-16); }
+.p-head-act { display: flex; align-items: center; gap: var(--s-3); flex-wrap: wrap; }
+.p-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--gap-block); align-items: start; }
+.p-stack { display: flex; flex-direction: column; gap: var(--gap-block); min-width: 0; }
+.p-card { background: var(--white); border-radius: var(--r-big); box-shadow: var(--lift); padding: var(--s-5); display: flex; flex-direction: column; gap: var(--s-3); min-width: 0; position: relative; }
+.p-card h2, .p-card h3 { margin: 0; }
+.btn-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3); }
+@container (max-width: 800px) { .p-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 960px) { .p-head { flex-direction: column; } }
+
+/* ===== Раскладка Р3 (Тесты, Лекарства, Визиты): список слева, карточка-«камень» справа ===== */
+.tests-tab .col, .meds-tab .col, .visits-tab .col { width: min(var(--w-read), 100% - 2 * var(--s-6)); margin: 0 auto; padding: var(--s-6) 0; display: flex; flex-direction: column; gap: var(--s-3); }
+.tests-tab .col > h1, .meds-tab .col > h1, .visits-tab .col > h1 { margin: 0 0 var(--s-2); }
+.tests-tab .side, .meds-tab .side, .visits-tab .side { padding-top: var(--s-1); }
+.tests-tab .side a.th, .meds-tab .side a.th, .visits-tab .side a.th { white-space: normal; }
+.tests-tab .side a.th br, .meds-tab .side a.th br, .visits-tab .side a.th br { display: none; }
+.tests-tab .side .lib-row-sub, .meds-tab .side .lib-row-sub, .visits-tab .side .lib-row-sub { white-space: normal; }
+/* вложенное в «камень» — плашка на фоне камня, без второй тени */
+.pane .card, .pane .vcard { background: var(--ground); box-shadow: none; border-radius: var(--r-card); }
+.pane .card.soft { background: var(--ground); }
+.pane .card .acts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); margin-top: var(--s-2); }
+.pane .card .sub, .pane .sub { color: var(--ink-2); font-size: var(--fs-14); line-height: var(--lh-14); margin: 0; }
+.pane .card h3 { font-size: var(--fs-18); line-height: var(--lh-18); }
+.pane .card p { margin: 0; }
+.pane p[data-standin], main.page-wrap > p[data-standin] { margin: 0; color: var(--ink-2); font-size: var(--fs-13); }
+.card.row2 { display: flex; flex-direction: row; align-items: center; gap: var(--s-3); }
+.card.row2 .grow { flex: 1; min-width: 0; }
+.spark-sm { color: var(--jade); flex: none; }
+.test-running #tests-history { display: none; }
+.test-running .tests-tab > .side { display: none; }
+.footnote { font-size: var(--fs-13); color: var(--ink-2); text-align: center; padding: var(--s-3) 0 0; margin: 0; }
+.med-flow:empty, #med-add-flow:empty { display: none; }
+.med-flow, #med-add-flow, #med-flow { margin-top: var(--s-3); display: flex; flex-direction: column; gap: var(--s-2); align-items: flex-start; }
+
+/* кнопки без класса внутри потоков лекарств, визитов и формы — вторая кнопка (разметка собирается скриптом) */
+.meds-tab .acts button, .visits-tab .acts button, .meds-tab .med-flow button, .meds-tab #med-add-flow button, .visits-tab [data-form] button, .pt-form .ae-draft-controls button, .pt-form .attach-box button:not(.round) {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2); min-height: var(--h-btn-sm); padding: 0 16px; border: 0; border-radius: var(--r-pill); background: var(--sunk); color: var(--ink); font-weight: 700; font-size: var(--fs-14); line-height: 1.2; cursor: pointer; transition: background-color var(--t-hover);
+}
+.meds-tab .acts button:hover, .visits-tab .acts button:hover, .meds-tab .med-flow button:hover, .meds-tab #med-add-flow button:hover, .visits-tab [data-form] button:hover, .pt-form .ae-draft-controls button:hover, .pt-form .attach-box button:hover { background: var(--sunk-2); }
+.meds-tab .acts button.primary, .meds-tab .acts button[data-testid="msg.meds.taken"], .meds-tab .med-flow button[data-testid="msg.meds.taken"], .visits-tab [data-form] button[data-testid="msg.previsit.send"] { background: var(--jade); color: var(--white); box-shadow: var(--press); }
+.meds-tab .acts button.primary:hover, .meds-tab .acts button[data-testid="msg.meds.taken"]:hover, .meds-tab .med-flow button[data-testid="msg.meds.taken"]:hover, .visits-tab [data-form] button[data-testid="msg.previsit.send"]:hover { background: var(--jade-d); }
+.meds-tab button[hidden] { display: none; }
+
+/* ===== Тесты: опросник — крупные строки-выборы, полоса шагов 8 ===== */
+.test-card { gap: var(--s-4); }
+.test-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); }
+#v2-tests .card h3.q { font-size: var(--fs-24); line-height: var(--lh-24); margin: var(--s-2) 0; }
+.test-card .choices { flex-direction: column; flex-wrap: nowrap; gap: var(--s-2); }
+.test-card .choice { background: var(--white); }
+.test-card .choice[aria-pressed="true"] { background: var(--jade-t); }
+.choice--lg { width: 100%; min-height: var(--h-choice-lg); justify-content: flex-start; font-size: var(--fs-16); text-align: left; }
+.test-card .acts { justify-content: space-between; }
+.test-card .acts [data-testid="msg.tests.run.next"] { margin-left: auto; min-height: var(--h-btn); }
+.test-card [data-testid="msg.tests.run.none"] { align-self: flex-start; }
+.test-card .progress { margin: 0; }
+
+/* ===== Лекарства ===== */
+.meds-tab .side .th small.lib-row-sub { color: var(--ink-2); font-size: var(--fs-13); }
+.meds-tab .med-know { margin-top: var(--s-4); }
+.meds-tab .med-know h5 { font-size: var(--fs-15); margin: var(--s-4) 0 var(--s-2); }
+.meds-tab .med-articles { display: grid; gap: var(--s-2); }
+.meds-tab .med-article { display: flex; flex-direction: column; gap: 2px; border-radius: var(--r-card); padding: var(--s-3) var(--s-4); background: var(--ground); color: var(--ink); text-decoration: none; transition: background-color var(--t-hover); }
+.meds-tab .med-article:hover { background: var(--sunk); }
+.meds-tab .med-article b { font-size: var(--fs-16); }
+.meds-tab .med-article span { color: var(--ink-2); font-size: var(--fs-14); }
+.meds-tab .med-article small { color: var(--honey-d); font-size: var(--fs-13); font-weight: 700; }
+.meds-tab .acts { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; margin: var(--s-2) 0; }
+/* принятие назначения: поле с подсказками, дозировка, одна кнопка */
+.meds-tab .med-accept { margin: var(--s-3) 0 var(--s-1); display: grid; gap: var(--s-3); }
+.meds-tab .med-field { display: grid; gap: var(--s-1); font-size: var(--fs-14); font-weight: 700; color: var(--ink); }
+.meds-tab .med-combo { position: relative; display: block; }
+.meds-tab .med-combo input { margin: 0; }
+.meds-tab .med-suggest { position: absolute; left: 0; right: 0; top: calc(100% + var(--s-1)); z-index: 20; background: var(--white); border-radius: var(--r-card); box-shadow: var(--float); max-height: 280px; overflow: auto; padding: var(--s-2); display: block; }
+.meds-tab .med-suggest[hidden] { display: none !important; }
+.meds-tab .med-suggest-h { margin: var(--s-1) var(--s-3) var(--s-1); font-size: var(--fs-13); color: var(--ink-2); }
+.meds-tab .med-suggest button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: var(--s-3); border-radius: var(--r-xs); font: inherit; color: var(--ink); cursor: pointer; min-height: var(--h-btn); }
+.meds-tab .med-suggest button:hover, .meds-tab .med-suggest button:focus { background: var(--sunk); outline: 0; }
+.meds-tab .med-dose-row { display: flex; gap: var(--s-2); align-items: center; color: var(--ink); font-weight: 400; }
+.meds-tab .med-dose-row input { width: 120px; margin: 0; }
+.meds-tab [data-other][hidden] { display: none; }
+
+/* ===== Визиты ===== */
+#v3-visits .card { margin: 0 0 var(--s-3); }
+#v3-visits [data-form] fieldset { border: 0; padding: 0; margin: var(--s-3) 0 0; display: flex; flex-direction: column; gap: var(--s-2); }
+#v3-visits [data-form] legend { font-weight: 700; padding: 0; margin-bottom: var(--s-2); }
+#v3-visits [data-form] label { display: flex; align-items: center; gap: var(--s-3); min-height: var(--h-choice); padding: 0 var(--s-4); border-radius: var(--r-card); background: var(--white); color: var(--ink); font-size: var(--fs-15); font-weight: 400; cursor: pointer; }
+#v3-visits [data-form] textarea { min-height: 96px; }
+#v3-visits .list { margin-top: var(--s-1); }
+
+/* ===== «Плохо переношу»: форма на странице, подпись над полем, крупные строки-выборы ===== */
+.pt-form { width: 100%; max-width: var(--w-read); margin: 0 auto; }
+.pt-form h1 { margin: var(--s-3) 0 var(--s-4); }
+.pt-back { margin: 0; }
+.pt-form #v3-ae > section { display: flex; flex-direction: column; gap: var(--s-4); }
+.pt-form #v3-ae .chip { align-self: flex-start; min-height: var(--h-chip); }
+.pt-form #v3-ae .chip[aria-pressed="true"] { background: var(--jade-t); color: var(--jade); box-shadow: inset 0 0 0 2px var(--jade); }
+.pt-form fieldset.choices { flex-direction: column; flex-wrap: nowrap; gap: var(--s-2); }
+.pt-form legend { padding: 0; margin-bottom: var(--s-2); font-weight: 700; font-size: var(--fs-14); }
+.pt-form .choice { min-height: var(--h-choice); width: 100%; background: var(--ground); }
+.pt-form .choice:has(input:checked) { background: var(--jade-t); }
+.pt-form article[data-testid="msg.ae.card.title"] { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-2); padding-top: var(--s-3); border-top: 1px solid var(--hair); }
+.pt-form article p { margin: 0; color: var(--ink-2); font-size: var(--fs-14); }
+.pt-form .ae-draft-controls { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-3); }
+.pt-form [data-testid="msg.ae.card.prefilled"], .pt-form [data-testid="msg.ae.card.draft_restored"] { margin: 0; padding: var(--s-3) var(--s-4); border-radius: var(--r-card); background: var(--jade-t); font-size: var(--fs-14); }
+.pt-form .attach-box { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-2); margin-top: var(--s-3); }
+.pt-form .attach-box p { margin: 0; color: var(--ink-2); font-size: var(--fs-13); }
+.pt-form .attach-box [data-upload-list] p { display: flex; align-items: center; gap: var(--s-2); color: var(--ink); font-size: var(--fs-14); }
+main.page-wrap textarea[data-notice-field], textarea[data-notice-field] { min-height: 0; resize: vertical; }
+
+/* ===== Врач: переписка ===== */
+.doctor-tab { flex-direction: column; }
+.doctor-tab .pane { flex: 1; }
+.dhead { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-5); border-bottom: 1px solid var(--hair); flex: none; }
+.dhead .who { flex: 1; min-width: 0; }
+.dhead h1 { font-size: var(--fs-18); line-height: var(--lh-18); margin: 0; }
+.dhead small { color: var(--ink-2); font-size: var(--fs-13); }
+.dhead select { width: auto; max-width: 260px; height: var(--h-btn-sm); font-size: var(--fs-14); }
+.doctor-tab > .pane > p { margin: 0; padding: var(--s-2) var(--s-5); background: var(--ground); font-size: var(--fs-13); }
+.thread { display: flex; flex-direction: column; gap: var(--s-3); }
+.thread .msg .meta { gap: var(--s-2); }
+.chat-tab .dock .footnote { order: 9; }
+.doctor-tab #v3-doctor article.msg { border: 0; background: none; padding: 0; margin: 0; max-width: none; }
+
+/* ===== Аудио и видео ===== */
+main.page-wrap[data-page="P-15"] { max-width: calc(var(--w-work) + 2 * var(--gutter)); }
+.pt-lib h1 { margin: 0 0 var(--s-2); }
+.pt-lib > p.sub { margin: 0 0 var(--s-4); }
+.lib-search { margin: 0 0 var(--s-3); max-width: var(--w-read); }
+.lib-filters { display: flex; gap: var(--s-1); flex-wrap: wrap; margin: 0 0 var(--s-3); }
+.lib-filters .pill { text-decoration: none; }
+.lib-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: var(--gap-block); align-items: start; }
+.lib-card { margin: 0 0 var(--gap-block); }
+.lib-list .lib-card { margin: 0; }
+.lib-card h3 { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s-1) var(--s-2); font-size: var(--fs-18); line-height: var(--lh-18); }
+.lib-card .sub { color: var(--ink-2); }
+.lib-card .soon { white-space: normal; max-width: 100%; }
+main.page-wrap[data-page="P-15"] .ask-line { max-width: var(--w-read); }
+main.page-wrap[data-page="P-15"] > p.sub { margin: 0 0 var(--s-2); }
+.lib-meta { margin: var(--s-1) 0 0; font-size: var(--fs-13); color: var(--ink-2); }
+.media { display: flex; gap: var(--s-4); align-items: flex-start; }
+.media .grow { flex: 1; min-width: 0; padding-right: var(--s-6); display: flex; flex-direction: column; gap: var(--s-1); }
+.media .thumb { width: 52px; height: 52px; border-radius: var(--r-card); background: var(--ground); display: flex; align-items: center; justify-content: center; flex: none; }
+.thumb svg { width: 24px; height: 24px; color: var(--ink-2); }
+.player { display: flex; align-items: center; gap: var(--s-3); margin-top: var(--s-2); }
+.player .pp { padding: 0; width: var(--h-btn-sm); height: var(--h-btn-sm); border: 0; border-radius: 50%; background: var(--jade); color: var(--white); display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.player .pp:hover { background: var(--jade-d); }
+.player .pp svg { width: 16px; height: 16px; }
+.player .bar { flex: 1; height: var(--s-2); background: var(--sunk); border-radius: var(--r-pill); position: relative; cursor: pointer; }
+.player .bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--jade); border-radius: var(--r-pill); }
+.player .bar:focus-visible { outline: none; box-shadow: var(--ring); }
+.player time { font-size: var(--fs-13); color: var(--ink-2); min-width: 78px; text-align: right; }
+.lib-body { white-space: pre-line; }
+.article-text { margin-top: var(--s-3); color: var(--ink); }
+.card.playing .media { flex-direction: column; align-items: stretch; }
+button.sr { position: absolute !important; }
+
+/* ===== ≤ 1200: список уже ===== */
+@media (max-width: 1200px) {
+  .tests-tab > .side, .meds-tab > .side, .visits-tab > .side { width: var(--w-list-md); }
+}
+/* ===== ≤ 960: список — полоса сверху, карточка на всю ширину ===== */
+@media (max-width: 960px) {
+  .tests-tab, .meds-tab, .visits-tab { flex-direction: column; overflow: auto; }
+  .tests-tab > .side, .meds-tab > .side, .visits-tab > .side { display: flex; flex-direction: row; align-items: center; width: auto; gap: var(--s-2); padding: var(--s-1) var(--s-1) var(--s-2); overflow-x: auto; overflow-y: hidden; flex: none; scrollbar-width: none; }
+  .test-running .tests-tab > .side { display: none; }
+  .side [data-meds-now], .side [data-meds-past], .side [data-tests-side], .side [data-visits-side] { display: contents; }
+  .tests-tab .side h4, .meds-tab .side h4, .visits-tab .side h4, .tests-tab .side a.th small, .meds-tab .side a.th small, .visits-tab .side a.th small { display: none; }
+  .tests-tab .side a.th, .meds-tab .side a.th, .visits-tab .side a.th { flex: none; width: auto; min-height: var(--h-btn); display: inline-flex; align-items: center; white-space: nowrap; background: var(--ground); }
+  .tests-tab .side a.th.on, .meds-tab .side a.th.on, .visits-tab .side a.th.on { background: var(--white); }
+  .meds-tab .side-head { flex: none; margin: 0; }
+  .meds-tab .side-head .new { width: auto; }
+  .tests-tab .pane, .meds-tab .pane, .visits-tab .pane { flex: none; overflow: visible; }
+  .tests-tab .pane > .scroll, .meds-tab .pane > .scroll, .visits-tab .pane > .scroll { overflow: visible; }
+  .tests-tab .col, .meds-tab .col, .visits-tab .col { width: calc(100% - 2 * var(--s-4)); padding: var(--s-4) 0; }
+  .lib-list { grid-template-columns: minmax(0, 1fr); }
+  .media .grow { padding-right: 0; }
+}
+/* Имя и выбор специалиста сохраняют собственные строки на телефоне. */
+@media (max-width: 960px) {
+ .dhead { flex-wrap: wrap; padding: var(--s-3) var(--s-4); }
+ .dhead .who { flex-basis: calc(100% - var(--s-8)); }
+ .dhead [data-doctor-pick] { flex: 1 0 100%; }
+ .dhead select { width: 100%; max-width: 100%; }
+}

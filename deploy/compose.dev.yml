@@ -1,0 +1,49 @@
+services:
+  app:
+    build: ..
+    restart: unless-stopped
+    mem_limit: 768m
+    env_file: ../.env
+    environment:
+      HOST: 0.0.0.0
+      DB_PATH: /app/data/tdr.sqlite3
+      DATA_DIR: /app/data
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      ML_WORKER_URL: http://ml-worker:8000
+      NODE_EXTRA_CA_CERTS: /app/certs/russian_trusted_root_ca.pem
+    ports: ["3000:3000"]
+    volumes: ["cc_data:/app/data", "./certs:/app/certs:ro"]
+    depends_on:
+      mailpit: { condition: service_started }
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    networks: [default, internal]
+  mailpit:
+    image: axllent/mailpit:v1.27.9
+    restart: unless-stopped
+    mem_limit: 256m
+    ports: ["8025:8025"]
+    security_opt: ["no-new-privileges:true"]
+  ml-worker:
+    build: ../ml-worker
+    restart: unless-stopped
+    mem_limit: 3g
+    profiles: ["ml"]
+    environment:
+      ML_WORKER_TOKEN: ${ML_WORKER_TOKEN}
+    volumes:
+      - ../ml-worker/models:/models:ro
+    expose: ["8000"]
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    networks: [internal]
+networks:
+  internal:
+    internal: true
+volumes:
+  cc_data:

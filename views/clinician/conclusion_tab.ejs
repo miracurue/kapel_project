@@ -1,0 +1,62 @@
+<%- include('../_header') %>
+<div class="card clinician-card concl">
+  <%- include('_patient_head') %>
+  <h2>Заключения и протоколы обследования</h2>
+  <p class="notice-honest" role="note"><%= signNotice %> Шаблон разделов — заглушка (review-required). Пациенту заключение не показывается автоматически.</p>
+
+  <section class="pc-section" aria-labelledby="c-h">
+    <h3 id="c-h">Заключения</h3>
+    <% if (rows.length === 0) { %>
+      <div class="empty-state"><p class="empty-state__title">Заключений пока нет</p><p>Необязательно. Черновик можно создать в любой момент и сохранять с пустыми разделами.</p></div>
+    <% } else { %>
+      <ul class="pc-journal">
+        <% rows.forEach(function(r) { %>
+          <li>
+            <a href="/conclusions/<%= r.id %>"><%= r.latest.title || ('Заключение №' + r.id) %></a>
+            <% if (r.state === 'signed') { %><span class="badge badge-ok"><span aria-hidden="true">✔</span> подписано</span>
+            <% } else if (r.state === 'revision') { %><span class="badge badge-warn">правка (черновик)</span>
+            <% } else { %><span class="badge badge-warn"><span aria-hidden="true">✎</span> черновик</span><% } %>
+            <span class="hint">версия <%= r.latest.version %> · <%= r.author_name %></span>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+    <% if (canWrite) { %>
+      <form method="POST" action="<%= base %>/conclusions" class="filter-bar">
+        <label>Название (необязательно) <input type="text" name="title" maxlength="200" /></label>
+        <button type="submit">Создать черновик заключения</button>
+      </form>
+      <p class="hint">В черновик подставятся внесённые протоколы (<%= protocols.length %>). Текст можно полностью править.</p>
+    <% } %>
+  </section>
+
+  <% if (canWrite || sessions.length) { %>
+  <section class="pc-section" aria-labelledby="s-h">
+    <h3 id="s-h">Обследование по сеансам</h3>
+    <p class="hint">Протоколы патопсихологических и проективных методик можно вносить частями и в несколько сеансов. Ничего не обязательно.</p>
+    <% if (sessions.length === 0) { %>
+      <div class="empty-state"><p class="empty-state__title">Сеансов обследования пока нет</p><p>Необязательно. Создайте сеанс, чтобы вносить протоколы по ходу работы.</p></div>
+    <% } else { %>
+      <ul class="pc-journal">
+        <% sessions.forEach(function(s) { %>
+          <li><time><%= formatDate(s.session_date) %></time> <a href="<%= base %>/exam/<%= s.id %>"><%= s.title || ('Сеанс №' + s.id) %></a>
+            <span class="badge badge-info">внесено <%= s.progress.entered %> из <%= s.progress.total %></span></li>
+        <% }) %>
+      </ul>
+    <% } %>
+    <form method="POST" action="<%= base %>/exam" class="filter-bar">
+      <label>Дата сеанса <input type="date" name="session_date" value="<%= today || '' %>" /></label>
+      <label>Название (необязательно) <input type="text" name="title" maxlength="120" /></label>
+      <button type="submit" class="btn-secondary">Новый сеанс обследования</button>
+    </form>
+  </section>
+  <% } %>
+
+  <section class="pc-section" aria-labelledby="p-h">
+    <h3 id="p-h">Внесённые протоколы и очные результаты</h3>
+    <% if (protocols.length === 0) { %><p class="hint">Пока нет. Необязательно.</p>
+    <% } else { %><ul class="pc-journal"><% protocols.forEach(function(p) { %><li><time><%= formatDate(p.date) %></time> <%= p.title %><%= p.kind === 'offline' ? ' (очно, бланк)' : (p.status === 'draft' ? ' — черновик' : '') %></li><% }) %></ul><% } %>
+  </section>
+  <p class="result-disclaimer"><%= disclaimer %></p>
+</div>
+<%- include('../_footer') %>

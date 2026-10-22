@@ -1,0 +1,24 @@
+<%- include('../_header') %>
+<div class="card clinician-card">
+  <%- include('_patient_head') %>
+  <h2>Дневник</h2>
+  <% if (!consentOk) { %>
+    <div class="empty-state"><p class="empty-state__title">Дневник не передаётся врачу</p><p>Нет действующего клинического согласия пациента.</p></div>
+  <% } else if (rows.length === 0 && !share.scores) { %>
+    <div class="empty-state"><p class="empty-state__title">Пациент не делится оценками дневника</p></div>
+  <% } else if (rows.length === 0) { %>
+    <div class="empty-state"><p class="empty-state__title">Записей пока нет</p><p>Пациент ведёт дневник по желанию. Необязательно, заполнять ничего не нужно.</p></div>
+  <% } else { var showNotes = share.notes || rows.some(function(r) { return r.note || r.notes_hidden; }); %>
+    <p>Записей: <strong><%= rows.length %></strong>
+      <% if (trend && trend.cur !== null) { %> · среднее настроение за 7 дней: <strong><%= String(Math.round(trend.cur * 10) / 10).replace('.', ',') %></strong> из 10<% if (trend.prev !== null) { %> (неделей ранее <%= String(Math.round(trend.prev * 10) / 10).replace('.', ',') %>)<% } %><% } %></p>
+    <%- spark %>
+    <% if (!share.scores) { %><p class="hint">Пациент не делится дневником; ниже только записи, которые он показал вам сам.</p><% } %>
+    <% if (!share.notes) { %><p class="hint">Текстовые заметки дневника пациент врачу не передаёт (кроме отдельных записей, которые выбрал сам).</p><% } %>
+    <div class="table-responsive"><table class="stack-mobile">
+      <thead><tr><th>Дата</th><th>Настроение (1–10)</th><% if (showNotes) { %><th>Заметка пациента</th><% } %></tr></thead>
+      <tbody><% rows.forEach(function(m) { %><tr><td><%= formatDate(m.entry_date || m.created_at) %></td><td><%= m.mood_score %></td><% if (showNotes) { %><td><%= m.note || '' %><%= m.notes_hidden ? ' (пациент не делится заметкой)' : '' %></td><% } %></tr><% }) %></tbody>
+    </table></div>
+  <% } %>
+  <p class="result-disclaimer"><%= disclaimer %></p>
+</div>
+<%- include('../_footer') %>

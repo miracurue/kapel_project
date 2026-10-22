@@ -1,0 +1,795 @@
+{
+ "_note": "Набор опечаток F-121 по каталогу-заглушке tests/fixtures/catalog/catalog_stand_in.csv. Только названия лекарств, никаких ПДн. Критерии — 08 F-121.",
+ "products": [
+  {
+   "input": "залофт",
+   "expect": "Золофт",
+   "kind": "one_letter"
+  },
+  {
+   "input": "асинтра",
+   "expect": "Асентра",
+   "kind": "one_letter"
+  },
+  {
+   "input": "ципролекс",
+   "expect": "Ципралекс",
+   "kind": "one_letter"
+  },
+  {
+   "input": "прозок",
+   "expect": "Прозак",
+   "kind": "one_letter"
+  },
+  {
+   "input": "паксин",
+   "expect": "Паксил",
+   "kind": "one_letter"
+  },
+  {
+   "input": "феварен",
+   "expect": "Феварин",
+   "kind": "one_letter"
+  },
+  {
+   "input": "велоксин",
+   "expect": "Велаксин",
+   "kind": "one_letter"
+  },
+  {
+   "input": "симбалто",
+   "expect": "Симбалта",
+   "kind": "one_letter"
+  },
+  {
+   "input": "ремирон",
+   "expect": "Ремерон",
+   "kind": "one_letter"
+  },
+  {
+   "input": "вальдоксен",
+   "expect": "Вальдоксан",
+   "kind": "one_letter"
+  },
+  {
+   "input": "бринтелликз",
+   "expect": "Бринтелликс",
+   "kind": "one_letter"
+  },
+  {
+   "input": "триттика",
+   "expect": "Триттико",
+   "kind": "one_letter"
+  },
+  {
+   "input": "анафронил",
+   "expect": "Анафранил",
+   "kind": "one_letter"
+  },
+  {
+   "input": "атаракз",
+   "expect": "Атаракс",
+   "kind": "one_letter"
+  },
+  {
+   "input": "грандоксин",
+   "expect": "Грандаксин",
+   "kind": "one_letter"
+  },
+  {
+   "input": "сероквиль",
+   "expect": "Сероквель",
+   "kind": "one_letter"
+  },
+  {
+   "input": "зипрекза",
+   "expect": "Зипрекса",
+   "kind": "one_letter"
+  },
+  {
+   "input": "абилефай",
+   "expect": "Абилифай",
+   "kind": "one_letter"
+  },
+  {
+   "input": "рисполипт",
+   "expect": "Рисполепт",
+   "kind": "one_letter"
+  },
+  {
+   "input": "финлепсен",
+   "expect": "Финлепсин",
+   "kind": "one_letter"
+  },
+  {
+   "input": "золот",
+   "expect": "Золофт",
+   "kind": "missing_or_swapped"
+  },
+  {
+   "input": "ципралкс",
+   "expect": "Ципралекс",
+   "kind": "missing_or_swapped"
+  },
+  {
+   "input": "велксин",
+   "expect": "Велаксин",
+   "kind": "missing_or_swapped"
+  },
+  {
+   "input": "ремрон",
+   "expect": "Ремерон",
+   "kind": "missing_or_swapped"
+  },
+  {
+   "input": "симбала",
+   "expect": "Симбалта",
+   "kind": "missing_or_swapped"
+  },
+  {
+   "input": "ламиктл",
+   "expect": "Ламиктал",
+   "kind": "missing_or_swapped"
+  },
+  {
+   "input": "депкин",
+   "expect": "Депакин",
+   "kind": "missing_or_swapped"
+  },
+  {
+   "input": "эглнил",
+   "expect": "Эглонил",
+   "kind": "missing_or_swapped"
+  },
+  {
+   "input": "мелксен",
+   "expect": "Мелаксен",
+   "kind": "missing_or_swapped"
+  },
+  {
+   "input": "страттра",
+   "expect": "Страттера",
+   "kind": "missing_or_swapped"
+  },
+  {
+   "input": "зиперкса",
+   "expect": "Зипрекса",
+   "kind": "missing_or_swapped"
+  },
+  {
+   "input": "прозка",
+   "expect": "Прозак",
+   "kind": "missing_or_swapped"
+  },
+  {
+   "input": "паксли",
+   "expect": "Паксил",
+   "kind": "missing_or_swapped"
+  },
+  {
+   "input": "сероквлеь",
+   "expect": "Сероквель",
+   "kind": "missing_or_swapped"
+  },
+  {
+   "input": "абилифйа",
+   "expect": "Абилифай",
+   "kind": "missing_or_swapped"
+  },
+  {
+   "input": "тегертол",
+   "expect": "Тегретол",
+   "kind": "missing_or_swapped"
+  },
+  {
+   "input": "имовна",
+   "expect": "Имован",
+   "kind": "missing_or_swapped"
+  },
+  {
+   "input": "ивдаал",
+   "expect": "Ивадал",
+   "kind": "missing_or_swapped"
+  },
+  {
+   "input": "циколдол",
+   "expect": "Циклодол",
+   "kind": "missing_or_swapped"
+  },
+  {
+   "input": "лиирка",
+   "expect": "Лирика",
+   "kind": "missing_or_swapped"
+  },
+  {
+   "input": "pjkjan",
+   "expect": "Золофт",
+   "kind": "keyboard_layout"
+  },
+  {
+   "input": "ghjpfr",
+   "expect": "Прозак",
+   "kind": "keyboard_layout"
+  },
+  {
+   "input": "gfrcbk",
+   "expect": "Паксил",
+   "kind": "keyboard_layout"
+  },
+  {
+   "input": "htvthjy",
+   "expect": "Ремерон",
+   "kind": "keyboard_layout"
+  },
+  {
+   "input": "atdfhby",
+   "expect": "Феварин",
+   "kind": "keyboard_layout"
+  },
+  {
+   "input": "dtkfrcby",
+   "expect": "Велаксин",
+   "kind": "keyboard_layout"
+  },
+  {
+   "input": "cthjrdtkm",
+   "expect": "Сероквель",
+   "kind": "keyboard_layout"
+  },
+  {
+   "input": "fnfhfrc",
+   "expect": "Атаракс",
+   "kind": "keyboard_layout"
+  },
+  {
+   "input": "uhfylfrcby",
+   "expect": "Грандаксин",
+   "kind": "keyboard_layout"
+  },
+  {
+   "input": "wbghfktrc",
+   "expect": "Ципралекс",
+   "kind": "keyboard_layout"
+  },
+  {
+   "input": "kfvbrnfk",
+   "expect": "Ламиктал",
+   "kind": "keyboard_layout"
+  },
+  {
+   "input": "ltgfrby",
+   "expect": "Депакин",
+   "kind": "keyboard_layout"
+  },
+  {
+   "input": "abyktgcby",
+   "expect": "Финлепсин",
+   "kind": "keyboard_layout"
+  },
+  {
+   "input": "pbghtrcf",
+   "expect": "Зипрекса",
+   "kind": "keyboard_layout"
+  },
+  {
+   "input": "hbcgjktgn",
+   "expect": "Рисполепт",
+   "kind": "keyboard_layout"
+  },
+  {
+   "input": "vtkfrcty",
+   "expect": "Мелаксен",
+   "kind": "keyboard_layout"
+  },
+  {
+   "input": "bvjdfy",
+   "expect": "Имован",
+   "kind": "keyboard_layout"
+  },
+  {
+   "input": "ntuhtnjk",
+   "expect": "Тегретол",
+   "kind": "keyboard_layout"
+  },
+  {
+   "input": "cnhfnnthf",
+   "expect": "Страттера",
+   "kind": "keyboard_layout"
+  },
+  {
+   "input": "wbrkjljk",
+   "expect": "Циклодол",
+   "kind": "keyboard_layout"
+  },
+  {
+   "input": "zoloft",
+   "expect": "Золофт",
+   "kind": "latin"
+  },
+  {
+   "input": "prozac",
+   "expect": "Прозак",
+   "kind": "latin"
+  },
+  {
+   "input": "paxil",
+   "expect": "Паксил",
+   "kind": "latin"
+  },
+  {
+   "input": "cipralex",
+   "expect": "Ципралекс",
+   "kind": "latin"
+  },
+  {
+   "input": "remeron",
+   "expect": "Ремерон",
+   "kind": "latin"
+  },
+  {
+   "input": "fevarin",
+   "expect": "Феварин",
+   "kind": "latin"
+  },
+  {
+   "input": "velaxin",
+   "expect": "Велаксин",
+   "kind": "latin"
+  },
+  {
+   "input": "seroquel",
+   "expect": "Сероквель",
+   "kind": "latin"
+  },
+  {
+   "input": "zyprexa",
+   "expect": "Зипрекса",
+   "kind": "latin"
+  },
+  {
+   "input": "abilify",
+   "expect": "Абилифай",
+   "kind": "latin"
+  },
+  {
+   "input": "rispolept",
+   "expect": "Рисполепт",
+   "kind": "latin"
+  },
+  {
+   "input": "atarax",
+   "expect": "Атаракс",
+   "kind": "latin"
+  },
+  {
+   "input": "grandaxin",
+   "expect": "Грандаксин",
+   "kind": "latin"
+  },
+  {
+   "input": "lamictal",
+   "expect": "Ламиктал",
+   "kind": "latin"
+  },
+  {
+   "input": "depakine",
+   "expect": "Депакин",
+   "kind": "latin"
+  },
+  {
+   "input": "finlepsin",
+   "expect": "Финлепсин",
+   "kind": "latin"
+  },
+  {
+   "input": "melaxen",
+   "expect": "Мелаксен",
+   "kind": "latin"
+  },
+  {
+   "input": "strattera",
+   "expect": "Страттера",
+   "kind": "latin"
+  },
+  {
+   "input": "valdoxan",
+   "expect": "Вальдоксан",
+   "kind": "latin"
+  },
+  {
+   "input": "brintellix",
+   "expect": "Бринтелликс",
+   "kind": "latin"
+  },
+  {
+   "input": "Золофт 50 мг",
+   "expect": "Золофт",
+   "kind": "dosage_form_words"
+  },
+  {
+   "input": "золофт табл. 50мг",
+   "expect": "Золофт",
+   "kind": "dosage_form_words"
+  },
+  {
+   "input": "Прозак капс 20 мг",
+   "expect": "Прозак",
+   "kind": "dosage_form_words"
+  },
+  {
+   "input": "паксил 20 мг таблетки",
+   "expect": "Паксил",
+   "kind": "dosage_form_words"
+  },
+  {
+   "input": "Ципралекс 10мг",
+   "expect": "Ципралекс",
+   "kind": "dosage_form_words"
+  },
+  {
+   "input": "велаксин ретард 75 мг",
+   "expect": "Велаксин",
+   "kind": "dosage_form_words"
+  },
+  {
+   "input": "Сероквель 25 мг табл",
+   "expect": "Сероквель",
+   "kind": "dosage_form_words"
+  },
+  {
+   "input": "Атаракс 25 мг",
+   "expect": "Атаракс",
+   "kind": "dosage_form_words"
+  },
+  {
+   "input": "грандаксин таб. 50 мг",
+   "expect": "Грандаксин",
+   "kind": "dosage_form_words"
+  },
+  {
+   "input": "Ламиктал 25 мг таблетки",
+   "expect": "Ламиктал",
+   "kind": "dosage_form_words"
+  },
+  {
+   "input": "депакин р-р",
+   "expect": "Депакин",
+   "kind": "dosage_form_words"
+  },
+  {
+   "input": "Финлепсин 200 мг",
+   "expect": "Финлепсин",
+   "kind": "dosage_form_words"
+  },
+  {
+   "input": "Мелаксен 3 мг",
+   "expect": "Мелаксен",
+   "kind": "dosage_form_words"
+  },
+  {
+   "input": "Зипрекса 10 мг табл.",
+   "expect": "Зипрекса",
+   "kind": "dosage_form_words"
+  },
+  {
+   "input": "абилифай 15мг",
+   "expect": "Абилифай",
+   "kind": "dosage_form_words"
+  },
+  {
+   "input": "Рисполепт р-р 1 мг/мл",
+   "expect": "Рисполепт",
+   "kind": "dosage_form_words"
+  },
+  {
+   "input": "Феварин 100 мг",
+   "expect": "Феварин",
+   "kind": "dosage_form_words"
+  },
+  {
+   "input": "Ремерон 30 мг табл",
+   "expect": "Ремерон",
+   "kind": "dosage_form_words"
+  },
+  {
+   "input": "Триттико 150 мг",
+   "expect": "Триттико",
+   "kind": "dosage_form_words"
+  },
+  {
+   "input": "Имован 7,5 мг",
+   "expect": "Имован",
+   "kind": "dosage_form_words"
+  }
+ ],
+ "inn": [
+  {
+   "input": "сертролин",
+   "expect": "сертралин"
+  },
+  {
+   "input": "эсциталапрам",
+   "expect": "эсциталопрам"
+  },
+  {
+   "input": "флуоксетн",
+   "expect": "флуоксетин"
+  },
+  {
+   "input": "пароксетни",
+   "expect": "пароксетин"
+  },
+  {
+   "input": "вемлафаксин",
+   "expect": "венлафаксин"
+  },
+  {
+   "input": "дулоксетн",
+   "expect": "дулоксетин"
+  },
+  {
+   "input": "миртазапни",
+   "expect": "миртазапин"
+  },
+  {
+   "input": "агомелатни",
+   "expect": "агомелатин"
+  },
+  {
+   "input": "кветиапни",
+   "expect": "кветиапин"
+  },
+  {
+   "input": "оланзапни",
+   "expect": "оланзапин"
+  },
+  {
+   "input": "арипипразло",
+   "expect": "арипипразол"
+  },
+  {
+   "input": "рисперидно",
+   "expect": "рисперидон"
+  },
+  {
+   "input": "cthnhfkby",
+   "expect": "сертралин"
+  },
+  {
+   "input": "rdtnbfgby",
+   "expect": "кветиапин"
+  },
+  {
+   "input": "vbhnfpfgby",
+   "expect": "миртазапин"
+  },
+  {
+   "input": "pjgbrkjy",
+   "expect": "зопиклон"
+  },
+  {
+   "input": "njabpjgfv",
+   "expect": "тофизопам"
+  },
+  {
+   "input": "ublhjrcbpby",
+   "expect": "гидроксизин"
+  },
+  {
+   "input": "sertralin",
+   "expect": "сертралин"
+  },
+  {
+   "input": "escitalopram",
+   "expect": "эсциталопрам"
+  },
+  {
+   "input": "fluoxetin",
+   "expect": "флуоксетин"
+  },
+  {
+   "input": "quetiapin",
+   "expect": "кветиапин"
+  },
+  {
+   "input": "olanzapin",
+   "expect": "оланзапин"
+  },
+  {
+   "input": "lamotrigin",
+   "expect": "ламотриджин"
+  },
+  {
+   "input": "сертралин 50 мг",
+   "expect": "сертралин"
+  },
+  {
+   "input": "кветиапин табл 25мг",
+   "expect": "кветиапин"
+  },
+  {
+   "input": "ламотриджин 25 мг таблетки",
+   "expect": "ламотриджин"
+  },
+  {
+   "input": "Зопиклон 7,5 мг",
+   "expect": "зопиклон"
+  },
+  {
+   "input": "мелатонин 3 мг",
+   "expect": "мелатонин"
+  },
+  {
+   "input": "Тофизопам таб. 50 мг",
+   "expect": "тофизопам"
+  }
+ ],
+ "nonexistent": [
+  "Абракадабрин",
+  "Плацебофорт",
+  "Синтетикол Т13",
+  "Вымыслинол",
+  "Нетакогоиум",
+  "Квазиморфан",
+  "Тестотаблин",
+  "Фантомазепам",
+  "Мнимоксетин",
+  "Пустышкин форте",
+  "Бессмыслиум",
+  "Ноупрепарин",
+  "Химерол",
+  "Миражин",
+  "Небылицин",
+  "Призракол",
+  "Условнекс",
+  "Демотрин",
+  "Фикцион",
+  "Заглушкосан"
+ ],
+ "exact": [
+  {
+   "input": "Золофт",
+   "expect": "Золофт"
+  },
+  {
+   "input": "Асентра",
+   "expect": "Асентра"
+  },
+  {
+   "input": "Ципралекс",
+   "expect": "Ципралекс"
+  },
+  {
+   "input": "Прозак",
+   "expect": "Прозак"
+  },
+  {
+   "input": "Паксил",
+   "expect": "Паксил"
+  },
+  {
+   "input": "Феварин",
+   "expect": "Феварин"
+  },
+  {
+   "input": "Велаксин",
+   "expect": "Велаксин"
+  },
+  {
+   "input": "Симбалта",
+   "expect": "Симбалта"
+  },
+  {
+   "input": "Ремерон",
+   "expect": "Ремерон"
+  },
+  {
+   "input": "Вальдоксан",
+   "expect": "Вальдоксан"
+  },
+  {
+   "input": "Триттико",
+   "expect": "Триттико"
+  },
+  {
+   "input": "Атаракс",
+   "expect": "Атаракс"
+  },
+  {
+   "input": "Грандаксин",
+   "expect": "Грандаксин"
+  },
+  {
+   "input": "Сероквель",
+   "expect": "Сероквель"
+  },
+  {
+   "input": "Зипрекса",
+   "expect": "Зипрекса"
+  },
+  {
+   "input": "Абилифай",
+   "expect": "Абилифай"
+  },
+  {
+   "input": "Рисполепт",
+   "expect": "Рисполепт"
+  },
+  {
+   "input": "Финлепсин",
+   "expect": "Финлепсин"
+  },
+  {
+   "input": "Имован",
+   "expect": "Имован"
+  },
+  {
+   "input": "Ивадал",
+   "expect": "Ивадал"
+  }
+ ],
+ "prefix4": [
+  {
+   "input": "ципр",
+   "expect": "Ципралекс"
+  },
+  {
+   "input": "валь",
+   "expect": "Вальдоксан"
+  },
+  {
+   "input": "брин",
+   "expect": "Бринтелликс"
+  },
+  {
+   "input": "гран",
+   "expect": "Грандаксин"
+  },
+  {
+   "input": "финл",
+   "expect": "Финлепсин"
+  },
+  {
+   "input": "стра",
+   "expect": "Страттера"
+  },
+  {
+   "input": "мела",
+   "expect": "Мелаксен"
+  },
+  {
+   "input": "цикл",
+   "expect": "Циклодол"
+  },
+  {
+   "input": "тегр",
+   "expect": "Тегретол"
+  },
+  {
+   "input": "анаф",
+   "expect": "Анафранил"
+  }
+ ],
+ "case_and_yo": [
+  {
+   "a": "ЗОЛОФТ",
+   "b": "золофт"
+  },
+  {
+   "a": "Сёроквель",
+   "b": "Сероквель"
+  },
+  {
+   "a": "мелАксен",
+   "b": "Мелаксен"
+  },
+  {
+   "a": "СЕРТРАЛИН",
+   "b": "сертралин"
+  },
+  {
+   "a": "ЦИПРАЛЕКС",
+   "b": "ципралекс"
+  }
+ ]
+}

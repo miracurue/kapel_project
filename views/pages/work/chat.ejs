@@ -1,0 +1,72 @@
+<%#
+  P-20 · ИИ-чат специалиста (F-32, F-33, F-34; W-35). Разметка — из утверждённого
+  прототипа v5 (.agents/web-developer/files/07-structure/prototype/, вкладка «Чат»
+  рабочего пространства). До выбора пациента — «Выберите пациента…»; «@» — только
+  закреплённые пациенты. Тексты — только ключами locales/ru.json (t()).
+  Локалы: t, patients (закреплённые, [{id, name}]), hintsEnabled, isPsychiatrist.
+  Клиентская логика — public/js/work_chat.js (новый файл, W-35).
+%>
+<section class="chat-tab" data-work-chat
+  data-patients="<%- encodeURIComponent(JSON.stringify(patients)) %>"
+  data-t-patient-chip="<%= t('msg.wchat.patient_chip') %>"
+  data-t-no-chips="<%= t('msg.wchat.no_chips') %>"
+  data-t-under-answer="<%= t('msg.ai.clinician.under_answer') %>"
+  data-t-to-doc="<%= t('msg.wchat.to_doc') %>"
+  data-t-open-card="<%= t('msg.wchat.open_card') %>"
+  data-t-rate-useful="<%= t('msg.ai.rate.useful') %>"
+  data-t-rate-not-useful="<%= t('msg.ai.rate.not_useful') %>"
+  data-t-pick-patient="<%= t('msg.wchat.pick_patient') %>"
+  data-t-drug-placeholder="<%= t('msg.wchat.drug.placeholder') %>"
+  data-t-chat-placeholder="<%= t('msg.wchat.placeholder') %>"
+  data-t-pick-patient-card="<%= t('msg.wchat.pick.patient_card') %>"
+  data-t-pick-patient-hint="<%= t('msg.wchat.pick.patient_hint') %>"
+  data-t-pick-open-patient="<%= t('msg.wchat.pick.open_patient') %>"
+  data-t-pick-patients="<%= t('msg.wchat.pick.patients') %>"
+  data-t-pick-drugs="<%= t('msg.wchat.pick.drugs') %>"
+  data-t-pick-none="<%= t('msg.wchat.pick.none') %>"
+  data-drug-strings="<%= encodeURIComponent(JSON.stringify(Object.fromEntries(['trade', 'no_trade', 'atc', 'rx', 'otc', 'articles', 'no_articles', 'stand_in', 'ai_assisted', 'all_articles', 'open_failed', 'send_failed', 'q1', 'q2', 'q3', 'q4'].map((k) => [k, t('msg.drugs.' + k)])))) %>">
+  <aside class="side" aria-label="История чатов" data-work-side>
+    <div class="side-head"><a class="new" href="/work?tab=chat" data-testid="msg.chat.history.new"><%= t('msg.chat.history.new') %></a></div>
+    <input type="search" class="tpl-find" data-testid="msg.wchat.pick.search" data-pick-search maxlength="80" autocomplete="off" placeholder="<%= t('msg.wchat.pick.search') %>" aria-label="<%= t('msg.wchat.pick.search') %>">
+    <div class="pick-results" data-pick-results role="listbox" aria-label="<%= t('msg.wchat.pick.search') %>" hidden></div>
+    <div data-threads><p class="small muted" data-testid="msg.chat.history.empty"><%= t('msg.chat.history.empty') %></p></div>
+    <p class="small muted" data-testid="msg.chat.history.retention"><%= t('msg.chat.history.retention') %></p>
+  </aside>
+  <div class="pane">
+    <div class="scroll">
+      <div class="col feed">
+        <article class="subject-card" data-subject hidden></article>
+        <div data-feed aria-live="polite"></div>
+        <div class="hello" data-hello>
+          <h1 data-testid="msg.wchat.empty.title"><%= t('msg.wchat.empty.title') %></h1>
+          <p data-testid="msg.wchat.pick_patient"><%= t('msg.wchat.pick_patient') %></p>
+          <p data-testid="msg.wchat.empty.lead"><%= t('msg.wchat.empty.lead') %></p>
+          <div class="ideas">
+            <button type="button" class="idea" data-testid="msg.wchat.example.changes" data-idea="<%= t('msg.wchat.example.changes') %>"><%= t('msg.wchat.example.changes') %></button>
+            <button type="button" class="idea" data-testid="msg.wchat.example.visit" data-idea="<%= t('msg.wchat.example.visit') %>"><%= t('msg.wchat.example.visit') %></button>
+            <button type="button" class="idea" data-testid="msg.wchat.example.discharge" data-idea="<%= t('msg.wchat.example.discharge') %>"><%= t('msg.wchat.example.discharge') %></button>
+            <% if (isPsychiatrist && hintsEnabled) { %>
+              <button type="button" class="idea" data-testid="msg.wchat.example.hints" data-idea="<%= t('msg.wchat.example.hints') %>"><%= t('msg.wchat.example.hints') %></button>
+            <% } %>
+            <button type="button" class="idea" data-testid="msg.wchat.example.conclusion" data-idea="<%= t('msg.wchat.example.conclusion') %>"><%= t('msg.wchat.example.conclusion') %></button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="dock">
+      <div class="col">
+        <p data-testid="msg.ai.clinician.composer_note"><%= t('msg.ai.clinician.composer_note') %></p>
+        <div data-chips></div>
+        <div class="chat-sugg" data-testid="msg.composer.suggestions"><span class="chat-sugg__label"><%= t('msg.composer.suggestions') %></span> <span data-suggestions></span></div>
+        <div class="chat-input">
+          <textarea data-testid="msg.wchat.placeholder" rows="2" placeholder="<%= t('msg.wchat.placeholder') %>" aria-label="<%= t('msg.wchat.placeholder') %>" autocomplete="off"></textarea>
+          <button type="button" data-testid="msg.composer.send"><%= t('msg.composer.send') %></button>
+        </div>
+        <div role="listbox" data-mention aria-label="<%= t('msg.wchat.pick_patient') %>" hidden></div>
+        <p data-testid="msg.wchat.no_chips" data-no-chips hidden><%= t('msg.wchat.no_chips') %></p>
+      </div>
+    </div>
+  </div>
+</section>
+<script src="/js/work_chat.js" defer></script>
+<script src="/js/mic.js" defer></script>

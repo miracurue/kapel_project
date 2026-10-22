@@ -1,0 +1,116 @@
+<%#
+  Общий компонент ИИ-чата (типовая раскладка: список диалогов слева, лента, поле ввода внизу).
+  Переиспользуется ролями; параметры: cfg, base, threads, thread, messages, draft, error, showIntro, canRetry,
+  hasClinician, chips, aiBadge, maxLen, intro, privacyNote. Работает без JS (все действия — формы/ссылки);
+  public/chat.js добавляет выдвижную панель, отправку без перезагрузки, потоковую печать и «Стоп».
+%>
+<div class="ai-chat<%= ws ? ' ws-mode' : '' %>" id="ai-chat" data-base="<%= base %>" data-thread-id="<%= thread ? thread.id : '' %>" data-max="<%= maxLen %>" data-contact="<%= cfg.contactEnabled ? base + '/contact' : '' %>">
+  <aside class="ai-side" id="ai-side" aria-label="Диалоги">
+    <button type="button" class="btn-secondary ai-side-close" id="ai-side-close" hidden>Закрыть список</button>
+    <a class="ai-new" href="<%= base %>">+ Новый диалог</a>
+    <% if (ws) { %><%- include('workspace/_side') %><% } %>
+    <% if (threads.length === 0) { %>
+      <p class="ai-side__empty">Диалогов пока нет. Начните новый — он появится здесь.</p>
+    <% } else { %>
+      <ul class="ai-threads" id="ai-threads">
+        <% threads.forEach(function(t) { %>
+          <li><a class="ai-thread<%= thread && thread.id === t.id ? ' is-active' : '' %>" href="<%= base %>/t/<%= t.id %>"<% if (thread && thread.id === t.id) { %> aria-current="page"<% } %>><%= t.title %><% if (ws && t.patient_id) { %> <span class="ws-tag">по пациенту</span><% } %></a></li>
+        <% }) %>
+      </ul>
+    <% } %>
+  </aside>
+
+  <section class="ai-main" aria-label="Диалог с ИИ-помощником">
+    <header class="ai-head">
+      <button type="button" class="btn-secondary ai-side-toggle" id="ai-side-toggle" aria-controls="ai-side" aria-expanded="false" hidden>Диалоги</button>
+      <div class="ai-head__title">
+        <strong><%= thread ? thread.title : cfg.title %></strong>
+        <span class="ai-pill" aria-hidden="true">ИИ</span>
+        <span class="ai-head__badge"><%= aiBadge %></span>
+      </div>
+      <div class="ai-head__actions">
+        <a class="ai-link" href="<%= thread ? base + '/t/' + thread.id : base %>?help=1" title="Что умеет помощник и кому видны диалоги">? О помощнике</a>
+        <% if (cfg.contactEnabled) { %>
+          <a class="ai-contact" href="<%= base %>/contact<%= thread ? '?thread=' + thread.id : '' %>">Связаться с человеком</a>
+        <% } %>
+      </div>
+    </header>
+
+    <% if (thread) { %>
+      <div class="ai-thread-actions">
+        <details class="ai-rename">
+          <summary>Переименовать</summary>
+          <form method="POST" action="<%= base %>/t/<%= thread.id %>/rename">
+            <label for="ai-rename-input" class="visually-hidden">Название диалога</label>
+            <input id="ai-rename-input" name="title" value="<%= thread.title %>" maxlength="80" required />
+            <button type="submit">Сохранить</button>
+          </form>
+        </details>
+        <a class="ai-link ai-link--danger" href="<%= base %>/t/<%= thread.id %>/delete">Удалить диалог</a>
+      </div>
+    <% } %>
+
+    <% if (ws && thread) { %><%- include('workspace/_head') %><% } %>
+
+    <% if (showIntro) { %>
+      <details class="ai-intro" id="ai-intro" open>
+        <summary class="ai-intro__title">Коротко о помощнике</summary>
+        <p><strong>Может:</strong> <%= intro.can.join('; ') %>.</p>
+        <p><strong>Не может:</strong> <%= intro.cannot.join('; ') %>.</p>
+        <p><%= privacyNote %></p>
+        <% if (cfg.contactEnabled) { %><p><strong>Если вам тяжело прямо сейчас:</strong> <a href="tel:112">112 — экстренные службы</a>, а кнопка «Связаться с человеком» передаёт сообщение врачу (он может ответить не сразу).</p><% } %>
+      </details>
+    <% } %>
+
+    <% if (error) { %><div class="flash flash-error" role="alert" id="ai-error"><%= error %></div><% } else { %><div class="flash flash-error" role="alert" id="ai-error" hidden></div><% } %>
+
+    <div class="ai-log" id="ai-log" tabindex="0" role="log" aria-live="polite" aria-label="Сообщения">
+      <% if (!thread) { %>
+        <div class="ai-empty" id="ai-empty">
+          <p class="ai-empty__title"><%= emptyTitle %></p>
+          <p class="ai-empty__hint"><%= emptyHint %></p>
+          <div class="ai-chips">
+            <% chips.forEach(function(c) { %>
+              <form method="POST" action="<%= base %>/send" class="ai-chip-form"><input type="hidden" name="text" value="<%= c %>" /><button type="submit" class="ai-chip"><%= c %></button></form>
+            <% }) %>
+          </div>
+        </div>
+      <% } %>
+      <% messages.forEach(function(m, i) { %>
+        <div class="msg msg-<%= m.role %> msg-kind-<%= m.kind %>" data-id="<%= m.id %>"<% if (ws && m.role === 'assistant') { %> id="msg-<%= m.id %>"<% } %>>
+          <% if (m.role === 'assistant') { %><span class="ai-pill" title="Ответ ИИ-помощника">ИИ</span><% } %>
+          <div class="msg__body">
+            <div class="msg__text"><%= m.text %></div>
+            <% if (ws && m.role === 'assistant') { %><%- include('workspace/_msg_extras', { m: m }) %><% } %>
+            <% if (m.kind === 'crisis') { %>
+              <div class="ai-crisis">
+                <a class="ai-crisis__tel" href="tel:112">112 — экстренные службы</a>
+                <span>Звонок бесплатный. Если опасность прямо сейчас, не ждите ответа.</span>
+              </div>
+            <% } %>
+            <% if (m.kind === 'error' && i === messages.length - 1) { %>
+              <form method="POST" action="<%= base %>/t/<%= thread.id %>/retry" class="ai-retry-form"><button type="submit" class="ai-retry">Повторить</button></form>
+            <% } %>
+          </div>
+        </div>
+      <% }) %>
+      <div id="end"></div>
+    </div>
+
+    <div class="ai-typing" id="ai-typing" aria-live="polite" role="status" hidden>
+      <span class="ai-pill" aria-hidden="true">ИИ</span> Помощник печатает<span class="ai-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      <button type="button" class="btn-secondary ai-stop" id="ai-stop" hidden>Стоп</button>
+    </div>
+
+    <% if (ws) { %><%- include('workspace/_composer_top') %><% } %>
+    <form class="ai-form" id="ai-form" method="POST" action="<%= base %>/send">
+      <input type="hidden" name="thread_id" value="<%= thread ? thread.id : '' %>" />
+      <label for="ai-input" class="visually-hidden">Сообщение</label>
+      <textarea id="ai-input" name="text" rows="2" placeholder="<%= ws ? 'Задайте вопрос или опишите задачу… (Enter — отправить, Shift+Enter — новая строка)' : 'Напишите сообщение… (Enter — отправить, Shift+Enter — новая строка)' %>" autocomplete="off" required><%= draft %></textarea>
+      <button type="submit" id="ai-send">Отправить</button>
+      <div class="ai-form__meta"><span id="ai-count"><%= draft.length %></span> / <%= maxLen %></div>
+    </form>
+    <% if (ws) { %><%- include('workspace/_composer_bottom') %><% } %>
+    <p class="result-disclaimer"><% if (disclaimer) { %><%= disclaimer %><% } else { %>Ответы ИИ — это не диагноз и не рекомендация лечения; решение всегда за врачом. Тексты ответов в демо-версии — заглушки и ожидают проверки специалистом.<% } %></p>
+  </section>
+</div>

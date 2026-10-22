@@ -1,0 +1,36 @@
+<%# Строки сводки: вход rows, back (куда вернуться после действия) %>
+<div class="table-responsive"><table class="patient-table stack-mobile">
+  <thead><tr><th>Статус</th><th>Пациент</th><th>Почему</th><th>Теги</th><th>Действия</th></tr></thead>
+  <tbody>
+  <% rows.forEach(function(p) { %>
+    <tr class="patient-row patient-row--<%= p.verdict.color %>">
+      <td><%- include('_verdict', { p: p }) %></td>
+      <td>
+        <a href="/patients/<%= p.id %>"><strong><%= p.full_name %></strong></a>
+        <% if (p.archived) { %><span class="badge badge-muted">архив</span><% } %>
+        <% if (p.alsoWith.length) { %><div class="hint">также ведёт: <%= p.alsoWith.join(', ') %></div><% } %>
+      </td>
+      <td>
+        <div><%= p.verdict.oneLine %></div>
+        <% if (p.verdict.reasons.length > 1) { %>
+          <details class="why"><summary>Почему</summary>
+            <ul><% p.verdict.reasons.forEach(function(r) { %><li><%= r.text %></li><% }) %></ul>
+          </details>
+        <% } %>
+      </td>
+      <td><% p.tags.forEach(function(t) { %><span class="tag tag-optional"><%= t %></span><% }) %></td>
+      <td class="row-actions">
+        <a href="/patients/<%= p.id %>">Карточка</a>
+        <% if (p.verdict.color === 'red') { %><a href="/crisis">Очередь</a><% } %>
+        <% if (p.verdict.color === 'yellow') { %>
+          <form method="POST" action="/patients/<%= p.id %>/snooze" class="inline">
+            <input type="hidden" name="back" value="<%= back %>" />
+            <input type="hidden" name="days" value="7" />
+            <button type="submit" class="btn-secondary" title="Флаг вернётся через 7 дней или при ухудшении">Отложить на 7 дн.</button>
+          </form>
+        <% } %>
+      </td>
+    </tr>
+  <% }) %>
+  </tbody>
+</table></div>

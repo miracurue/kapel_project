@@ -1,0 +1,51 @@
+<%- include('../_header') %>
+<div class="card tools">
+  <p class="tools-back no-print"><a href="/tools/import">← Импорт</a></p>
+  <h1>Предпросмотр импорта</h1>
+  <p class="hint">Файл прочитан: кодировка <%= a.encoding %>, разделитель «<%= a.delimiter === '\t' ? 'табуляция' : a.delimiter %>». Пока вы не подтвердите, ничего не записано.</p>
+
+  <form method="GET" action="/tools/import/draft/<%= draftId %>" class="tools-map">
+    <h2>Сопоставление столбцов</h2>
+    <div class="filter-bar">
+      <% fields.forEach(function(f) { %>
+        <label><%= f.label %><%= a.missing.indexOf(f.key) >= 0 ? ' (обязательно)' : '' %>
+          <select name="m_<%= f.key %>"><option value="">— нет —</option>
+            <% a.header.forEach(function(h, i) { %><option value="<%= i %>"<%= mapping[f.key] === i ? ' selected' : '' %>><%= String(h).slice(0, 40) || ('столбец ' + (i + 1)) %></option><% }) %>
+          </select></label>
+      <% }) %>
+      <button type="submit" class="btn-secondary">Применить сопоставление</button>
+    </div>
+  </form>
+
+  <% if (a.missing.length) { %>
+    <div class="flash flash-error" role="alert"><span class="flash__icon" aria-hidden="true">!</span><span>Не найдены обязательные столбцы: <%= a.missing.map(function(k) { return fields.filter(function(f) { return f.key === k; })[0].label; }).join(', ') %>. Укажите их выше.</span></div>
+  <% } else { %>
+    <p><strong>Строк: <%= a.rows.length %></strong> · к записи: <strong><%= a.counts.ok %></strong> · с ошибками: <strong><%= a.counts.error %></strong> · дубликатов: <strong><%= a.counts.duplicate %></strong></p>
+    <div class="table-responsive"><table class="stack-mobile">
+      <thead><tr><th>Строка</th><th>Состояние</th><th>Пациент</th><th>Шкала</th><th>Дата</th><th>Итог</th><th>Замечания</th></tr></thead>
+      <tbody>
+      <% a.rows.slice(0, 300).forEach(function(r) { %>
+        <tr class="<%= r.status === 'error' ? 'tools-row--error' : '' %>">
+          <td><%= r.line %></td>
+          <td><% if (r.status === 'ok') { %><span aria-hidden="true">✓</span> к записи<% } else if (r.status === 'duplicate') { %><span aria-hidden="true">≡</span> дубликат<% } else { %><span aria-hidden="true">✕</span> ошибка<% } %></td>
+          <td><%= r.data.patient_id || '—' %></td>
+          <td><%= r.data.code || '—' %></td>
+          <td class="nowrap"><%= r.data.date || "—" %></td>
+          <td><%= r.data.total === null ? '—' : r.data.total %></td>
+          <td><% r.errors.concat(r.warnings).forEach(function(m) { %><div><%= m %></div><% }) %></td>
+        </tr>
+      <% }) %>
+      </tbody>
+    </table></div>
+    <% if (a.rows.length > 300) { %><p class="hint">Показаны первые 300 строк; подтверждение применится ко всем.</p><% } %>
+    <% if (a.counts.ok === 0) { %>
+      <div class="empty-state"><p class="empty-state__title">Нет строк к записи</p><p>Исправьте файл и загрузите снова.</p></div>
+    <% } %>
+    <form method="POST" action="/tools/import/draft/<%= draftId %>/confirm" class="no-print">
+      <% Object.keys(overrides).forEach(function(k) { %><input type="hidden" name="m_<%= k %>" value="<%= overrides[k] %>" /><% }) %>
+      <% if (a.counts.ok > 0) { %><button type="submit">Записать <%= a.counts.ok %> строк<%= a.counts.error ? ' (строки с ошибками будут пропущены)' : '' %></button><% } %>
+    </form>
+  <% } %>
+  <form method="POST" action="/tools/import/draft/<%= draftId %>/cancel" class="no-print"><button type="submit" class="btn-secondary">Отменить и удалить файл</button></form>
+</div>
+<%- include('../_footer') %>

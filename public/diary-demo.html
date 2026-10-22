@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Дневник · Мой ритм — отдельный прототип</title>
+    <link rel="stylesheet" href="rhythm-demo.css" />
+    <link rel="stylesheet" href="diary-demo.css" />
+    <script src="diary-demo.js" defer></script>
+  </head>
+  <body class="unified-diary">
+    <div class="demo-bar">Отдельный прототип · вымышленные данные · рабочий дневник сайта не изменён</div>
+    <header>
+      <a class="brand" href="diary-demo.html"><span class="brand-mark">✳</span> Клинический компас</a>
+      <nav class="app-nav" aria-label="Разделы демо">
+        <span>Чат</span><span>Лекарства</span><span>Тесты</span><span class="current">Дневник</span>
+      </nav>
+      <span class="avatar" aria-label="Демонстрационный профиль">А</span>
+    </header>
+    <main>
+      <div class="page-heading">
+        <div>
+          <p class="eyebrow">МОЙ РИТМ</p>
+          <h1>Дневник<span>.</span></h1>
+          <p class="intro">Как вы себя чувствуете и из чего складывается ваш день.</p>
+        </div>
+        <div class="heading-actions">
+          <div class="segmented" id="audience" aria-label="Режим просмотра">
+            <button data-mode="patient" aria-pressed="true">Мой дневник</button
+            ><button data-mode="doctor" aria-pressed="false">Как видит врач</button>
+          </div>
+          <button class="primary" id="add">+ Привычка</button>
+        </div>
+      </div>
+      <p class="doctor-notice" id="doctor-notice" hidden>
+        Предпросмотр специалиста · только открытые показатели и заметки. Личная переписка не передаётся. Настоящие
+        согласия не изменяются.
+      </p>
+      <div class="page-toolbar">
+        <nav class="section-nav" aria-label="На этой странице">
+          <a href="#today" class="active">Сегодня</a><a href="#history">История</a><a href="#dynamics">Динамика</a
+          ><a href="#notes">Заметки</a>
+        </nav>
+        <button class="reminder-chip" id="reminders">
+          <span aria-hidden="true">◷</span><span id="reminder-summary">Один вопрос в 19:00</span
+          ><span aria-hidden="true">⌄</span>
+        </button>
+      </div>
+      <section
+        class="interpretation-panel"
+        id="interpretation"
+        aria-labelledby="interpretation-title"
+        data-standin="interpretation-examples"
+      >
+        <div class="interpretation-heading">
+          <h2 id="interpretation-title">Что видно по дневнику</h2>
+          <span class="interpretation-example" title="Демонстрационный текст, не оценка внесённых записей">Пример</span>
+        </div>
+        <p id="interpretation-summary"></p>
+      </section>
+      <section id="today" class="today-section" aria-labelledby="today-title">
+        <div class="section-heading">
+          <div class="title-with-date">
+            <h2 id="today-title">Сегодня</h2>
+            <span class="date-label">Среда, 21 октября</span>
+          </div>
+          <button class="text-button" data-open-day="13">Весь день ↗</button>
+        </div>
+        <div class="today-grid">
+          <section class="panel state-panel" aria-labelledby="state-title">
+            <div class="section-heading">
+              <h3 id="state-title">Как вы сегодня?</h3>
+              <span class="visibility-label">Видно специалисту</span>
+            </div>
+            <div id="state-pickers"></div>
+            <p class="state-caption">Можно отметить только то, чем хочется поделиться.</p>
+          </section>
+          <div class="essentials" id="essential-cards"></div>
+        </div>
+        <div class="personal-heading">
+          <h3>Мои привычки</h3>
+          <span class="muted" id="today-caption">В вашем темпе</span>
+        </div>
+        <div class="cards personal-cards" id="cards"></div>
+        <button class="text-button unscheduled-toggle" id="show-unscheduled" hidden>Показать вне плана</button>
+      </section>
+      <section class="panel history-panel" id="history" aria-labelledby="history-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">ДНИ И СОБЫТИЯ</p>
+            <h2 id="history-title">История</h2>
+          </div>
+          <div class="history-controls">
+            <div class="segmented" id="history-mode" aria-label="Вид истории">
+              <button data-history-mode="state" aria-pressed="true">Самочувствие</button
+              ><button data-history-mode="habits" aria-pressed="false">Привычки</button>
+            </div>
+            <select id="history-period" aria-label="Период истории привычек" hidden>
+              <option value="14">14 дней</option>
+              <option value="7">7 дней</option>
+            </select>
+          </div>
+        </div>
+        <div id="state-history">
+          <div class="month-layout">
+            <div>
+              <div class="month-heading"><strong>Октябрь 2026</strong><span class="tiny">Нажмите на день</span></div>
+              <div id="month-calendar" class="month-calendar" aria-label="Календарь настроения"></div>
+              <div class="mood-legend">
+                <span>Настроение</span><i class="mood-1"></i><i class="mood-2"></i><i class="mood-3"></i
+                ><i class="mood-4"></i><i class="mood-5"></i><span>от тяжёлого к хорошему</span
+                ><span class="note-key">● есть заметка</span>
+              </div>
+            </div>
+            <div class="history-explainer">
+              <span class="paper-icon" aria-hidden="true">▤</span>
+              <h3>У каждого дня<br />своя история</h3>
+              <p>Выберите дату, чтобы увидеть самочувствие, сон, приёмы лекарств, привычки и заметки вместе.</p>
+              <button class="text-button" data-open-day="12">Посмотреть вчерашний день →</button>
+              <p class="tiny">Нет отметки — нет данных. Пустые дни не считаются плохими.</p>
+            </div>
+          </div>
+        </div>
+        <div id="habit-history" hidden>
+          <p class="muted">Каждая строка — свой показатель. Нажмите на клетку, чтобы открыть весь день.</p>
+          <div class="calendar-scroll"><table id="calendar" aria-label="История привычек"></table></div>
+          <div class="legend">
+            <span><i class="swatch done"></i>По ориентиру</span><span><i class="swatch partial"></i>Вне ориентира</span
+            ><span><i class="swatch missed"></i>Не выполнено</span><span><i class="swatch missing"></i>Нет записи</span
+            ><span><i class="swatch off"></i>Нет плана</span><span><i class="swatch recorded"></i>Без оценки</span>
+          </div>
+        </div>
+      </section>
+      <section class="panel chart-panel" id="dynamics" aria-labelledby="chart-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">ЗАМЕЧАТЬ ИЗМЕНЕНИЯ</p>
+            <h2 id="chart-title">Динамика</h2>
+          </div>
+          <div class="chart-controls">
+            <select id="metric" aria-label="Показатель графика"></select
+            ><select id="period" aria-label="Период графика">
+              <option value="14">14 дней</option>
+              <option value="7">7 дней</option>
+            </select>
+          </div>
+        </div>
+        <div class="chart-summary">
+          <strong id="chart-value"></strong><span class="muted" id="chart-description"></span>
+        </div>
+        <div id="chart"></div>
+        <p class="muted" id="chart-footnote"></p>
+        <div id="insights" class="insights"></div>
+        <details>
+          <summary>Значения и отдельные записи по дням</summary>
+          <div id="chart-table"></div>
+        </details>
+      </section>
+      <section id="notes" class="notes-section" aria-labelledby="notes-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">ТО, ЧТО НЕ ПОМЕСТИТЬ В ЦИФРЫ</p>
+            <h2 id="notes-title">Пара слов о дне</h2>
+          </div>
+          <button class="text-button" id="all-notes">Все заметки ↗</button>
+        </div>
+        <div class="notes-grid">
+          <form class="panel note-compose" id="note-form">
+            <label for="day-note">Что хочется запомнить?</label
+            ><textarea
+              id="day-note"
+              rows="3"
+              maxlength="2000"
+              placeholder="Что порадовало, утомило или просто запомнилось…"
+              required
+            ></textarea>
+            <div class="note-compose-actions">
+              <label class="check-label"><input type="checkbox" id="note-share" />Показать специалисту</label
+              ><button class="primary" type="submit">Сохранить</button>
+            </div>
+            <p class="tiny">По умолчанию заметка остаётся только у вас.</p>
+          </form>
+          <div id="recent-notes" class="recent-notes"></div>
+        </div>
+      </section>
+      <footer>
+        <span>Не обязательно заполнять всё. Можно вернуться в любой день.</span>
+        <div><a href="rhythm-demo.html">Первый вариант</a><button id="reset">Сбросить демо</button></div>
+      </footer>
+    </main>
+    <dialog id="editor">
+      <form id="entry-form">
+        <div class="dialog-top">
+          <h2 id="entry-title">Отметка</h2>
+          <button type="button" data-close="editor" aria-label="Закрыть">×</button>
+        </div>
+        <p id="entry-hint" class="muted"></p>
+        <div id="entry-fields"></div>
+        <label id="entry-operation-label"
+          >Как записать<select id="entry-operation">
+            <option value="replace">Заменить записи за этот день</option>
+            <option value="append">Добавить ещё одну запись</option>
+          </select></label
+        >
+        <p id="entry-records" class="muted"></p>
+        <div class="dialog-actions">
+          <button type="button" id="entry-missed">Не получилось</button
+          ><button type="button" id="entry-clear">Убрать запись</button
+          ><button class="primary" type="submit">Сохранить</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="creator">
+      <form id="habit-form">
+        <div class="dialog-top">
+          <h2>Новая привычка</h2>
+          <button type="button" data-close="creator" aria-label="Закрыть">×</button>
+        </div>
+        <p class="muted">Свободное название, понятные правила учёта. Все поля можно настроить под себя.</p>
+        <div class="example-buttons" aria-label="Примеры настроек">
+          <button type="button" data-preset="water">Вода</button
+          ><button type="button" data-preset="walk">Прогулки</button
+          ><button type="button" data-preset="energy">Энергия</button
+          ><button type="button" data-preset="bed">Время отхода ко сну</button
+          ><button type="button" data-preset="note">Заметки</button>
+        </div>
+        <label>Название<input id="habit-name" maxlength="80" placeholder="Например, учить испанский" required /></label>
+        <div class="form-grid builder-grid">
+          <label
+            >Что записывать<select id="habit-type">
+              <option value="check">Факт: сделано / нет</option>
+              <option value="count">Количество: разы, шаги, страницы</option>
+              <option value="duration">Длительность: минуты, часы</option>
+              <option value="measure">Измерение: объём, вес, своё</option>
+              <option value="scale">Оценка по шкале</option>
+              <option value="time">Время суток</option>
+              <option value="choice">Вариант из своего списка</option>
+              <option value="note">Свободная заметка</option>
+            </select></label
+          >
+          <label id="habit-unit-label">Единица<select id="habit-unit"></select></label>
+        </div>
+        <label id="custom-unit-label" hidden
+          >Своя единица<input id="habit-custom-unit" maxlength="16" placeholder="Например, кругов"
+        /></label>
+        <label id="signed-label" class="check-label" hidden
+          ><input id="habit-signed" type="checkbox" />Допускать отрицательные значения</label
+        >
+        <div id="scale-fields" class="form-grid builder-grid" hidden>
+          <label>Минимум шкалы<input id="scale-min" type="number" value="1" step="1" required /></label
+          ><label>Максимум шкалы<input id="scale-max" type="number" value="5" step="1" required /></label>
+        </div>
+        <label id="choice-fields" hidden
+          >Варианты, каждый с новой строки<textarea
+            id="habit-choices"
+            rows="4"
+            maxlength="800"
+            placeholder="Дома&#10;На улице&#10;В компании"
+          ></textarea>
+        </label>
+        <div class="form-grid builder-grid">
+          <label id="goal-label"
+            >Личный ориентир<select id="habit-goal">
+              <option value="min">Не меньше</option>
+              <option value="max">Не больше</option>
+              <option value="exact">Ровно</option>
+              <option value="range">В диапазоне</option>
+              <option value="none">Наблюдать без цели</option>
+            </select></label
+          >
+          <label id="target-label"
+            ><span id="target-caption">Значение</span
+            ><input id="habit-target" type="number" value="1" step="any" required
+          /></label>
+        </div>
+        <label id="upper-label" hidden>Верхняя граница<input id="habit-upper" type="number" step="any" /></label>
+        <label id="aggregation-label"
+          >Если несколько записей за день<select id="habit-aggregation">
+            <option value="sum">Складывать</option>
+            <option value="last">Брать последнюю</option>
+            <option value="mean">Среднее значение</option>
+            <option value="max">Максимум</option>
+            <option value="min">Минимум</option>
+          </select></label
+        >
+        <p id="aggregation-hint" class="field-hint"></p>
+        <div class="form-grid builder-grid">
+          <label
+            >Когда отслеживать<select id="habit-schedule">
+              <option value="daily">Каждый день</option>
+              <option value="interval">Каждые N дней</option>
+              <option value="weekdays">В выбранные дни недели</option>
+              <option value="free">Без расписания, по желанию</option>
+            </select></label
+          ><label
+            >Начиная с<input id="habit-start" type="date" min="2026-10-08" max="2026-10-21" value="2026-10-21" required
+          /></label>
+        </div>
+        <label id="interval-label" hidden
+          >Интервал в днях<input id="habit-interval" type="number" min="1" max="365" value="2" step="1"
+        /></label>
+        <fieldset id="weekday-fields" hidden>
+          <legend>Дни недели</legend>
+          <div class="weekdays">
+            <label><input type="checkbox" name="weekday" value="1" />Пн</label
+            ><label><input type="checkbox" name="weekday" value="2" />Вт</label
+            ><label><input type="checkbox" name="weekday" value="3" />Ср</label
+            ><label><input type="checkbox" name="weekday" value="4" />Чт</label
+            ><label><input type="checkbox" name="weekday" value="5" />Пт</label
+            ><label><input type="checkbox" name="weekday" value="6" />Сб</label
+            ><label><input type="checkbox" name="weekday" value="0" />Вс</label>
+          </div>
+        </fieldset>
+        <label class="check-label"><input type="checkbox" id="habit-share" />Показывать врачу в предпросмотре</label>
+        <div class="builder-preview">
+          <span class="eyebrow">ПОЛУЧИТСЯ ТАК</span>
+          <p id="habit-preview"></p>
+        </div>
+        <p id="builder-error" class="form-error" role="alert" hidden></p>
+        <button class="primary" type="submit">Добавить в мой ритм</button>
+        <p class="tiny">
+          Экспериментируйте на вымышленных примерах. Изменения сохраняются при обновлении этой вкладки; «Сбросить демо»
+          удалит их.
+        </p>
+      </form>
+    </dialog>
+    <dialog id="reminder-dialog">
+      <form id="reminder-form">
+        <div class="dialog-top">
+          <h2>Мягкие напоминания</h2>
+          <button type="button" data-close="reminder-dialog" aria-label="Закрыть">×</button>
+        </div>
+        <label
+          >Как часто<select id="reminder-frequency">
+            <option value="daily">Не больше одного раза в день</option>
+            <option value="alternate">Через день</option>
+            <option value="off">Поставить на паузу</option>
+          </select></label
+        ><label>Удобное время<input type="time" id="reminder-time" value="19:00" required /></label>
+        <p class="muted">
+          Только актуальные темы. Без повторного вопроса после молчания и без накопления старых напоминаний.
+        </p>
+        <button class="primary" type="submit">Сохранить</button>
+      </form>
+    </dialog>
+
+    <dialog id="day-drawer" class="day-drawer" aria-labelledby="drawer-title">
+      <div class="drawer-heading">
+        <div>
+          <p class="eyebrow" id="drawer-kicker">ДЕНЬ ПОДРОБНО</p>
+          <h2 id="drawer-title">Сегодня</h2>
+        </div>
+        <button type="button" data-close="day-drawer" aria-label="Закрыть панель">×</button>
+      </div>
+      <div id="drawer-nav" class="drawer-nav">
+        <button type="button" id="previous-day">← Предыдущий</button
+        ><button type="button" id="next-day">Следующий →</button>
+      </div>
+      <div id="drawer-content"></div>
+    </dialog>
+    <dialog id="notes-dialog" aria-labelledby="all-notes-title">
+      <div class="dialog-top">
+        <div>
+          <p class="eyebrow">ЛИЧНАЯ ИСТОРИЯ</p>
+          <h2 id="all-notes-title">Все заметки</h2>
+        </div>
+        <button type="button" data-close="notes-dialog" aria-label="Закрыть заметки">×</button>
+      </div>
+      <div class="note-filters">
+        <label>Найти в тексте<input id="note-search" type="search" placeholder="Например, прогулка" /></label
+        ><label
+          >Источник<select id="note-source">
+            <option value="all">Все заметки</option>
+            <option value="day">Заметки о дне</option>
+            <option value="habit">Из личных привычек</option>
+          </select></label
+        ><label
+          >Начиная с<input id="note-from" type="date" min="2026-10-08" max="2026-10-21" value="2026-10-08"
+        /></label>
+      </div>
+      <p id="note-results-count" class="muted"></p>
+      <div id="note-results"></div>
+    </dialog>
+    <dialog id="discussion-dialog" aria-labelledby="discussion-title">
+      <div class="dialog-top">
+        <h2 id="discussion-title">Обсудить день</h2>
+        <button type="button" data-close="discussion-dialog" aria-label="Закрыть">×</button>
+      </div>
+      <p class="muted">
+        Черновик вопроса на основе выбранного дня. В этом прототипе ИИ не подключён, данные никуда не отправляются.
+      </p>
+      <label for="discussion-text">Ваш вопрос</label><textarea id="discussion-text" rows="7" maxlength="4000"></textarea
+      ><button id="copy-discussion" class="primary" type="button">Скопировать вопрос</button>
+    </dialog>
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  </body>
+</html>

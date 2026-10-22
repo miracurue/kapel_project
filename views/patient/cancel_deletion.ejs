@@ -1,0 +1,13 @@
+<%- include('../_header') %>
+<div class="card">
+  <h1>Отменить запрос на удаление</h1>
+  <p>Если вы передумали и удаление ещё не выполнено, подтвердите свои e-mail и пароль. Доступ к аккаунту вернётся. Согласие на научное использование останется отозванным.</p>
+  <form method="POST" action="/account/cancel-deletion">
+    <label for="email">Email</label>
+    <input type="email" id="email" name="email" required autocomplete="username" />
+    <label for="password">Пароль</label>
+    <input type="password" id="password" name="password" required autocomplete="current-password" />
+    <p><button type="submit">Отменить запрос</button> <a class="btn-link" href="/login">Назад ко входу</a></p>
+  </form>
+</div>
+<%- include('../_footer') %>

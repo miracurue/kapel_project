@@ -1,0 +1,35 @@
+<%- include('../_header') %>
+<div class="card admin">
+  <p><a href="/admin/assignments">&larr; Все привязки</a></p>
+  <h1>Привязка: <%= p.full_name %></h1>
+  <% if (openEsc) { %><p class="notice-honest" role="note">У пациента открытых эскалаций: <strong><%= openEsc %></strong>. Они видны тому специалисту, который сейчас ведёт пациента; при снятии последнего врача они попадут в очередь «Без врача».</p><% } %>
+
+  <h2>Сейчас ведут</h2>
+  <% if (current.length === 0) { %>
+    <div class="empty-state"><p class="empty-state__title">Врач не назначен</p><p>Выберите специалиста ниже. Пока врача нет, обращения и эскалации пациента идут в очередь «Без врача».</p></div>
+  <% } else { %>
+    <ul class="plain-list">
+      <% current.forEach(function(c) { %>
+        <li><%= c.full_name %> (<%= c.role === 'psychiatrist' ? 'психиатр' : 'психолог' %>)<%= c.deactivated_at ? ' — деактивирован' : '' %>
+          <a class="btn btn-secondary" href="/admin/assignments/unassign?patient_id=<%= p.id %>&amp;clinician_id=<%= c.id %>">Снять…</a></li>
+      <% }) %>
+    </ul>
+  <% } %>
+
+  <h2>Назначить специалиста</h2>
+  <% if (candidates.length === 0) { %>
+    <p class="hint">Нет доступных активных специалистов. Сначала <a href="/admin/users/new">создайте</a> или активируйте сотрудника.</p>
+  <% } else { %>
+    <form method="POST" action="/admin/assignments/assign" class="filter-bar">
+      <input type="hidden" name="patient_id" value="<%= p.id %>" />
+      <label for="clinician_id">Специалист
+        <select name="clinician_id" id="clinician_id" required>
+          <% candidates.forEach(function(c) { %><option value="<%= c.id %>"><%= c.full_name %> (<%= c.role === 'psychiatrist' ? 'психиатр' : 'психолог' %>)</option><% }) %>
+        </select>
+      </label>
+      <button type="submit">Назначить</button>
+    </form>
+    <p class="hint">Совместное ведение допустимо: у пациента может быть два специалиста (основной и второй).</p>
+  <% } %>
+</div>
+<%- include('../_footer') %>

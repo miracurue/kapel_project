@@ -1,0 +1,31 @@
+<%- include('../_header') %>
+<%- include('_back', { backHref: '/tests?tab=done', backLabel: 'К пройденным тестам' }) %>
+
+<div class="card result-screen">
+  <h1>Ответы отправлены</h1>
+  <p class="muted"><%- instrumentTag(assignment.instrument) %><% if (isStub) { %> <span class="badge badge-warn">демо-заглушка</span><% } %> · <%= formatDate(result.created_at) %></p>
+
+  <% if (attention) { %>
+    <%- include('_support') %>
+    <p><%= text.RESULT_ATTENTION %></p>
+    <details>
+      <summary>Показать баллы</summary>
+      <p>Сумма баллов: <strong><%= result.total_score %></strong></p>
+    </details>
+  <% } else { %>
+    <p class="score-line">Сумма баллов: <strong><%= result.total_score %></strong></p>
+  <% } %>
+
+  <h2>Что это значит</h2>
+  <p><%= text.RESULT_MEANING %></p>
+  <h2>Что дальше</h2>
+  <p><%= linked ? text.RESULT_NEXT : text.RESULT_NEXT_NO_DOCTOR %></p>
+
+  <p class="result-disclaimer"><%= RESULT_DISCLAIMER %></p>
+  <div class="actions">
+    <a class="btn-link" href="/tests?tab=progress&instrument=<%= encodeURIComponent(assignment.instrument) %>">Динамика</a>
+    <a class="btn-link" href="/tests">К тестам</a>
+    <a class="btn-link" href="/dashboard">На главную</a>
+  </div>
+</div>
+<%- include('../_footer') %>

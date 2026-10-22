@@ -1,0 +1,151 @@
+<%- include('../_header') %>
+<div class="card clinician-card">
+  <%- include('_patient_head') %>
+  <h2>Офлайн-ввод и сравнение</h2>
+
+  <section class="pc-section" id="waiting" aria-labelledby="wait-h">
+    <h3 id="wait-h">Ожидают вашего ввода</h3>
+    <% if (waiting.length === 0) { %>
+      <p class="hint">Нет. Очная методика попадает сюда, когда вы её назначаете (пациент её не видит); после ввода протокола со статусом «готово» ожидание закрывается. Необязательно.</p>
+    <% } else { %>
+      <ul class="pc-waiting">
+        <% waiting.forEach(function(w) { %>
+          <li><span class="badge badge-info"><span aria-hidden="true">✎</span> ожидает ввода</span> <%- instrumentTag(w.instrument) %>
+            <span class="hint">назначено <%= formatDate(String(w.assigned_at).slice(0, 10)) %><%= w.by_name ? ', ' + w.by_name : '' %><%= w.entry_protocol_id ? ' · черновик есть, отметьте «готово» ниже' : '' %></span></li>
+        <% }) %>
+      </ul>
+    <% } %>
+  </section>
+
+  <section class="pc-section" aria-labelledby="entry-h">
+    <h3 id="entry-h">Ввести результат</h3>
+    <p class="hint">Любая методика каталога, назначавшаяся или нет. Ничего не обязательно: дата подставится сегодняшняя. Баллы очных бланков вводит врач, автоматической интерпретации у заглушек нет.</p>
+    <form method="POST" action="<%= base %>/results" class="pc-entry">
+      <%- include('../_catalog_picker', { pickerId: 'entryPicker', groups: entryGroups, fieldName: 'instrument', noRequired: true }) %>
+      <label>Дата проведения <input type="date" name="test_date" value="<%= today %>" /></label>
+
+      <div class="pc-fields" data-for="phq9 gad7 who5 bdi2">
+        <p class="hint pc-fields__cap">Для PHQ-9, GAD-7, WHO-5, BDI-II</p>
+        <label>Суммарный балл <input type="number" name="total_score" min="0" /></label>
+      </div>
+      <div class="pc-fields" data-for="phq9 bdi2">
+        <p class="hint pc-fields__cap">Для PHQ-9, BDI-II (необязательно)</p>
+        <label>Пункт 9 (суицидальные мысли), 0–3 <input type="number" name="item9_score" min="0" max="3" /></label>
+      </div>
+      <div class="pc-fields" data-for="hads">
+        <p class="hint pc-fields__cap">Для HADS</p>
+        <label>HADS-A (тревога), 0–21 <input type="number" name="subscale_a" min="0" max="21" /></label>
+        <label>HADS-D (депрессия), 0–21 <input type="number" name="subscale_d" min="0" max="21" /></label>
+      </div>
+      <div class="pc-fields" data-for="stai">
+        <p class="hint pc-fields__cap">Для STAI</p>
+        <label>Реактивная тревожность (СТ), 20–80 <input type="number" name="stai_state" min="20" max="80" /></label>
+        <label>Личностная тревожность (ЛТ), 20–80 <input type="number" name="stai_trait" min="20" max="80" /></label>
+      </div>
+      <div class="pc-fields" data-for="mmpi">
+        <p class="hint pc-fields__cap">Для СМИЛ (T-баллы)</p>
+        <label>Шкала 2 (D) <input type="number" name="mmpi_scale2" min="0" max="120" /></label>
+        <label>Шкала 7 (Pt) <input type="number" name="mmpi_scale7" min="0" max="120" /></label>
+        <label>Шкала 9 (Ma) <input type="number" name="mmpi_scale9" min="0" max="120" /></label>
+      </div>
+      <div class="pc-fields" data-for="phq9 gad7 who5 bdi2 hads stai mmpi">
+        <p class="hint pc-fields__cap">Для шкал выше</p>
+        <label>Заметка к результату <textarea name="notes" rows="2" maxlength="1000"></textarea></label>
+      </div>
+      <div class="pc-fields" data-for="protocol">
+        <p class="hint pc-fields__cap">Для остальных методик каталога (универсальный протокол, заглушка)</p>
+        <% protocolFields.forEach(function(f) { %>
+          <label><%= f.label %>
+            <% if (f.type === 'textarea') { %><textarea name="<%= f.name %>" rows="3" maxlength="4000"></textarea>
+            <% } else { %><input type="number" name="<%= f.name %>" min="<%= f.min %>" step="any" /><% } %>
+          </label>
+        <% }) %>
+        <label>Статус протокола
+          <select name="status"><option value="draft">черновик</option><option value="ready">готово</option></select>
+        </label>
+      </div>
+      <p><button type="submit">Сохранить</button></p>
+    </form>
+    <p class="result-disclaimer"><%= STUB_DISCLAIMER %> Запись по заглушке сохраняется как протокол, не как заключение.</p>
+  </section>
+
+  <section class="pc-section" aria-labelledby="done-h">
+    <h3 id="done-h">Введено врачом</h3>
+    <% if (entered.length === 0) { %>
+      <div class="empty-state"><p class="empty-state__title">Пока ничего не введено</p><p>Необязательно. Результаты очных бланков и протоколов появятся здесь.</p></div>
+    <% } else { %>
+      <div class="table-responsive"><table class="stack-mobile">
+        <thead><tr><th>Методика</th><th>Дата</th><th>Балл</th><th>Статус</th><th>Действия</th></tr></thead>
+        <tbody>
+        <% entered.forEach(function(r) { %>
+          <tr<%= r.invalid ? ' class=is-invalid' : '' %>>
+            <td><%- instrumentTag(r.instrument) %><% if (r.stub) { %> <span class="badge badge-warn">заглушка</span><% } %></td>
+            <td><%= formatDate(r.date) %></td>
+            <td><%= r.total === null ? '—' : r.total %><% if (r.kind === 'protocol' && r.protocol) { %>
+              <div class="hint">время: <%= r.protocol.duration_sec ?? '—' %> с · ошибки: <%= r.protocol.errors ?? '—' %></div>
+              <% if (r.protocol.observations) { %><div class="hint"><%= r.protocol.observations %></div><% } %><% } %></td>
+            <td>
+              <% if (r.invalid) { %><span class="badge badge-muted">ошибочный ввод</span>
+              <% } else if (r.kind === 'protocol') { %><span class="badge <%= r.status === 'ready' ? 'badge-ok' : 'badge-warn' %>"><%= r.status === 'ready' ? 'готово' : 'черновик' %></span>
+              <% } else { %><span class="badge badge-muted">очный бланк</span><% } %>
+            </td>
+            <td class="row-actions">
+              <% if (r.kind === 'protocol' && r.status !== 'ready' && !r.invalid) { %>
+                <form method="POST" action="<%= base %>/protocols/<%= r.rid %>/ready"><button type="submit" class="btn-secondary">Отметить «готово»</button></form>
+              <% } %>
+              <% if (!r.invalid) { %>
+                <form method="POST" action="<%= base %>/results/<%= r.kind %>/<%= r.rid %>/invalid">
+                  <input type="hidden" name="back" value="<%= base %>/offline" />
+                  <details><summary>Ошибочный ввод</summary>
+                    <label>Причина (необязательно) <input type="text" name="reason" maxlength="200" /></label>
+                    <button type="submit" class="btn-secondary">Пометить</button>
+                  </details>
+                </form>
+              <% } else { %>
+                <form method="POST" action="<%= base %>/results/<%= r.kind %>/<%= r.rid %>/valid"><input type="hidden" name="back" value="<%= base %>/offline" /><button type="submit" class="btn-secondary">Вернуть</button></form>
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+        </tbody>
+      </table></div>
+    <% } %>
+  </section>
+
+  <section class="pc-section" aria-labelledby="cmp-h">
+    <h3 id="cmp-h">Сопоставление офлайн/онлайн (научная часть)</h3>
+    <% if (!consentOk) { %>
+      <p class="hint">Онлайн-данные пациента не передаются без клинического согласия, сопоставление недоступно.</p>
+    <% } else if (comparisons.length === 0) { %>
+      <div class="empty-state"><p class="empty-state__title">Нет сопоставимых пар</p><p>Пара создаётся сама, когда есть очный результат и онлайн-результат той же (или парной) шкалы. Необязательно.</p></div>
+    <% } else { %>
+      <div class="table-responsive"><table>
+        <tr>
+          <th>Онлайн шкала</th><th>Офлайн шкала</th><th>Сопоставимость</th><th>Дней между тестами</th>
+          <th>Онлайн балл</th><th>Офлайн балл</th><th>Разница (online−offline)</th><th>Разница п.9</th><th>Заметка специалиста</th>
+        </tr>
+        <% comparisons.forEach(function(c) { %>
+          <tr>
+            <td><%- instrumentTag(c.online_scale) %></td>
+            <td><%- instrumentTag(c.offline_scale) %></td>
+            <td><%= c.comparability %></td>
+            <td><%= Math.round(c.time_delta_days) %></td>
+            <td><%= c.online_total %></td>
+            <td><%= c.offline_total %></td>
+            <td><%= c.discrepancy_raw !== null ? c.discrepancy_raw : '—' %></td>
+            <td><%= c.discrepancy_item9 !== null ? c.discrepancy_item9 : '—' %></td>
+            <td>
+              <form method="POST" action="<%= base %>/comparisons/<%= c.id %>/note" class="pc-note-form">
+                <input type="text" name="clinician_note" value="<%= c.clinician_note || '' %>" placeholder="причина расхождения (необязательно)" aria-label="Заметка к паре" />
+                <button type="submit" class="btn-secondary">Сохранить</button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+      </table></div>
+    <% } %>
+  </section>
+  <p class="result-disclaimer"><%= disclaimer %></p>
+</div>
+<script src="/clinician_card.js" defer></script>
+<%- include('../_footer') %>

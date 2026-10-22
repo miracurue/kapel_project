@@ -1,0 +1,178 @@
+[
+  {
+    "appendix": "Г1",
+    "label": "app:Г1",
+    "code": "hars",
+    "codes": ["hars"],
+    "title": "Шкала М. Гамильтона для оценки тревоги (HARS)",
+    "mode": "reference_only",
+    "assignable": false,
+    "intended_assignable": false,
+    "href": "/work?tab=tools&tool=hars"
+  },
+  {
+    "appendix": "Г2",
+    "label": "app:Г2",
+    "code": "gad7",
+    "codes": ["gad7"],
+    "title": "ГТР-7 (GAD-7)",
+    "mode": "assignable",
+    "assignable": true,
+    "intended_assignable": true,
+    "href": "/work?tab=tools&tool=gad7"
+  },
+  {
+    "appendix": "Г3",
+    "label": "app:Г3",
+    "code": "scl90r",
+    "codes": ["scl90r"],
+    "title": "Опросник выраженности психопатологической симптоматики (SCL-90-R)",
+    "mode": "assignable",
+    "assignable": true,
+    "intended_assignable": true,
+    "href": "/work?tab=tools&tool=scl90r"
+  },
+  {
+    "appendix": "Г4",
+    "label": "app:Г4",
+    "code": "itt_l",
+    "codes": ["itt_l", "itt_s"],
+    "title": "Интегративный тест тревожности (ИТТ: СТ-Л, СТ-С)",
+    "mode": "assignable",
+    "assignable": true,
+    "intended_assignable": true,
+    "href": "/work?tab=tools&tool=itt_l"
+  },
+  {
+    "appendix": "Г5",
+    "label": "app:Г5",
+    "code": "stai",
+    "codes": ["stai"],
+    "title": "Шкала тревоги Спилбергера–Ханина (STAI)",
+    "mode": "assignable",
+    "assignable": true,
+    "intended_assignable": true,
+    "href": "/work?tab=tools&tool=stai"
+  },
+  {
+    "appendix": "Г6",
+    "label": "app:Г6",
+    "code": "bai",
+    "codes": ["bai"],
+    "title": "Шкала тревоги Бека (BAI)",
+    "mode": "assignable",
+    "assignable": true,
+    "intended_assignable": true,
+    "href": "/work?tab=tools&tool=bai"
+  },
+  {
+    "appendix": "Г7",
+    "label": "app:Г7",
+    "code": "shars",
+    "codes": ["shars"],
+    "title": "Шкала самооценки тревоги Шихана (ShARS)",
+    "mode": "assignable",
+    "assignable": true,
+    "intended_assignable": true,
+    "href": "/work?tab=tools&tool=shars"
+  },
+  {
+    "appendix": "Г8",
+    "label": "app:Г8",
+    "code": "mmpi",
+    "codes": ["mmpi"],
+    "title": "СМИЛ / Миннесотский многофакторный личностный опросник (MMPI)",
+    "mode": "awaiting_text",
+    "assignable": false,
+    "intended_assignable": true,
+    "href": "/work?tab=tools&tool=mmpi"
+  },
+  {
+    "appendix": "Г9",
+    "label": "app:Г9",
+    "code": "ista",
+    "codes": ["ista"],
+    "title": "Я-структурный тест Аммона (ISTA)",
+    "mode": "awaiting_text",
+    "assignable": false,
+    "intended_assignable": true,
+    "href": "/work?tab=tools&tool=ista"
+  },
+  {
+    "appendix": "Г10",
+    "label": "app:Г10",
+    "code": "usk",
+    "codes": ["usk"],
+    "title": "Методика определения уровня субъективного контроля (УСК)",
+    "mode": "awaiting_text",
+    "assignable": false,
+    "intended_assignable": true,
+    "href": "/work?tab=tools&tool=usk"
+  },
+  {
+    "appendix": "Г11",
+    "label": "app:Г11",
+    "code": "personal_beliefs",
+    "codes": ["personal_beliefs"],
+    "title": "Опросник личностных убеждений (Personal Beliefs Test)",
+    "mode": "awaiting_text",
+    "assignable": false,
+    "intended_assignable": true,
+    "href": "/work?tab=tools&tool=personal_beliefs"
+  },
+  {
+    "appendix": "Г12",
+    "label": "app:Г12",
+    "code": "lsi",
+    "codes": ["lsi"],
+    "title": "Индекс жизненного стиля (LSI)",
+    "mode": "awaiting_text",
+    "assignable": false,
+    "intended_assignable": true,
+    "href": "/work?tab=tools&tool=lsi"
+  },
+  {
+    "appendix": "Г13",
+    "label": "app:Г13",
+    "code": "coping",
+    "codes": ["coping"],
+    "title": "Стратегии совладающего поведения (СПП)",
+    "mode": "awaiting_text",
+    "assignable": false,
+    "intended_assignable": true,
+    "href": "/work?tab=tools&tool=coping"
+  },
+  {
+    "appendix": "Г14",
+    "label": "app:Г14",
+    "code": "melbourne",
+    "codes": ["melbourne"],
+    "title": "Мельбурнский опросник принятия решений (MDMQ)",
+    "mode": "awaiting_text",
+    "assignable": false,
+    "intended_assignable": true,
+    "href": "/work?tab=tools&tool=melbourne"
+  },
+  {
+    "appendix": "Г15",
+    "label": "app:Г15",
+    "code": "kon2006",
+    "codes": ["kon2006"],
+    "title": "Опросник невротической личности KON-2006",
+    "mode": "awaiting_text",
+    "assignable": false,
+    "intended_assignable": true,
+    "href": "/work?tab=tools&tool=kon2006"
+  },
+  {
+    "appendix": "Г16",
+    "label": "app:Г16",
+    "code": "kop25",
+    "codes": ["kop25"],
+    "title": "Опросник приверженности лечению (КОП-25)",
+    "mode": "awaiting_text",
+    "assignable": false,
+    "intended_assignable": true,
+    "href": "/work?tab=tools&tool=kop25"
+  }
+]

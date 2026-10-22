@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Мой ритм — Клинический компас</title>
+    <link rel="stylesheet" href="rhythm-demo.css" />
+    <script src="rhythm-demo.js" defer></script>
+  </head>
+  <body>
+    <div class="demo-bar">Прототип · только вымышленные данные · сохраняются в текущей вкладке</div>
+    <header>
+      <a class="brand" href="rhythm-demo.html"><span class="brand-mark">✳</span> Клинический компас</a
+      ><span class="header-section">Дневник пациента</span
+      ><span class="avatar" aria-label="Демонстрационный профиль">А</span>
+    </header>
+    <main>
+      <div class="page-heading">
+        <div>
+          <p class="eyebrow">МАЛЕНЬКИЕ ШАГИ, ВАШ ТЕМП</p>
+          <h1>Мой ритм<span>.</span></h1>
+          <p class="intro">Замечайте, как проходит день. Здесь есть место и важному, и личному.</p>
+        </div>
+        <button class="primary" id="add">+ Добавить привычку</button>
+      </div>
+      <div class="toolbar">
+        <div class="segmented" id="audience" aria-label="Режим просмотра">
+          <button data-mode="patient" aria-pressed="true">Мой дневник</button
+          ><button data-mode="doctor" aria-pressed="false">Как видит врач</button>
+        </div>
+        <span class="date-label">Среда, 21 октября 2026</span>
+      </div>
+      <p class="doctor-notice" id="doctor-notice" hidden>
+        Предпросмотр для специалиста: только открытые ему показатели. Переписка с ИИ остаётся личной.
+      </p>
+      <div class="workspace">
+        <div class="main-column">
+          <section aria-labelledby="today-title">
+            <div class="section-heading">
+              <h2 id="today-title">Сегодня</h2>
+              <span class="muted" id="today-caption">Ваши ориентиры на день</span>
+            </div>
+            <div class="cards" id="cards"></div>
+          </section>
+          <section class="panel calendar-panel" aria-labelledby="calendar-title">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">ОБЩАЯ КАРТИНА</p>
+                <h2 id="calendar-title">Дни складываются в ритм</h2>
+              </div>
+              <select id="period" aria-label="Период календаря">
+                <option value="14">14 дней</option>
+                <option value="7">7 дней</option>
+              </select>
+            </div>
+            <p class="muted calendar-description">
+              У каждой строки свой смысл. Пустая отметка — просто отсутствие данных.
+            </p>
+            <div class="calendar-scroll"><table id="calendar" aria-label="Календарь привычек"></table></div>
+            <div class="legend">
+              <span><i class="swatch done"></i>По ориентиру</span
+              ><span><i class="swatch partial"></i>Вне ориентира</span
+              ><span><i class="swatch missed"></i>Не выполнено</span
+              ><span><i class="swatch missing"></i>Нет записи</span
+              ><span><i class="swatch off"></i>Не запланировано</span
+              ><span><i class="swatch recorded"></i>Без оценки</span>
+            </div>
+          </section>
+          <section class="panel chart-panel" aria-labelledby="chart-title">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">В СВОИХ ЕДИНИЦАХ</p>
+                <h2 id="chart-title">Динамика</h2>
+              </div>
+              <select id="metric" aria-label="Показатель графика"></select>
+            </div>
+            <div class="chart-summary">
+              <strong id="chart-value"></strong><span class="muted" id="chart-description"></span>
+            </div>
+            <div id="chart"></div>
+            <p class="muted" id="chart-footnote"></p>
+            <details>
+              <summary>Посмотреть значения по дням</summary>
+              <div id="chart-table"></div>
+            </details>
+          </section>
+        </div>
+        <aside>
+          <section class="panel reminder">
+            <div class="aside-icon">✦</div>
+            <p class="eyebrow">БЕЗ ЛИШНЕГО ШУМА</p>
+            <h2>Один вопрос.<br />В удобный момент.</h2>
+            <p class="muted" id="reminder-summary">
+              Не больше одного вопроса в день, около 19:00. Темы чередуются с учётом ваших планов.
+            </p>
+            <div class="chat-bubble">
+              <span class="chat-sender">КОМПАС · ПРИМЕР ВОПРОСА</span>
+              <p>Как сегодня получилось с питанием?</p>
+              <div class="quick-answers">
+                <button data-food="3">3 раза</button><button data-food="2">2 раза</button
+                ><button data-food="1">1 раз</button>
+              </div>
+            </div>
+            <button class="text-button" id="reminders">Настроить напоминания ↗</button>
+            <p class="tiny">В прототипе сообщения по расписанию не отправляются.</p>
+          </section>
+          <section class="panel access-panel">
+            <span class="aside-icon small-icon">↗</span>
+            <h3>Вы решаете, чем делиться</h3>
+            <p class="muted">
+              Откройте врачу нужные показатели переключателем на карточке. Личные привычки могут остаться только вашими.
+            </p>
+            <button class="text-button" id="preview-doctor">Посмотреть глазами врача →</button>
+            <p class="tiny">Это демонстрация доступа. Настоящие согласия не изменяются.</p>
+          </section>
+          <div class="quiet-note">Не обязательно заполнять всё.<br />Можно вернуться в любой день.</div>
+        </aside>
+      </div>
+      <footer>Мой ритм · пространство для наблюдения за собой <button id="reset">Сбросить демо</button></footer>
+    </main>
+    <dialog id="editor">
+      <form id="entry-form">
+        <div class="dialog-top">
+          <h2 id="entry-title">Отметка</h2>
+          <button type="button" data-close="editor" aria-label="Закрыть">×</button>
+        </div>
+        <p id="entry-hint" class="muted"></p>
+        <div id="entry-fields"></div>
+        <label id="entry-operation-label"
+          >Как записать<select id="entry-operation">
+            <option value="replace">Заменить записи за этот день</option>
+            <option value="append">Добавить ещё одну запись</option>
+          </select></label
+        >
+        <p id="entry-records" class="muted"></p>
+        <div class="dialog-actions">
+          <button type="button" id="entry-missed">Не получилось</button
+          ><button type="button" id="entry-clear">Убрать запись</button
+          ><button class="primary" type="submit">Сохранить</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="creator">
+      <form id="habit-form">
+        <div class="dialog-top">
+          <h2>Новая привычка</h2>
+          <button type="button" data-close="creator" aria-label="Закрыть">×</button>
+        </div>
+        <p class="muted">Свободное название, понятные правила учёта. Все поля можно настроить под себя.</p>
+        <div class="example-buttons" aria-label="Примеры настроек">
+          <button type="button" data-preset="water">Вода</button
+          ><button type="button" data-preset="walk">Прогулки</button
+          ><button type="button" data-preset="energy">Энергия</button
+          ><button type="button" data-preset="bed">Время отхода ко сну</button
+          ><button type="button" data-preset="note">Заметки</button>
+        </div>
+        <label>Название<input id="habit-name" maxlength="80" placeholder="Например, учить испанский" required /></label>
+        <div class="form-grid builder-grid">
+          <label
+            >Что записывать<select id="habit-type">
+              <option value="check">Факт: сделано / нет</option>
+              <option value="count">Количество: разы, шаги, страницы</option>
+              <option value="duration">Длительность: минуты, часы</option>
+              <option value="measure">Измерение: объём, вес, своё</option>
+              <option value="scale">Оценка по шкале</option>
+              <option value="time">Время суток</option>
+              <option value="choice">Вариант из своего списка</option>
+              <option value="note">Свободная заметка</option>
+            </select></label
+          >
+          <label id="habit-unit-label">Единица<select id="habit-unit"></select></label>
+        </div>
+        <label id="custom-unit-label" hidden
+          >Своя единица<input id="habit-custom-unit" maxlength="16" placeholder="Например, кругов"
+        /></label>
+        <label id="signed-label" class="check-label" hidden
+          ><input id="habit-signed" type="checkbox" />Допускать отрицательные значения</label
+        >
+        <div id="scale-fields" class="form-grid builder-grid" hidden>
+          <label>Минимум шкалы<input id="scale-min" type="number" value="1" step="1" required /></label
+          ><label>Максимум шкалы<input id="scale-max" type="number" value="5" step="1" required /></label>
+        </div>
+        <label id="choice-fields" hidden
+          >Варианты, каждый с новой строки<textarea
+            id="habit-choices"
+            rows="4"
+            maxlength="800"
+            placeholder="Дома&#10;На улице&#10;В компании"
+          ></textarea>
+        </label>
+        <div class="form-grid builder-grid">
+          <label id="goal-label"
+            >Личный ориентир<select id="habit-goal">
+              <option value="min">Не меньше</option>
+              <option value="max">Не больше</option>
+              <option value="exact">Ровно</option>
+              <option value="range">В диапазоне</option>
+              <option value="none">Наблюдать без цели</option>
+            </select></label
+          >
+          <label id="target-label"
+            ><span id="target-caption">Значение</span
+            ><input id="habit-target" type="number" value="1" step="any" required
+          /></label>
+        </div>
+        <label id="upper-label" hidden>Верхняя граница<input id="habit-upper" type="number" step="any" /></label>
+        <label id="aggregation-label"
+          >Если несколько записей за день<select id="habit-aggregation">
+            <option value="sum">Складывать</option>
+            <option value="last">Брать последнюю</option>
+            <option value="mean">Среднее значение</option>
+            <option value="max">Максимум</option>
+            <option value="min">Минимум</option>
+          </select></label
+        >
+        <p id="aggregation-hint" class="field-hint"></p>
+        <div class="form-grid builder-grid">
+          <label
+            >Когда отслеживать<select id="habit-schedule">
+              <option value="daily">Каждый день</option>
+              <option value="interval">Каждые N дней</option>
+              <option value="weekdays">В выбранные дни недели</option>
+              <option value="free">Без расписания, по желанию</option>
+            </select></label
+          ><label
+            >Начиная с<input id="habit-start" type="date" min="2026-10-08" max="2026-10-21" value="2026-10-21" required
+          /></label>
+        </div>
+        <label id="interval-label" hidden
+          >Интервал в днях<input id="habit-interval" type="number" min="1" max="365" value="2" step="1"
+        /></label>
+        <fieldset id="weekday-fields" hidden>
+          <legend>Дни недели</legend>
+          <div class="weekdays">
+            <label><input type="checkbox" name="weekday" value="1" />Пн</label
+            ><label><input type="checkbox" name="weekday" value="2" />Вт</label
+            ><label><input type="checkbox" name="weekday" value="3" />Ср</label
+            ><label><input type="checkbox" name="weekday" value="4" />Чт</label
+            ><label><input type="checkbox" name="weekday" value="5" />Пт</label
+            ><label><input type="checkbox" name="weekday" value="6" />Сб</label
+            ><label><input type="checkbox" name="weekday" value="0" />Вс</label>
+          </div>
+        </fieldset>
+        <label class="check-label"><input type="checkbox" id="habit-share" />Показывать врачу в предпросмотре</label>
+        <div class="builder-preview">
+          <span class="eyebrow">ПОЛУЧИТСЯ ТАК</span>
+          <p id="habit-preview"></p>
+        </div>
+        <p id="builder-error" class="form-error" role="alert" hidden></p>
+        <button class="primary" type="submit">Добавить в мой ритм</button>
+        <p class="tiny">
+          Экспериментируйте на вымышленных примерах. Изменения сохраняются при обновлении этой вкладки; «Сбросить демо»
+          удалит их.
+        </p>
+      </form>
+    </dialog>
+    <dialog id="reminder-dialog">
+      <form id="reminder-form">
+        <div class="dialog-top">
+          <h2>Мягкие напоминания</h2>
+          <button type="button" data-close="reminder-dialog" aria-label="Закрыть">×</button>
+        </div>
+        <label
+          >Как часто<select id="reminder-frequency">
+            <option value="daily">Не больше одного раза в день</option>
+            <option value="alternate">Через день</option>
+            <option value="off">Поставить на паузу</option>
+          </select></label
+        ><label>Удобное время<input type="time" id="reminder-time" value="19:00" required /></label>
+        <p class="muted">
+          Только актуальные темы. Без повторного вопроса после молчания и без накопления старых напоминаний.
+        </p>
+        <button class="primary" type="submit">Сохранить</button>
+      </form>
+    </dialog>
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  </body>
+</html>

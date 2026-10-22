@@ -1,0 +1,56 @@
+<%#
+  P-38 · Рабочие настройки (UC-44, F-97, F-98, F-117; W-41). Разметка — из
+  утверждённого прототипа v5 (.agents/web-developer/files/09-admin/prototype/,
+  вкладка «Настройки»). Список настроек приходит с сервера (GET
+  /api/v1/admin/settings), версии и откат — API /admin/settings/:key.
+  Тексты — только ключами locales/ru.json (t()).
+  Локалы: t, items ([{key, group, version, value, status, review_required}]),
+  groups (порядок вкладок), maintenance ({on, until, message_key}).
+%>
+<section class="settings-tab" data-admin-settings data-tab="settings">
+  <div class="pane"><div class="scroll"><div class="col feed">
+    <p class="lead" data-testid="msg.admin.settings.clinic_banner"><%= t('msg.admin.settings.clinic_banner') %></p>
+
+    <div class="subs" data-subs>
+      <% for (const g of groups) { %>
+        <button type="button" class="pill" data-sub="<%= g %>" data-testid="msg.admin.settings.tab.<%= g %>"><%= t(`msg.admin.settings.tab.${g}`, g) %></button>
+      <% } %>
+    </div>
+
+    <% for (const g of groups) { %>
+      <div data-subpane="<%= g %>" <%- g === groups[0] ? '' : 'hidden' %>>
+        <div class="list">
+          <% for (const item of items.filter((x) => x.group === g)) { %>
+            <div class="set" data-key="<%= item.key %>">
+              <div class="li">
+                <div class="grow">
+                  <%= item.key %>
+                  <small data-val><%= JSON.stringify(item.value).slice(0, 120) %></small>
+                  <small>
+                    v<%= item.version %>
+                    <% if (item.review_required) { %> · review-required<% } %>
+                  </small>
+                </div>
+                <span data-testid="msg.admin.settings.status.<%= item.status === 'active' ? 'active' : item.status === 'pending_approval' ? 'pending' : 'old' %>"><%= t(`msg.admin.settings.status.${item.status === 'active' ? 'active' : item.status === 'pending_approval' ? 'pending' : 'old'}`) %></span>
+                <button type="button" class="btn ghost" data-edit data-testid="msg.admin.settings.edit"><%= t('msg.admin.settings.edit') %></button>
+                <button type="button" class="btn ghost" data-hist data-testid="msg.admin.settings.history"><%= t('msg.admin.settings.history') %></button>
+              </div>
+              <div data-editor hidden>
+                <label class="field"><span data-testid="msg.admin.settings.approved_by"><%= t('msg.admin.settings.approved_by') %></span><input data-approved></label>
+                <label class="field"><span data-testid="msg.admin.settings.basis"><%= t('msg.admin.settings.basis') %></span><input data-basis></label>
+                <label class="field"><span data-testid="msg.admin.settings.comment"><%= t('msg.admin.settings.comment') %></span><input data-comment></label>
+                <button type="button" class="btn primary" data-save data-testid="msg.admin.settings.save"><%= t('msg.admin.settings.save') %></button>
+              </div>
+              <div data-history hidden></div>
+            </div>
+          <% } %>
+        </div>
+      </div>
+    <% } %>
+
+    <div class="row2">
+      <a class="btn ghost" href="/api/v1/admin/settings-export" download data-testid="msg.admin.settings.download"><%= t('msg.admin.settings.download') %></a>
+      <label class="btn ghost"><%= t('msg.admin.settings.upload') %><input type="file" data-upload accept="application/json" hidden></label>
+    </div>
+  </div></div></div>
+</section>

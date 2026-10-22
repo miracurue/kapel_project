@@ -1,0 +1,101 @@
+/* Аналитика, отчёт по когорте, «Аналитика рассказом» (insights.js). Токены — public/tokens.css.
+   Графики: ряд — цвет --ch-1…4 плюс штрих и маркер, подпись у линии, сетка --ch-grid, полоса --ch-band; у рисунка role="img" и описание словами. */
+
+/* ---------- отчёт по когорте (cohort_report.js) ---------- */
+.clist { display: flex; flex-direction: column; }
+.crow { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-2) var(--s-4); padding: var(--s-3) 0; border-bottom: 1px solid var(--hair); }
+.crow:last-child { border-bottom: 0; }
+.crow .grow { min-width: 0; }
+.crow small { display: block; color: var(--ink-2); font-size: var(--fs-13); }
+.cval { text-align: right; flex: none; }
+.cval b { font-family: var(--head); font-weight: 800; font-size: var(--fs-18); }
+.cval small { display: inline; }
+.cval small + small { display: block; }
+.crow.hidden b { font-weight: 600; }
+.dlabel { margin: var(--s-4) 0 var(--s-1); font-size: var(--fs-13); font-weight: 700; color: var(--ink-2); }
+
+/* ---------- «Аналитика рассказом»: раскладка ---------- */
+.ins-host { container-type: inline-size; }
+.ins-root { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap-block); align-items: start; }
+.ins-root > .ins-wide { grid-column: 1 / -1; }
+@container (max-width: 800px) { .ins-root { grid-template-columns: minmax(0, 1fr); } }
+.ins-top { display: flex; flex-direction: column; gap: var(--s-3); }
+.ins-filters { display: flex; gap: var(--s-2); flex-wrap: wrap; }
+.ins-filters .choice { min-height: var(--h-chip); padding: 0 14px; font-size: var(--fs-13); font-weight: 600; }
+.ins-filters .choice small { color: var(--ink-2); margin-left: 2px; font-size: var(--fs-13); }
+.ins-filters .choice:disabled { opacity: .6; cursor: not-allowed; }
+.ins-periods { align-self: flex-start; }
+
+/* карточки лежат в белом «камне» страницы, поэтому это вложенные плашки на фоне */
+.ins-card { container-type: inline-size; max-width: none; background: var(--ground); box-shadow: none; border-radius: var(--r-card); padding: var(--s-5); gap: var(--s-3); }
+.ins-summary { background: var(--jade-t); box-shadow: none; max-width: none; }
+.ins-summary h3 { margin: 0; }
+.ins-summary ul { margin: 0; padding-left: var(--s-5); }
+.ins-summary li { margin: var(--s-1) 0; }
+.ins-summary .btn { align-self: flex-start; }
+.ins-step { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s-3); margin: 0; }
+.ins-no { width: 28px; height: 28px; border-radius: 50%; background: var(--jade); color: var(--white); font-family: var(--head); font-weight: 800; font-size: var(--fs-14); display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.ins-title { flex: 1; min-width: 0; margin: 0; font-size: var(--fs-18); line-height: var(--lh-18); }
+.ins-headline { margin: 0; font-size: var(--fs-16); line-height: var(--lh-16); font-weight: 700; }
+
+/* число и подпись: плитка с числом M PLUS 32 */
+.ins-big { display: flex; align-items: baseline; gap: var(--s-2); margin: 0; }
+.ins-big b { font-family: var(--head); font-weight: 800; font-size: var(--fs-32); line-height: var(--lh-32); }
+.ins-big span { color: var(--ink-2); font-size: var(--fs-14); }
+.ins-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--s-2); margin: 0; }
+.ins-kpis > div { display: flex; flex-direction: column; gap: 2px; padding: var(--s-3) var(--s-4); border-radius: var(--r-card); background: var(--white); }
+.ins-kpis b { font-family: var(--head); font-weight: 800; font-size: var(--fs-32); line-height: var(--lh-32); }
+.ins-kpis b.is-text { font-size: var(--fs-18); line-height: var(--lh-18); padding: var(--s-2) 0; }
+.ins-kpis small { color: var(--ink-2); font-size: var(--fs-14); }
+.ins-cap, .ins-note { margin: 0; color: var(--ink-2); font-size: var(--fs-14); line-height: var(--lh-14); }
+.ins-empty { margin: 0; color: var(--ink-2); font-size: var(--fs-14); }
+
+/* строки с полосой: длина — величина, подпись и число — словами */
+.ins-block { display: flex; flex-direction: column; gap: var(--s-2); margin: 0; }
+.ins-block h4 { margin: 0; font-size: var(--fs-13); font-weight: 700; color: var(--ink-2); font-family: var(--text); }
+.ins-row { display: grid; grid-template-columns: minmax(120px, 38%) minmax(0, 1fr) auto; gap: var(--s-3); align-items: center; padding: var(--s-1) 0; font-size: var(--fs-14); }
+.ins-row.is-hidden { grid-template-columns: minmax(120px, 38%) minmax(0, 1fr); }
+.ins-l { min-width: 0; overflow-wrap: anywhere; }
+.ins-l small { display: block; color: var(--ink-2); font-size: var(--fs-13); }
+.ins-v { text-align: right; white-space: nowrap; font-weight: 700; }
+.ins-v small { color: var(--ink-2); font-weight: 400; font-size: var(--fs-13); }
+.ins-hidden { color: var(--ink-2); font-size: var(--fs-13); font-weight: 400; }
+.ins-bar { width: 100%; height: 10px; display: block; }
+.ins-track { fill: var(--white); }
+.ins-fill { fill: var(--ch-1); }
+.ins-fill.neutral { fill: var(--ch-ref); }
+.ins-fill.c-regular { fill: var(--ch-1); }
+.ins-fill.c-partial { fill: var(--ch-1); fill-opacity: .7; }
+.ins-fill.c-rare { fill: var(--ch-1); fill-opacity: .45; }
+.ins-fill.c-none { fill: var(--ch-ref); fill-opacity: .6; }
+
+/* графики */
+.ins-cols, .ins-curve { display: block; max-width: 100%; height: auto; }
+.ins-hole { fill: none; stroke: var(--ch-ref); stroke-width: 1; stroke-dasharray: 3 3; }
+.ins-t { font-family: var(--text); font-size: var(--fs-13); font-weight: 700; fill: var(--ink); }
+.ins-t2 { font-family: var(--text); font-size: var(--fs-13); fill: var(--ink-2); }
+.ins-grid { stroke: var(--ch-grid); stroke-width: 1; }
+.ins-band { fill: var(--ch-band); }
+.ins-line { fill: none; stroke: var(--ch-1); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.ins-dot { fill: var(--ch-1); stroke: var(--white); stroke-width: 2; }
+.ins-lab { fill: var(--ch-1); }
+.ins-scroll { overflow-x: auto; }
+.ins-how { margin-top: var(--s-1); font-size: var(--fs-13); color: var(--ink-2); }
+.ins-how summary { cursor: pointer; font-weight: 700; color: var(--jade); }
+.ins-how p { margin: var(--s-2) 0 0; }
+
+/* диагноз в шапке карточки пациента */
+.dx-pick { display: block; font-size: var(--fs-13); color: var(--ink-2); min-width: 0; margin-top: 2px; }
+.dx-pick label { display: flex; flex-direction: column; gap: 2px; font-weight: 700; }
+.dx-pick select { width: 100%; max-width: 340px; text-overflow: ellipsis; }
+@container (max-width: 520px) {
+  .ins-row, .ins-row.is-hidden { grid-template-columns: minmax(0, 1fr) auto; }
+  .ins-row .ins-bar { grid-column: 1 / -1; order: 3; }
+  .ins-row.is-hidden .ins-v { grid-column: 2; }
+}
+
+/* профиль специалиста (clinician_profile.js) */
+.prof-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--s-3) var(--s-4); margin: 0 0 var(--s-4); }
+.prof-grid label { display: flex; flex-direction: column; gap: var(--s-1); font-size: var(--fs-14); font-weight: 700; color: var(--ink); }
+.prof-grid textarea { resize: vertical; }
+.acc-block .check { display: flex; gap: var(--s-2); align-items: flex-start; margin: var(--s-2) 0; }

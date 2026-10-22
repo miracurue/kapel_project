@@ -1,0 +1,14 @@
+<%- include('../_header') %>
+<div class="card tools">
+  <%- include('_back') %>
+  <h1>Калькулятор шкал</h1>
+  <p class="notice-honest">Ничего не сохраняется. Пациент не создаётся, ответы не пишутся в базу и журналы. Подсчёт — по правилам шкал сервиса (справка, не диагноз).</p>
+  <h2>Шкалы с автоподсчётом</h2>
+  <ul class="tools-list">
+    <% scales.forEach(function(s) { %>
+      <li><a href="/tools/calculator/<%= s.code %>"><%= s.title %></a><% if (s.stub) { %> <span class="badge badge-muted">заглушка</span><% } %></li>
+    <% }) %>
+  </ul>
+  <p class="hint">Очные методики (BDI-II, STAI, СМИЛ, патопсихологические) считает врач; их итог вносится в карточке пациента или через <a href="/tools/import">импорт CSV</a>.</p>
+</div>
+<%- include('../_footer') %>

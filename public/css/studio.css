@@ -1,0 +1,142 @@
+/* Шаблоны и «Мои статьи»: список слева, чат на белом «камне» посередине, правка в широкой правой панели.
+   Все значения — из public/tokens.css. Правая панель — общий .panel из app.css; ширина и наложение — в article-editor.css. */
+
+/* ---------- список слева: история без «камня» ---------- */
+.lib-tab .side .tpl-find { flex: none; margin: 0 0 var(--s-2); }
+.lib-tab .side [data-tpl-own], .lib-tab .side [data-tpl-builtin], .lib-tab .side [data-lib-mine], .lib-tab .side [data-lib-pub] { display: flex; flex-direction: column; gap: 2px; }
+.lib-tab .lib-row-sub { color: var(--ink-2); font-size: var(--fs-13); }
+.lib-tab .lib-row-sub[data-status="published"] { color: var(--jade); font-weight: 700; }
+.lib-tab .lib-gap-hint { padding: 0 var(--s-3); margin: 0 0 var(--s-2); }
+.lib-tab .lib-gaps { display: flex; flex-wrap: wrap; gap: var(--s-2); padding: 0 var(--s-2) var(--s-3); }
+.lib-tab .side .chip { background: var(--sunk); font-weight: 600; cursor: pointer; }
+.lib-tab .side .chip:hover { background: var(--sunk-2); }
+.lib-tab [hidden] { display: none !important; }
+
+/* ---------- центр: приветствие, чтение, переписка ---------- */
+.lib-tab .pane > .scroll > .col { padding-top: var(--s-5); }
+.lib-tab .hello > p { max-width: 560px; margin-left: auto; margin-right: auto; }
+.lib-tab .lib-examples { margin-top: 0; }
+.lib-tab .lib-reading, .lib-tab [data-tpl-reading] { padding-top: var(--s-2); }
+.lib-tab .lib-reading-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); margin: 0 0 var(--s-4); }
+.lib-tab .lib-reading-head b, .lib-tab [data-lib-preview-label] { font-size: var(--fs-13); font-weight: 700; color: var(--ink-2); }
+.lib-tab .lib-preview { max-width: var(--w-read); border: 0; padding: 0; background: none; font-size: var(--fs-18); line-height: 1.7; overflow-wrap: anywhere; }
+.lib-tab .lib-preview h2 { font-size: var(--fs-24); line-height: var(--lh-24); margin: var(--s-5) 0 var(--s-2); }
+.lib-tab .lib-preview h2.lib-title, .lib-tab .lib-preview > h2:first-child { font-size: var(--fs-32); line-height: var(--lh-32); margin-top: 0; }
+.lib-tab .lib-preview h3 { font-size: var(--fs-18); line-height: var(--lh-18); margin: var(--s-4) 0 var(--s-1); }
+.lib-tab .lib-preview p { margin: 0 0 var(--s-3); }
+.lib-tab .lib-preview .lib-lead { font-size: var(--fs-18); color: var(--ink-2); }
+.lib-tab .lib-preview img { display: block; max-width: 100%; border-radius: var(--r-card); margin: var(--s-4) 0; }
+.lib-tab .lib-preview ul { padding-left: var(--s-5); margin: 0 0 var(--s-3); }
+.lib-tab .tpl-preview { white-space: pre-wrap; font-size: var(--fs-16); line-height: var(--lh-16); }
+.lib-tab .lib-reading .lib-cover { margin-bottom: var(--s-4); }
+
+/* переписка автора: слова автора справа, ответ ИИ без плашки */
+.lib-tab .lib-chat { display: flex; flex-direction: column; gap: var(--s-5); margin: var(--s-5) 0 0; font-size: var(--fs-16); line-height: var(--lh-16); }
+.lib-tab .lib-chat .u { align-self: flex-end; max-width: 80%; padding: var(--s-3) var(--s-4) var(--s-3) 18px; border-radius: var(--r-card); background: var(--ground); white-space: pre-line; }
+.lib-tab .lib-chat .a { display: flex; align-items: center; gap: 6px; color: var(--ink-2); font-size: var(--fs-13); font-weight: 700; }
+.lib-tab .lib-chat .a .i { width: 16px; height: 16px; }
+.lib-tab .lib-chat-error, .lib-tab .lib-ai-working { display: block; margin-top: var(--s-2); font-size: var(--fs-13); color: var(--ink-2); }
+.lib-tab .lib-chat-error { color: var(--brick); font-weight: 700; }
+.lib-tab .lib-chat .chip { margin-top: var(--s-2); background: var(--sunk); cursor: pointer; }
+.lib-tab .lib-ai-working::before { content: ""; display: inline-block; width: 12px; height: 12px; margin-right: 6px; border-radius: 50%; border: 2px solid var(--jade); border-right-color: transparent; vertical-align: -1px; animation: spin .8s linear infinite; }
+.lib-tab [data-tpl-msg], .lib-tab [data-lib-msg] { min-height: 0; margin: var(--s-3) 0 0; }
+.lib-tab [data-tpl-msg]:empty, .lib-tab [data-lib-msg]:empty, .lib-tab [data-lib-panel-msg]:empty, .lib-tab [data-tpl-panel-msg]:empty { display: none; }
+.lib-tab .linkish { border: 0; background: none; padding: 0; color: var(--jade); font: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+
+/* ---------- поле ввода: то же, что в чате; кнопка отправки круглая нефритовая ---------- */
+.lib-tab .send-btn { grid-area: send; position: relative; display: inline-grid; place-items: center; width: var(--h-bar); height: var(--h-bar); padding: 0; border: 0; border-radius: 50%; background: var(--jade); color: var(--white); font-size: 0; cursor: pointer; transition: background-color var(--t-hover); }
+.lib-tab .send-btn:hover { background: var(--jade-d); }
+.lib-tab .send-btn:disabled { background: var(--sunk-2); color: var(--ink-2); cursor: not-allowed; }
+.lib-tab .send-btn::before { content: ""; width: 20px; height: 20px; background: currentColor; -webkit-mask: url("/icons/arrow-up.svg") center / contain no-repeat; mask: url("/icons/arrow-up.svg") center / contain no-repeat; }
+.lib-tab .chat-input textarea:disabled { background: none; box-shadow: none; color: var(--ink-2); }
+/* ряд над полем: «Для кого статья» — как «Прикрепить:» */
+.lib-tab .lib-aud { order: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 var(--s-2) 10px; }
+.lib-tab .lib-aud-label { font-size: var(--fs-13); font-weight: 700; color: var(--ink-2); }
+.lib-tab .lib-aud .chip { background: var(--sunk); font-weight: 600; cursor: pointer; }
+.lib-tab .lib-aud .chip:hover { background: var(--sunk-2); }
+.lib-tab .lib-aud .chip[aria-pressed="true"] { background: var(--jade-t); box-shadow: inset 0 0 0 2px var(--jade); font-weight: 700; }
+.lib-tab .lib-aud .chip:disabled { opacity: .6; cursor: not-allowed; }
+.lib-tab .dock .col { min-width: 0; }
+
+/* ---------- правая панель: правка ---------- */
+.lib-tab .panel-head h2 { margin: 0; min-width: 0; }
+.lib-tab .panel-head h2:focus { outline: none; }
+.lib-tab .panel-acts { display: flex; align-items: center; gap: var(--s-1); }
+.lib-tab .panel-body { display: flex; flex-direction: column; gap: var(--s-3); }
+.lib-tab .panel-body > * { flex: none; }
+.lib-tab .panel-foot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
+.lib-tab .panel-foot .ghost { margin-left: auto; }
+.lib-tab .tpl-title { font-family: var(--head); font-size: var(--fs-18); font-weight: 800; }
+.lib-tab .tpl-body { min-height: 320px; resize: vertical; line-height: 1.65; }
+.lib-tab .lib-fields { display: flex; flex-direction: column; gap: var(--s-2); }
+.lib-tab .lib-status-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3); }
+.lib-tab .lib-cover { border-radius: var(--r-card); overflow: hidden; background: var(--ground); }
+.lib-tab .lib-cover img { display: block; width: 100%; height: 150px; object-fit: cover; }
+.lib-tab .lib-cover-row { display: flex; }
+.lib-tab .file-btn { cursor: pointer; }
+
+/* текст так, как его увидит читатель; «Править текст» открывает поле с разметкой */
+.lib-tab .lib-doc-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-2); }
+.lib-tab .lib-doc-bar > .small { font-weight: 700; }
+.lib-tab .lib-doc-tools { display: inline-flex; flex-wrap: wrap; gap: var(--s-2); }
+.lib-tab .lib-doc-tools [aria-pressed="true"] { background: var(--jade-t); box-shadow: inset 0 0 0 2px var(--jade); }
+.lib-tab .panel .lib-doc { max-width: none; min-height: 200px; padding: var(--s-4) var(--s-5); border-radius: var(--r-card); background: var(--white); box-shadow: inset 0 0 0 1px var(--hair); font-size: var(--fs-16); line-height: 1.65; }
+.lib-tab .panel .lib-doc h2 { font-size: var(--fs-18); line-height: var(--lh-18); margin: var(--s-4) 0 var(--s-1); }
+.lib-tab .panel .lib-doc h2:first-child { margin-top: 0; }
+.lib-tab .lib-doc-empty { color: var(--ink-2); }
+
+/* метки: препарат и тема — светлыми чипами */
+.lib-tab .lib-tagbox { display: flex; flex-direction: column; gap: var(--s-2); }
+.lib-tab .lib-tagchips { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.lib-tab .lib-tagchips .chip { background: var(--white); }
+
+/* правка выделенного */
+.lib-tab .lib-rw { display: flex; flex-direction: column; gap: var(--s-2); }
+.lib-tab .lib-rw h3 { font-size: var(--fs-16); margin: 0; }
+.lib-tab .lib-rw-quote { margin: 0; padding: var(--s-2) var(--s-3); border-radius: var(--r-xs); background: var(--white); box-shadow: inset 3px 0 0 var(--jade); color: var(--ink-2); font-size: var(--fs-14); max-height: 5.5em; overflow: auto; white-space: pre-line; }
+.lib-tab .lib-rw-row { display: flex; gap: var(--s-2); }
+.lib-tab .lib-rw-row input { flex: 1; min-width: 0; }
+.lib-tab .lib-rw-quick { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.lib-tab .lib-rw-quick .chip { background: var(--white); cursor: pointer; }
+.lib-tab .lib-rw-quick .chip:hover { background: var(--sunk-2); }
+.lib-tab .lib-rw-result { border-top: 1px solid var(--hair); padding-top: var(--s-2); }
+.lib-tab .lib-rw-result p { margin: var(--s-1) 0 var(--s-2); white-space: pre-line; }
+.lib-tab .lib-rw-hint { margin: 0; }
+.lib-tab .tpl-acts { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+
+/* подстановка данных пациента (Шаблоны) */
+.lib-tab .tpl-fill { display: flex; flex-direction: column; gap: var(--s-2); }
+.lib-tab .tpl-fill-row { display: flex; gap: var(--s-2); align-items: center; }
+.lib-tab .tpl-fill-row select { flex: 1; min-width: 0; }
+.lib-tab .tpl-fill .small { margin: 0; }
+
+/* телефон и планшет: список — выпадающий, на одной строке с «Новый» */
+.lib-tab .lib-mobile-nav { display: none; }
+@media (max-width: 1200px) {
+  .lib-tab .lib-mobile-nav { display: flex; gap: var(--s-2); padding: var(--s-3) var(--s-4) 0; }
+  .lib-tab .lib-mobile-nav select { flex: 1; min-width: 0; }
+}
+@media (max-width: 960px) {
+  .lib-tab .panel-head { flex-wrap: wrap; row-gap: 0; }
+  .lib-tab .panel-acts { order: -1; width: 100%; justify-content: space-between; }
+  .lib-tab .panel-head h2 { flex: 1 1 100%; }
+  .lib-tab .lib-chat .u { max-width: 90%; }
+  .lib-tab .lib-rw-row { flex-direction: column; }
+  .lib-tab .tpl-fill-row { flex-direction: column; align-items: stretch; }
+  .lib-tab .panel-foot .btn { flex: 1 1 auto; }
+  .lib-tab .panel-foot .ghost { margin-left: 0; flex: 0 0 auto; }
+  .lib-tab .panel .lib-doc { padding: var(--s-4); }
+}
+
+/* ---------- «Утверждения»: очередь .qrow ---------- */
+.approvals-tab .work-wrap > .card { margin-top: var(--gap-block); }
+.approvals-tab .appr-list { gap: var(--s-2); padding: var(--s-4); }
+.approvals-tab .qrow .q-main > span { font-size: var(--fs-15); overflow-wrap: anywhere; }
+.approvals-tab .empty { align-items: center; padding: var(--s-7) var(--s-5); }
+.approvals-tab [data-appr-msg]:empty { display: none; }
+.approvals-tab [data-appr-msg] { margin-top: var(--s-3); }
+@media (max-width: 960px) {
+  .approvals-tab .qrow { grid-template-columns: minmax(0, 1fr); }
+  .approvals-tab .qrow .q-act { justify-content: flex-start; }
+  .approvals-tab .qrow .q-act button { min-height: var(--h-btn); }
+}

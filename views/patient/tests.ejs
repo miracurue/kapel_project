@@ -1,0 +1,89 @@
+<%- include('../_header') %>
+<%- include('_back', { backHref: '/dashboard', backLabel: 'На главную' }) %>
+
+<div class="card">
+  <h1>Тесты</h1>
+  <nav class="tabs" aria-label="Разделы тестов">
+    <a class="tabs__tab<%= tab === 'assigned' ? ' is-active' : '' %>" href="/tests?tab=assigned"<%- tab === 'assigned' ? ' aria-current="page"' : '' %>>Назначено<% if (pending.length) { %> (<%= pending.length %>)<% } %></a>
+    <a class="tabs__tab<%= tab === 'done' ? ' is-active' : '' %>" href="/tests?tab=done"<%- tab === 'done' ? ' aria-current="page"' : '' %>>Пройдено</a>
+    <a class="tabs__tab<%= tab === 'progress' ? ' is-active' : '' %>" href="/tests?tab=progress"<%- tab === 'progress' ? ' aria-current="page"' : '' %>>Динамика</a>
+  </nav>
+
+  <% if (tab === 'assigned') { %>
+    <% if (pending.length === 0) { %>
+      <div class="empty-state">
+        <p class="empty-state__title">Назначенных тестов пока нет</p>
+        <p><%= linked ? 'Когда врач назначит тест, он появится здесь.' : 'Тесты назначает врач. Введите код от врача на главной, чтобы привязаться.' %></p>
+        <p><a class="btn-link" href="/dashboard">На главную</a></p>
+      </div>
+    <% } else { %>
+      <ul class="plain-list">
+        <% pending.forEach(function(p) { %>
+          <li class="item-card">
+            <h2><%- instrumentTag(p.instrument) %></h2>
+            <p class="muted"><%= p.questions %> вопросов · около <%= p.minutes %> мин. ·
+              <%= p.auto_assigned ? 'назначено автоматически по результатам предыдущего теста' : 'назначил(а): ' + (p.assigned_by_name || 'врач') %>
+              · <%= formatDate(p.assigned_at) %></p>
+            <% if (p.comment) { %><p>Комментарий врача: <%= p.comment %></p><% } %>
+            <% if (p.hasDraft) { %><p class="muted">Начато: отвечено <%= p.answered %> из <%= p.questions %>.</p><% } %>
+            <p><a class="btn-link btn-link--primary" href="/assignments/<%= p.id %>/take"><%= p.hasDraft ? 'Продолжить' : 'Пройти' %></a></p>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+  <% } else if (tab === 'done') { %>
+    <% if (done.length === 0) { %>
+      <div class="empty-state">
+        <p class="empty-state__title">Пройденных тестов пока нет</p>
+        <p>После первого теста здесь появятся результаты и динамика.</p>
+        <p><a class="btn-link" href="/tests?tab=assigned">К назначенным</a></p>
+      </div>
+    <% } else { %>
+      <ul class="plain-list">
+        <% done.forEach(function(d) { %>
+          <li class="item-card">
+            <h2><%- instrumentTag(d.instrument) %><% if (isCatalogStub(d.instrument)) { %> <span class="badge badge-warn">демо-заглушка</span><% } %></h2>
+            <p class="muted"><%= formatDate(d.result_at) %></p>
+            <p><a class="btn-link" href="/assignments/<%= d.assignment_id %>/result">Открыть результат</a>
+               <a class="btn-link" href="/tests?tab=progress&instrument=<%= encodeURIComponent(d.instrument) %>">Динамика</a></p>
+          </li>
+        <% }) %>
+      </ul>
+      <p class="result-disclaimer"><%= RESULT_DISCLAIMER %></p>
+    <% } %>
+  <% } else { %>
+    <% if (!selected) { %>
+      <div class="empty-state">
+        <p class="empty-state__title">Пока нечего показывать</p>
+        <p>График появится после того, как вы пройдёте тест хотя бы дважды.</p>
+        <p><a class="btn-link" href="/tests?tab=assigned">К назначенным</a></p>
+      </div>
+    <% } else { %>
+      <form method="GET" action="/tests" class="inline-form">
+        <input type="hidden" name="tab" value="progress" />
+        <label for="instrument">Тест</label>
+        <select id="instrument" name="instrument" data-autosubmit>
+          <% codes.forEach(function(c) { %><option value="<%= c %>"<%= c === selected ? ' selected' : '' %>><%= instrumentLabel(c) %></option><% }) %>
+        </select>
+        <button type="submit" class="btn-secondary">Показать</button>
+      </form>
+      <% if (isCatalogStub(selected)) { %><p><span class="badge badge-warn">демо-заглушка</span> Баллы этого теста не имеют клинического смысла.</p><% } %>
+      <% if (chart.single) { %>
+        <p class="notice">Нужно хотя бы два результата, чтобы показать динамику. Пока есть один: <strong><%= chart.points[0].total_score %></strong> (<%= formatDate(chart.points[0].created_at) %>).</p>
+      <% } else { %>
+        <figure class="chart"><%- chart.svg %>
+          <figcaption class="muted">Баллы по датам прохождения. Выше или ниже — не «хорошо» и не «плохо»: смысл обсуждается с врачом.</figcaption>
+        </figure>
+      <% } %>
+      <details>
+        <summary>Показать значения таблицей</summary>
+        <div class="table-responsive"><table>
+          <tr><th>Дата</th><th>Баллы</th></tr>
+          <% chart.points.forEach(function(p) { %><tr><td><%= formatDate(p.created_at) %></td><td><%= p.total_score %></td></tr><% }) %>
+        </table></div>
+      </details>
+      <p class="result-disclaimer"><%= RESULT_DISCLAIMER %></p>
+    <% } %>
+  <% } %>
+</div>
+<%- include('../_footer') %>

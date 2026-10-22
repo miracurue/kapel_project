@@ -1,0 +1,25 @@
+<%# Под каждым ответом ИИ: источники (раскрываются), копирование, экспорт. Метка «ЧЕРНОВИК» — первая строка текста ответа. %>
+<% const srcs = ws.sourcesOf(m); %>
+<div class="ws-msg-extras">
+  <% if (srcs.length) { %>
+    <div class="ws-sources">
+      <% srcs.forEach(function(s) { %>
+        <details class="ws-src" id="src-<%= m.id %>-<%= s.n %>">
+          <summary>[Материал <%= s.n %>: <%= s.title %>]</summary>
+          <% if (s.noText) { %><p class="ws-hint">Текст не извлечён (изображение или скан) — в ответе не использован.</p>
+          <% } else { %><blockquote><%= s.fragment || 'Фрагмент не найден.' %></blockquote><% } %>
+        </details>
+      <% }) %>
+    </div>
+  <% } %>
+  <% if (m.kind === 'normal' || m.kind === 'filtered') { %>
+    <div class="ws-actions">
+      <button type="button" class="btn-secondary ws-copy">Копировать</button>
+      <span class="ws-copied" role="status" aria-live="polite"></span>
+      <span class="ws-export-links">Экспорт:
+        <a href="<%= base %>/m/<%= m.id %>/export.docx">DOCX</a> ·
+        <a href="<%= base %>/m/<%= m.id %>/export.pdf">PDF</a> ·
+        <a href="<%= base %>/m/<%= m.id %>/export.txt">TXT</a></span>
+    </div>
+  <% } %>
+</div>

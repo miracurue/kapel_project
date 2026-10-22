@@ -1,0 +1,31 @@
+<%- include('../_header') %>
+<%- include('_back', { backHref: '/tests', backLabel: 'К списку тестов (ответы сохранены)' }) %>
+
+<div class="card">
+  <h1><%= instrument.code === 'cssrs' ? instrumentLabel('cssrs') : instrument.title %></h1>
+  <% if (isStub) { %><p class="notice" role="note"><strong><%= STUB_DISCLAIMER %></strong> Результат не является диагнозом и не оценивается клинически.</p><% } %>
+  <p class="muted">Вопрос <%= i + 1 %> из <%= total %> · можно остановиться и продолжить позже: ответы сохраняются.</p>
+  <progress max="<%= total %>" value="<%= answeredCount %>" aria-label="Отвечено <%= answeredCount %> из <%= total %>"></progress>
+
+  <% if (showSupportInline) { %><%- include('_support') %><% } %>
+  <% if (!showSupportInline) { %><div id="inline-support" hidden><%- include("_support") %></div><% } %>
+
+  <form method="POST" action="/assignments/<%= assignment.id %>/answer" data-step-form<%- isCritical ? ' data-critical' : '' %>>
+    <input type="hidden" name="i" value="<%= i %>" />
+    <fieldset class="choices">
+      <legend class="question"><%= item %></legend>
+      <% instrument.options.forEach(function(opt, k) { %>
+        <label class="choice">
+          <input type="radio" name="value" value="<%= opt.value %>" data-v="<%= opt.value %>"<%= current === opt.value ? ' checked' : '' %> required />
+          <span><%= opt.label %></span>
+        </label>
+      <% }) %>
+    </fieldset>
+    <div class="actions">
+      <% if (i > 0) { %><a class="btn-link" href="/assignments/<%= assignment.id %>/take?i=<%= i - 1 %>">Назад</a><% } %>
+      <button type="submit"><%= i + 1 === total ? 'К проверке ответов' : 'Далее' %></button>
+      <a class="btn-link" href="/tests">Продолжить позже</a>
+    </div>
+  </form>
+</div>
+<%- include('../_footer') %>

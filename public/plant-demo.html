@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Тихий сад — прототип роста растения</title>
+    <link rel="stylesheet" href="plant-demo.css" />
+    <script src="plant-demo.js" defer></script>
+  </head>
+  <body>
+    <header>
+      <a href="plant-demo.html" class="brand"><span>✳</span> Тихий сад</a
+      ><span class="prototype">Интерактивный прототип</span>
+    </header>
+    <main>
+      <section class="garden" aria-labelledby="garden-title">
+        <div class="garden-heading">
+          <span class="eyebrow">МАЛЕНЬКИЕ ДЕЙСТВИЯ. ЖИВОЙ РЕЗУЛЬТАТ.</span>
+          <h1 id="garden-title">Всё начинается<br />с одной капли.</h1>
+          <p>Поливайте растение и наблюдайте,<br />как оно раскрывается шаг за шагом.</p>
+        </div>
+        <div class="illustration">
+          <svg id="plant" viewBox="0 0 640 650" role="img" aria-labelledby="plant-title plant-description">
+            <title id="plant-title">Ваше растение в горшке</title>
+            <desc id="plant-description">Стебли, листья и цветы появляются по мере полива.</desc>
+            <defs>
+              <linearGradient id="pot" x1="0" x2="1">
+                <stop stop-color="#bf7458" />
+                <stop offset=".5" stop-color="#db9877" />
+                <stop offset="1" stop-color="#b96e53" />
+              </linearGradient>
+              <linearGradient id="leaf" x1="0" y1="1" x2="1" y2="0">
+                <stop stop-color="#376e4a" />
+                <stop offset="1" stop-color="#86ac65" />
+              </linearGradient>
+              <linearGradient id="petal" x2="0" y2="1">
+                <stop stop-color="#f8d4bd" />
+                <stop offset="1" stop-color="#df8c79" />
+              </linearGradient>
+            </defs>
+            <circle cx="320" cy="310" r="245" fill="#e7ecda" opacity=".56" />
+            <circle cx="320" cy="310" r="203" fill="none" stroke="#dce3cf" stroke-dasharray="2 9" />
+            <ellipse cx="320" cy="600" rx="122" ry="14" fill="#536b40" opacity=".1" />
+            <g id="stems"></g>
+            <g id="leaves"></g>
+            <g id="flowers"></g>
+            <g id="flowerpot">
+              <path d="M253 518 L268 590 Q320 612 372 590 L387 518Z" fill="url(#pot)" />
+              <path d="M266 538 L278 585" stroke="#f5c5a1" stroke-width="4" opacity=".4" stroke-linecap="round" />
+              <rect x="246" y="506" width="148" height="29" rx="9" fill="#d99472" />
+              <ellipse cx="320" cy="507" rx="66" ry="10" fill="#9e6049" />
+              <ellipse cx="320" cy="506" rx="58" ry="7" fill="#574a35" />
+              <path d="M248 526 H392" stroke="#bc7659" stroke-width="2" opacity=".4" />
+            </g>
+            <g id="rain" aria-hidden="true">
+              <path d="M286 367 q-13 20 0 20 q13 0 0-20" />
+              <path d="M320 348 q-13 20 0 20 q13 0 0-20" />
+              <path d="M354 373 q-13 20 0 20 q13 0 0-20" />
+            </g>
+          </svg>
+        </div>
+        <div class="garden-caption">
+          <span class="live-dot"></span><span id="scene-caption">У каждого большого сада есть маленькое начало</span>
+        </div>
+      </section>
+      <aside class="panel">
+        <span class="eyebrow">ВАШЕ РАСТЕНИЕ</span>
+        <h2 id="stage-name">Первый росток</h2>
+        <p id="stage-description" class="stage-description">Добавьте немного воды — и появятся первые листья.</p>
+        <div class="progress-heading"><span>Путь к цветущему кусту</span><strong id="percent">0%</strong></div>
+        <progress id="growth-progress" max="100" value="0" aria-label="Прогресс роста"></progress>
+        <div class="stats">
+          <div><strong id="leaf-count">0</strong><span>листочков</span></div>
+          <div><strong id="flower-count">0</strong><span>цветков</span></div>
+          <div><strong id="water-count">0</strong><span>капель вложено</span></div>
+        </div>
+        <div class="watering">
+          <label for="dose">Сколько капелек подарим?</label
+          ><select id="dose">
+            <option value="10">10 капель · понемногу</option>
+            <option value="50" selected>50 капель · обычный полив</option>
+            <option value="200">200 капель · большой полив</option></select
+          ><button id="water" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M12 3S5 11 5 15a7 7 0 0 0 14 0c0-4-7-12-7-12Z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+              /></svg
+            ><span id="water-label">Полить растение</span>
+          </button>
+          <p id="feedback" role="status" aria-live="polite">В этом прототипе капельки безлимитные.</p>
+        </div>
+        <div class="milestones">
+          <div>
+            <span>01</span>
+            <p>Росток<small>Стебель и первая зелень</small></p>
+          </div>
+          <div>
+            <span>02</span>
+            <p>Пышная крона<small>Новые ветви и много листьев</small></p>
+          </div>
+          <div>
+            <span>03</span>
+            <p>Цветение<small>Бутоны раскрываются постепенно</small></p>
+          </div>
+        </div>
+        <button id="reset" class="reset" type="button">↺ Вырастить заново</button>
+        <p class="save-note" id="save-note">Прогресс сохраняется в этом браузере.</p>
+      </aside>
+    </main>
+    <footer><span>Растём в своём ритме</span><span>120 листьев · 12 цветов · сотни маленьких изменений</span></footer>
+  </body>
+</html>

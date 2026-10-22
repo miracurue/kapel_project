@@ -1,0 +1,51 @@
+<%- include('../_header') %>
+<div class="card admin">
+  <h1>Приглашения</h1>
+  <p class="hint">Код привязывает нового пациента к выбранному специалисту при регистрации. Код одноразовый и действует ограниченное время. Передавайте его пациенту вне сервиса. Список врачей анонимным посетителям не показывается.</p>
+
+  <h2>Выдать код</h2>
+  <% if (clinicians.length === 0) { %>
+    <p class="hint">Нет активных специалистов. Сначала <a href="/admin/users/new">создайте сотрудника</a>.</p>
+  <% } else { %>
+    <form method="POST" action="/admin/invites" class="filter-bar">
+      <label for="clinician_id">Для специалиста
+        <select name="clinician_id" id="clinician_id" required>
+          <% clinicians.forEach(function(c) { %><option value="<%= c.id %>"><%= c.full_name %> (<%= c.role === 'psychiatrist' ? 'психиатр' : 'психолог' %>)</option><% }) %>
+        </select>
+      </label>
+      <label for="days">Срок, дней <input type="number" name="days" id="days" min="1" max="90" value="<%= defaultDays %>" /></label>
+      <button type="submit">Выдать код</button>
+    </form>
+  <% } %>
+
+  <h2>Выданные коды</h2>
+  <% if (rows.length === 0) { %>
+    <div class="empty-state"><p class="empty-state__title">Кодов пока нет</p><p>Выдайте код выше и передайте его пациенту. Врач тоже может создавать коды в своём кабинете, когда эта функция будет подключена.</p></div>
+  <% } else { %>
+    <div class="table-responsive"><table class="stack-mobile">
+      <thead><tr><th>Код</th><th>Специалист</th><th>Создан</th><th>Действует до</th><th>Статус</th><th></th></tr></thead>
+      <tbody>
+      <% rows.forEach(function(i) { %>
+        <tr>
+          <td data-label="Код"><code><%= i.shown %></code></td>
+          <td data-label="Специалист"><%= i.clinician_name || '—' %></td>
+          <td data-label="Создан"><%= formatDate(i.created_at) %></td>
+          <td data-label="Действует до"><%= formatDate(i.expires_at) %></td>
+          <td data-label="Статус">
+            <% if (i.status === 'active') { %><span class="badge badge-ok">активен</span>
+            <% } else if (i.status === 'used') { %><span class="badge badge-info">использован<%= i.patient_name ? ': ' + i.patient_name : '' %></span>
+            <% } else if (i.status === 'revoked') { %><span class="badge badge-muted">отозван</span>
+            <% } else { %><span class="badge badge-muted">истёк</span><% } %>
+          </td>
+          <td>
+            <% if (i.status === 'active') { %>
+              <form method="POST" action="/admin/invites/<%= i.id %>/revoke" class="inline-form"><button type="submit" class="btn-secondary">Отозвать</button></form>
+            <% } %>
+          </td>
+        </tr>
+      <% }) %>
+      </tbody>
+    </table></div>
+  <% } %>
+</div>
+<%- include('../_footer') %>

@@ -1,0 +1,20 @@
+<%- include('../_header') %>
+<div class="card tools">
+  <p class="tools-back no-print"><a href="/patients/<%= patient.id %>/visit">← К приёму</a></p>
+  <h1>Экспорт для переноса в МИС</h1>
+  <p class="hint">Пациент: <strong><%= patient.full_name %></strong>. Документ содержит ФИО и данные пациента, имя файла — без ФИО. Каждая выгрузка записывается в журнал обращений. Справка, не заключение; помечена «черновик».</p>
+  <form method="GET" action="/tools/export/<%= patient.id %>/download" class="tools-form">
+    <fieldset><legend>Разделы</legend>
+      <% secList.forEach(function(s) { %>
+        <label class="tools-opt"><input type="checkbox" name="s" value="<%= s.key %>"<%= defaults.indexOf(s.key) >= 0 ? ' checked' : '' %> /> <span><%= s.label %></span></label>
+      <% }) %>
+    </fieldset>
+    <p>
+      <button type="submit" name="fmt" value="docx">Скачать DOCX</button>
+      <button type="submit" name="fmt" value="pdf">Скачать PDF</button>
+      <button type="submit" name="fmt" value="txt">Скачать TXT</button>
+      <a href="/patients/<%= patient.id %>/visit">Отмена</a>
+    </p>
+  </form>
+</div>
+<%- include('../_footer') %>

@@ -1,0 +1,89 @@
+/* Цветок: отдельный полноэкранный вид, вода голубая, цветение розовое/сиреневое. */
+dialog.flower-panel { position: fixed; inset: 0; margin: 0; width: 100%; max-width: none; height: 100dvh; max-height: none; padding: 0; border: 0; border-radius: 0; background: var(--white); color: var(--ink); display: flex; flex-direction: column; overflow: hidden; gap: 0; }
+dialog.flower-panel::backdrop { background: var(--ground); }
+.fp-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); padding: var(--s-4) var(--s-5); border-bottom: 1px solid var(--hair); flex-shrink: 0; }
+.fp-head h2 { font-size: var(--fs-24); }
+.fp-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); align-items: center; gap: var(--s-6); overflow-y: auto; padding: var(--s-5); flex: 1; min-height: 0; width: 100%; max-width: 1440px; margin: 0 auto; }
+.fp-body [data-fp-info] { display: flex; flex-direction: column; gap: var(--s-3); min-width: 0; }
+.fp-scene { display: flex; flex-direction: column; align-items: center; min-width: 0; }
+.fp-plant { display: block; width: min(100%, 76dvh); margin: 0 auto; padding: 0; border: 0; border-radius: var(--r-card); background: transparent; cursor: pointer; }
+.fp-plant:disabled { opacity: 1; cursor: default; }
+.fp-scene-hint { color: var(--ink-2); text-align: center; font-size: var(--fs-14); }
+.fp-stages { display: flex; gap: var(--s-2); list-style: none; margin: 0; padding: 0; flex-wrap: wrap; }
+.fp-stages li { font-size: var(--fs-13); padding: var(--s-1) var(--s-3); border-radius: var(--r-pill); background: var(--ground); color: var(--ink-2); }
+.fp-stages li.on { background: var(--jade-t); color: var(--jade); font-weight: 700; }
+.fp-stage { font-size: var(--fs-24); }
+.fp-next { font-weight: 700; }
+.fp-water { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); flex-wrap: wrap; }
+.fp-balance { display: flex; align-items: center; gap: var(--s-2); }
+.fp-balance .drop { width: var(--s-5); height: var(--s-5); fill: var(--water); }
+.fp-feedback { min-height: 1.4em; color: var(--jade); }
+.fp-sources { margin-top: var(--s-4); font-size: var(--fs-18); }
+.fp-sources summary { cursor: pointer; font-weight: 700; }
+.fp-list { list-style: none; margin: 0; padding: 0; }
+.fp-list li { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-3); padding: var(--s-2) 0; border-bottom: 1px solid var(--hair); }
+.fp-list small { display: block; color: var(--ink-2); font-size: var(--fs-13); }
+.fp-list b { color: var(--water-deep); white-space: nowrap; }
+body.flower-open { overflow: hidden; }
+/* Мини-блок: сам рисунок — доступная кнопка открытия большого цветка. */
+.flower-mini { display: grid; grid-template-columns: var(--s-8) minmax(0, 1fr); align-items: center; gap: var(--s-3); padding: var(--s-3); border-radius: var(--r-card); background: var(--ground); }
+.flower-mini:empty { display: none; }
+.fm-plant { width: 100%; border: 0; padding: 0; border-radius: var(--r-card); background: transparent; cursor: pointer; }
+.fm-text { min-width: 0; }
+.fm-text h3 { font-family: var(--text); font-size: var(--fs-14); color: var(--ink-2); font-weight: 600; }
+.fm-stage { font-weight: 800; font-size: var(--fs-18); }
+.fm-acts { grid-column: 1 / -1; display: flex; gap: var(--s-2); flex-wrap: wrap; }
+.flower-gain { color: var(--water-deep); font-weight: 700; }
+.fl-plant { display: block; width: 100%; height: auto; overflow: visible; }
+.fl-leaf-a { stop-color: var(--jade-d); } .fl-leaf-b { stop-color: var(--seq-3); }
+.fl-petal-pink-a { stop-color: var(--flower-pink-light); } .fl-petal-pink-b { stop-color: var(--flower-pink); }
+.fl-petal-lilac-a { stop-color: var(--flower-lilac-light); } .fl-petal-lilac-b { stop-color: var(--flower-lilac); }
+.fl-halo { fill: var(--ground); } .fl-shadow { fill: var(--sunk-2); }
+.fl-water { fill: var(--water-light); stroke: var(--water); stroke-width: 2; }
+.fl-pebble { fill: var(--sunk-2); stroke: var(--edge); stroke-width: 1; }
+.fl-pebble-light { fill: var(--ground); }
+.fl-core { fill: var(--flower-core); } .fl-core-hi { fill: var(--flower-pink-light); }
+.fl-stem { fill: none; stroke: var(--jade); stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset var(--t-grow) var(--ease); }
+.fl-stem:not(.grown) { visibility: hidden; }
+.fl-stem.grown { stroke-dashoffset: 0; }
+.fl-leaf-body, .fl-flower-body { transform: scale(0); transform-box: view-box; transition: transform var(--t-grow) var(--ease); }
+.fl-vein { fill: none; stroke: var(--jade-t); stroke-width: .7; opacity: .55; }
+/* Ветер из plant-demo: общий поворот у основания и отдельные фазы листьев/цветов. */
+.fl-canopy { transform-box: view-box; transform-origin: 320px 508px; animation: fl-wind 5.5s ease-in-out infinite; }
+.fl-leaf-sway, .fl-flower-sway { transform-box: view-box; transform-origin: 0 0; }
+.fl-leaf-sway { animation: fl-flutter 3s ease-in-out infinite; }
+.fl-flower-sway { animation: fl-nod 3.6s ease-in-out infinite; }
+@keyframes fl-wind { 0%, 100% { transform: rotate(-1.6deg) skewX(-.8deg); } 50% { transform: rotate(1.9deg) skewX(1deg); } }
+@keyframes fl-flutter { 0%, 100% { transform: rotate(-7deg); } 50% { transform: rotate(8deg); } }
+@keyframes fl-nod { 0%, 100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } }
+.fl-rain { fill: var(--water); opacity: 0; pointer-events: none; }
+.fl-rain.pouring { animation: fl-rain var(--t-grow) var(--ease-in); }
+.fl-ripple { fill: none; stroke: var(--water); stroke-width: 2; opacity: 0; transform-origin: 320px 520px; }
+.fl-ripple.pouring { animation: fl-ripple var(--t-ripple) var(--ease) both; }
+@keyframes fl-rain { 0% { opacity: 0; transform: translateY(-50px); } 30% { opacity: 1; } 100% { opacity: 0; transform: translateY(90px); } }
+@keyframes fl-ripple { 0% { opacity: .7; transform: scale(.2); } 100% { opacity: 0; transform: scale(1); } }
+@media (max-width: 760px) {
+ .fp-head { padding: var(--s-3) var(--s-4); }
+ .fp-head h2 { font-size: var(--fs-18); }
+ .fp-body { grid-template-columns: minmax(0, 1fr); gap: var(--s-4); padding: var(--s-4); align-content: start; }
+ .fp-plant { width: min(100%, 53dvh); }
+}
+@media (prefers-reduced-motion: reduce) {
+ .fl-rain.pouring, .fl-ripple.pouring, .fl-canopy, .fl-leaf-sway, .fl-flower-sway { animation: none !important; }
+ .fl-stem, .fl-leaf-body, .fl-flower-body { transition: none !important; }
+}
+
+/* Капля в шапке открывает прежнюю правую панель; рисунок в ней — переход в полный экран. */
+dialog.flower-panel.is-sidebar { inset: var(--fl-top, 0px) var(--s-3) var(--s-3) auto; width: var(--w-panel); height: auto; border-radius: var(--r-big); z-index: 30; box-shadow: var(--lift); }
+.is-sidebar .fp-head { padding: var(--s-3) var(--s-4); }
+.is-sidebar .fp-head h2 { font-size: var(--fs-18); }
+.is-sidebar .fp-body { display: flex; flex-direction: column; align-items: stretch; gap: var(--s-4); padding: var(--s-4); }
+.is-sidebar .fp-plant { width: min(100%, 320px); cursor: zoom-in; }
+.is-sidebar .fp-scene-hint { font-size: var(--fs-13); }
+body.flower-sidebar .app-main { margin-right: calc(var(--w-panel) + var(--s-3)); }
+body.flower-sidebar .page-wrap { width: calc(100% - var(--w-panel) - var(--s-3)); }
+@media (max-width: 960px) {
+ dialog.flower-panel.is-sidebar { left: var(--s-3); width: auto; bottom: calc(var(--s-8) + env(safe-area-inset-bottom)); }
+ body.flower-sidebar .app-main { margin-right: 0; }
+ body.flower-sidebar .page-wrap { width: 100%; }
+}

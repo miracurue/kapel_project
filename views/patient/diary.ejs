@@ -1,0 +1,61 @@
+<%- include('../_header') %>
+<%- include('_back', { backHref: '/dashboard', backLabel: 'На главную' }) %>
+
+<div class="card">
+  <h1>Дневник настроения</h1>
+  <% if (formError) { %><p class="flash flash-error" role="alert" data-form-error><%= formError %></p><% } %>
+  <form method="POST" action="/diary" data-draft-form>
+    <%- include('_diary_fields', { form: form, prefs: prefs, todayValue: todayValue }) %>
+    <p><button type="submit">Сохранить</button></p>
+  </form>
+</div>
+
+<div class="card" id="chart">
+  <h2>График настроения</h2>
+  <nav class="tabs" aria-label="Период">
+    <% [7, 30, 90].forEach(function(r) { %>
+      <a class="tabs__tab<%= range === r ? ' is-active' : '' %>" href="/diary?range=<%= r %>#chart"<%- range === r ? ' aria-current="page"' : '' %>><%= r %> дней</a>
+    <% }) %>
+  </nav>
+  <% if (pointsCount === 0) { %>
+    <div class="empty-state">
+      <p class="empty-state__title">За этот период записей нет</p>
+      <p>Достаточно одной оценки в день — это необязательно, и можно начать в любой момент.</p>
+    </div>
+  <% } else if (pointsCount === 1) { %>
+    <p class="notice">Нужно хотя бы две записи, чтобы показать динамику. Сейчас одна.</p>
+  <% } else { %>
+    <figure class="chart"><%- svg %><figcaption class="muted">Оценка настроения по дням (выше — лучше самочувствие).</figcaption></figure>
+  <% } %>
+  <p class="result-disclaimer"><%= RESULT_DISCLAIMER %></p>
+</div>
+
+<div class="card">
+  <h2>Последние записи</h2>
+  <% if (entries.length === 0) { %>
+    <div class="empty-state">
+      <p class="empty-state__title">Записей пока нет</p>
+      <p>Выберите оценку выше и нажмите «Сохранить».</p>
+    </div>
+  <% } else { %>
+    <ul class="plain-list">
+      <% entries.forEach(function(e) { %>
+        <li class="item-card">
+          <p><strong><%= formatDate(entryDate(e)) %></strong> · настроение <strong><%= e.mood_score %></strong>
+            <% if (e.anxiety) { %> · тревога <%= e.anxiety %><% } %>
+            <% if (e.sleep_hours !== null && e.sleep_hours !== undefined) { %> · сон <%= e.sleep_hours %> ч<% } %></p>
+          <% if (e.triggers) { %><p class="muted">Что повлияло: <%= e.triggers %></p><% } %>
+          <% if (e.note) { %><p><%= e.note %></p><% } %>
+          <% if (e.shared_once) { %><p><span class="badge badge-info">показана врачу целиком</span></p><% } %>
+          <div class="actions">
+            <a class="btn-link" href="/diary/<%= e.id %>/edit">Изменить</a>
+            <a class="btn-link" href="/diary/<%= e.id %>/delete">Удалить</a>
+            <form method="POST" action="/diary/<%= e.id %>/share" class="inline"><button type="submit" class="btn-secondary"><%= e.shared_once ? 'Не показывать врачу' : 'Показать врачу эту запись' %></button></form>
+          </div>
+        </li>
+      <% }) %>
+    </ul>
+    <% if (!showAll && totalEntries > 10) { %><p><a class="btn-link" href="/diary?all=1#chart">Показать все записи (<%= totalEntries %>)</a></p><% } %>
+  <% } %>
+</div>
+<%- include('../_footer') %>

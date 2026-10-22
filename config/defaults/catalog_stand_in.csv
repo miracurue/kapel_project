@@ -1,0 +1,89 @@
++inn,drug_group,atc_code,rx_only,trade_name,manufacturer,dosage_form,strength,source,source_date
+сертралин,antidepressant,N06AB06,1,Золофт,STAND-IN производитель,"таблетки, покрытые оболочкой",50 мг,stand_in,2026-10-17
+сертралин,antidepressant,N06AB06,1,Золофт,STAND-IN производитель,"таблетки, покрытые оболочкой",100 мг,stand_in,2026-10-17
+сертралин,antidepressant,N06AB06,1,Асентра,STAND-IN производитель,таблетки,50 мг,stand_in,2026-10-17
+сертралин,antidepressant,N06AB06,1,Стимулотон,STAND-IN производитель,таблетки,50 мг,stand_in,2026-10-17
+сертралин,antidepressant,N06AB06,1,Серлифт,STAND-IN производитель,таблетки,50 мг,stand_in,2026-10-17
+сертралин,antidepressant,N06AB06,1,Торин,STAND-IN производитель,таблетки,50 мг,stand_in,2026-10-17
+сертралин,antidepressant,N06AB06,1,Алевал,STAND-IN производитель,таблетки,50 мг,stand_in,2026-10-17
+эсциталопрам,antidepressant,N06AB10,1,Ципралекс,STAND-IN производитель,таблетки,10 мг,stand_in,2026-10-17
+эсциталопрам,antidepressant,N06AB10,1,Селектра,STAND-IN производитель,таблетки,10 мг,stand_in,2026-10-17
+эсциталопрам,antidepressant,N06AB10,1,Ленуксин,STAND-IN производитель,таблетки,10 мг,stand_in,2026-10-17
+эсциталопрам,antidepressant,N06AB10,1,Элицея,STAND-IN производитель,таблетки,10 мг,stand_in,2026-10-17
+флуоксетин,antidepressant,N06AB03,1,Прозак,STAND-IN производитель,капсулы,20 мг,stand_in,2026-10-17
+флуоксетин,antidepressant,N06AB03,1,Профлузак,STAND-IN производитель,капсулы,20 мг,stand_in,2026-10-17
+флуоксетин,antidepressant,N06AB03,1,Фрамекс,STAND-IN производитель,таблетки,20 мг,stand_in,2026-10-17
+пароксетин,antidepressant,N06AB05,1,Паксил,STAND-IN производитель,таблетки,20 мг,stand_in,2026-10-17
+пароксетин,antidepressant,N06AB05,1,Рексетин,STAND-IN производитель,таблетки,20 мг,stand_in,2026-10-17
+пароксетин,antidepressant,N06AB05,1,Адепресс,STAND-IN производитель,таблетки,20 мг,stand_in,2026-10-17
+пароксетин,antidepressant,N06AB05,1,Плизил,STAND-IN производитель,таблетки,20 мг,stand_in,2026-10-17
+флувоксамин,antidepressant,N06AB08,1,Феварин,STAND-IN производитель,таблетки,50 мг,stand_in,2026-10-17
+флувоксамин,antidepressant,N06AB08,1,Феварин,STAND-IN производитель,таблетки,100 мг,stand_in,2026-10-17
+циталопрам,antidepressant,N06AB04,1,Ципрамил,STAND-IN производитель,таблетки,20 мг,stand_in,2026-10-17
+циталопрам,antidepressant,N06AB04,1,Опра,STAND-IN производитель,таблетки,20 мг,stand_in,2026-10-17
+циталопрам,antidepressant,N06AB04,1,Сиозам,STAND-IN производитель,таблетки,20 мг,stand_in,2026-10-17
+венлафаксин,antidepressant,N06AX16,1,Велаксин,STAND-IN производитель,капсулы пролонгированного действия,75 мг,stand_in,2026-10-17
+венлафаксин,antidepressant,N06AX16,1,Велафакс,STAND-IN производитель,таблетки,"37,5 мг",stand_in,2026-10-17
+венлафаксин,antidepressant,N06AX16,1,Ньювелонг,STAND-IN производитель,таблетки,75 мг,stand_in,2026-10-17
+дулоксетин,antidepressant,N06AX21,1,Симбалта,STAND-IN производитель,капсулы,60 мг,stand_in,2026-10-17
+дулоксетин,antidepressant,N06AX21,1,Интрива,STAND-IN производитель,капсулы,60 мг,stand_in,2026-10-17
+дулоксетин,antidepressant,N06AX21,1,Дулоксента,STAND-IN производитель,капсулы,60 мг,stand_in,2026-10-17
+миртазапин,antidepressant,N06AX11,1,Ремерон,STAND-IN производитель,таблетки,30 мг,stand_in,2026-10-17
+миртазапин,antidepressant,N06AX11,1,Миртазонал,STAND-IN производитель,таблетки,30 мг,stand_in,2026-10-17
+миртазапин,antidepressant,N06AX11,1,Каликста,STAND-IN производитель,таблетки,30 мг,stand_in,2026-10-17
+агомелатин,antidepressant,N06AX22,1,Вальдоксан,STAND-IN производитель,таблетки,25 мг,stand_in,2026-10-17
+вортиоксетин,antidepressant,N06AX26,1,Бринтелликс,STAND-IN производитель,таблетки,10 мг,stand_in,2026-10-17
+тразодон,antidepressant,N06AX05,1,Триттико,STAND-IN производитель,таблетки пролонгированного действия,150 мг,stand_in,2026-10-17
+амитриптилин,antidepressant,N06AA09,1,Амитриптилин,STAND-IN производитель,таблетки,25 мг,stand_in,2026-10-17
+кломипрамин,antidepressant,N06AA04,1,Анафранил,STAND-IN производитель,таблетки,25 мг,stand_in,2026-10-17
+миансерин,antidepressant,N06AX03,1,Леривон,STAND-IN производитель,таблетки,30 мг,stand_in,2026-10-17
+пипофезин,antidepressant,N06AX,1,Азафен,STAND-IN производитель,таблетки,25 мг,stand_in,2026-10-17
+гидроксизин,anxiolytic,N05BB01,1,Атаракс,STAND-IN производитель,таблетки,25 мг,stand_in,2026-10-17
+тофизопам,anxiolytic,N05BA23,1,Грандаксин,STAND-IN производитель,таблетки,50 мг,stand_in,2026-10-17
+этифоксин,anxiolytic,N05BX03,1,Стрезам,STAND-IN производитель,капсулы,50 мг,stand_in,2026-10-17
+алпразолам,anxiolytic,N05BA12,1,Хелекс,STAND-IN производитель,таблетки,"0,5 мг",stand_in,2026-10-17
+алпразолам,anxiolytic,N05BA12,1,Алзолам,STAND-IN производитель,таблетки,"0,5 мг",stand_in,2026-10-17
+диазепам,anxiolytic,N05BA01,1,Реланиум,STAND-IN производитель,раствор,5 мг/мл,stand_in,2026-10-17
+диазепам,anxiolytic,N05BA01,1,Сибазон,STAND-IN производитель,таблетки,5 мг,stand_in,2026-10-17
+кветиапин,antipsychotic,N05AH04,1,Сероквель,STAND-IN производитель,таблетки,25 мг,stand_in,2026-10-17
+кветиапин,antipsychotic,N05AH04,1,Кветирон,STAND-IN производитель,таблетки,25 мг,stand_in,2026-10-17
+кветиапин,antipsychotic,N05AH04,1,Лаквель,STAND-IN производитель,таблетки,25 мг,stand_in,2026-10-17
+кветиапин,antipsychotic,N05AH04,1,Кетилепт,STAND-IN производитель,таблетки,25 мг,stand_in,2026-10-17
+оланзапин,antipsychotic,N05AH03,1,Зипрекса,STAND-IN производитель,таблетки,10 мг,stand_in,2026-10-17
+оланзапин,antipsychotic,N05AH03,1,Эголанза,STAND-IN производитель,таблетки,10 мг,stand_in,2026-10-17
+оланзапин,antipsychotic,N05AH03,1,Парнасан,STAND-IN производитель,таблетки,10 мг,stand_in,2026-10-17
+арипипразол,antipsychotic,N05AX12,1,Абилифай,STAND-IN производитель,таблетки,15 мг,stand_in,2026-10-17
+арипипразол,antipsychotic,N05AX12,1,Амдоал,STAND-IN производитель,таблетки,15 мг,stand_in,2026-10-17
+арипипразол,antipsychotic,N05AX12,1,Зилаксера,STAND-IN производитель,таблетки,15 мг,stand_in,2026-10-17
+рисперидон,antipsychotic,N05AX08,1,Рисполепт,STAND-IN производитель,раствор для приёма внутрь,1 мг/мл,stand_in,2026-10-17
+рисперидон,antipsychotic,N05AX08,1,Рилептид,STAND-IN производитель,таблетки,2 мг,stand_in,2026-10-17
+рисперидон,antipsychotic,N05AX08,1,Риссет,STAND-IN производитель,таблетки,2 мг,stand_in,2026-10-17
+галоперидол,antipsychotic,N05AD01,1,Галоперидол,STAND-IN производитель,таблетки,5 мг,stand_in,2026-10-17
+карипразин,antipsychotic,N05AX15,1,Реагила,STAND-IN производитель,капсулы,3 мг,stand_in,2026-10-17
+палиперидон,antipsychotic,N05AX13,1,Инвега,STAND-IN производитель,таблетки пролонгированного действия,6 мг,stand_in,2026-10-17
+хлорпромазин,antipsychotic,N05AA01,1,Аминазин,STAND-IN производитель,таблетки,25 мг,stand_in,2026-10-17
+сульпирид,antipsychotic,N05AL01,1,Эглонил,STAND-IN производитель,капсулы,50 мг,stand_in,2026-10-17
+лития карбонат,mood_stabilizer,N05AN01,1,Седалит,STAND-IN производитель,таблетки,300 мг,stand_in,2026-10-17
+лития карбонат,mood_stabilizer,N05AN01,1,Контемнол,STAND-IN производитель,таблетки,500 мг,stand_in,2026-10-17
+вальпроевая кислота,mood_stabilizer,N03AG01,1,Депакин,STAND-IN производитель,раствор,"57,64 мг/мл",stand_in,2026-10-17
+вальпроевая кислота,mood_stabilizer,N03AG01,1,Депакин Хроно,STAND-IN производитель,таблетки,300 мг,stand_in,2026-10-17
+вальпроевая кислота,mood_stabilizer,N03AG01,1,Конвулекс,STAND-IN производитель,капсулы,300 мг,stand_in,2026-10-17
+вальпроевая кислота,mood_stabilizer,N03AG01,1,Энкорат,STAND-IN производитель,таблетки,300 мг,stand_in,2026-10-17
+ламотриджин,mood_stabilizer,N03AX09,1,Ламиктал,STAND-IN производитель,таблетки,25 мг,stand_in,2026-10-17
+ламотриджин,mood_stabilizer,N03AX09,1,Сейзар,STAND-IN производитель,таблетки,25 мг,stand_in,2026-10-17
+ламотриджин,mood_stabilizer,N03AX09,1,Ламитор,STAND-IN производитель,таблетки,25 мг,stand_in,2026-10-17
+карбамазепин,mood_stabilizer,N03AF01,1,Финлепсин,STAND-IN производитель,таблетки,200 мг,stand_in,2026-10-17
+карбамазепин,mood_stabilizer,N03AF01,1,Тегретол,STAND-IN производитель,таблетки,200 мг,stand_in,2026-10-17
+зопиклон,hypnotic_sedative,N05CF01,1,Имован,STAND-IN производитель,таблетки,"7,5 мг",stand_in,2026-10-17
+зопиклон,hypnotic_sedative,N05CF01,1,Сомнол,STAND-IN производитель,таблетки,"7,5 мг",stand_in,2026-10-17
+зопиклон,hypnotic_sedative,N05CF01,1,Релаксон,STAND-IN производитель,таблетки,"7,5 мг",stand_in,2026-10-17
+золпидем,hypnotic_sedative,N05CF02,1,Ивадал,STAND-IN производитель,таблетки,10 мг,stand_in,2026-10-17
+золпидем,hypnotic_sedative,N05CF02,1,Санвал,STAND-IN производитель,таблетки,10 мг,stand_in,2026-10-17
+золпидем,hypnotic_sedative,N05CF02,1,Зольсана,STAND-IN производитель,таблетки,10 мг,stand_in,2026-10-17
+мелатонин,hypnotic_sedative,N05CH01,0,Мелаксен,STAND-IN производитель,таблетки,3 мг,stand_in,2026-10-17
+мелатонин,hypnotic_sedative,N05CH01,0,Циркадин,STAND-IN производитель,таблетки пролонгированного действия,2 мг,stand_in,2026-10-17
+тригексифенидил,corrector,N04AA01,1,Циклодол,STAND-IN производитель,таблетки,2 мг,stand_in,2026-10-17
+бипериден,corrector,N04AA02,1,Акинетон,STAND-IN производитель,таблетки,2 мг,stand_in,2026-10-17
+прегабалин,other,N03AX16,1,Лирика,STAND-IN производитель,капсулы,75 мг,stand_in,2026-10-17
+прегабалин,other,N03AX16,1,Альгерика,STAND-IN производитель,капсулы,75 мг,stand_in,2026-10-17
+атомоксетин,other,N06BA09,1,Страттера,STAND-IN производитель,капсулы,25 мг,stand_in,2026-10-17

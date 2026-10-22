@@ -1,0 +1,46 @@
+<%- include('../_header') %>
+<div class="card admin">
+  <p><a href="/admin/deletion">&larr; Все запросы</a></p>
+  <h1>Запрос на удаление №<%= r.id %></h1>
+  <dl class="kv">
+    <dt>Пациент</dt><dd><%= r.patient_name %><% if (r.status === 'pending') { %> (<%= r.patient_email %>)<% } %></dd>
+    <dt>Дата запроса</dt><dd><%= formatDate(r.requested_at) %></dd>
+    <dt>Ожидаемый срок</dt><dd><%= r.due_at ? formatDate(r.due_at) : '—' %> <span class="hint">(review-required)</span></dd>
+    <dt>Статус</dt><dd><span class="badge <%= r.status === 'pending' ? 'badge-warn' : (r.status === 'cancelled' ? 'badge-muted' : 'badge-ok') %>"><%= r.status === 'pending' ? 'ожидает исполнения' : (r.status === 'cancelled' ? 'отменён пациентом до исполнения' : 'исполнен ' + formatDate(r.executed_at)) %></span></dd>
+  </dl>
+
+  <% if (r.status === 'pending') { %>
+    <% if (openEsc) { %>
+      <p class="flash flash-error" role="alert"><span class="flash__icon" aria-hidden="true">!</span><span>У пациента необработанных эскалаций: <strong><%= openEsc %></strong>. Лучше сначала передать их врачу или подтвердить в разделе «Без врача» / кризисной очереди врача: после удаления восстановить их будет нельзя.</span></p>
+    <% } %>
+    <h2>Что будет удалено</h2>
+    <% if (inventory.filter(function(i) { return i.count > 0; }).length === 0) { %>
+      <p class="hint">Клинических данных у пациента нет — будет стёрта только идентификация учётной записи.</p>
+    <% } else { %>
+      <ul>
+        <% inventory.filter(function(i) { return i.count > 0; }).forEach(function(i) { %><li><%= i.label %>: <strong><%= i.count %></strong></li><% }) %>
+      </ul>
+    <% } %>
+    <p>Также удаляются загруженные пациентом файлы на диске. Учётная запись обезличивается: стираются ФИО, e-mail, пароль и согласия; пустая запись без персональных данных остаётся только для целостности журналов.</p>
+    <h2>Что останется</h2>
+    <ul>
+      <% retained.forEach(function(i) { %><li><%= i.label %>: <strong><%= i.count %></strong></li><% }) %>
+    </ul>
+    <p class="hint">Данные, уже переданные исследователям в обезличенном CSV, отозвать нельзя; связь псевдонима с пациентом будет удалена. Решение о том, что остаётся в журналах (OQ-6), принято по умолчанию и требует подтверждения юристом.</p>
+    <% if (pending) { %>
+      <p><a class="btn" href="/admin/deletion/<%= r.id %>/confirm">Исполнить… (шаг 2 из 2)</a></p>
+    <% } else { %>
+      <p class="hint">Исполнить нельзя: учётная запись пациента не в статусе «запрошено удаление».</p>
+    <% } %>
+  <% } else if (r.report) { %>
+    <h2>Отчёт: что удалено</h2>
+    <p>Исполнено <%= formatDate(r.report.executed_at) %>. Всего удалено записей: <strong><%= r.report.deleted_total %></strong>. Файлов на диске удалено: <strong><%= r.report.files_deleted %></strong><% if (r.report.files_failed) { %>, не удалось: <strong><%= r.report.files_failed %></strong><% } %>. Эскалаций закрыто при удалении: <strong><%= r.report.escalations_closed %></strong>.</p>
+    <ul>
+      <% Object.keys(r.report.deleted).filter(function(k) { return r.report.deleted[k] > 0; }).forEach(function(k) { %><li><%= (({ chatbot_messages: 'Сообщения чат-бота', ai_messages: 'Сообщения ИИ-чата' })[k]) || k %>: <strong><%= r.report.deleted[k] %></strong></li><% }) %>
+    </ul>
+    <h2>Что осталось</h2>
+    <ul><% r.report.retained.forEach(function(i) { %><li><%= i.label %>: <%= i.count %></li><% }) %></ul>
+    <p class="hint">В отчёте только названия категорий и числа, без персональных данных.</p>
+  <% } %>
+</div>
+<%- include('../_footer') %>

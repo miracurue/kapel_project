@@ -1,0 +1,11 @@
+<%- include('../_header') %>
+<%- include('_back', { backHref: '/reminders', backLabel: 'К напоминаниям' }) %>
+<div class="card">
+  <h1>Удалить напоминание?</h1>
+  <p>«<%= r.message %>» будет удалено.</p>
+  <form method="POST" action="/reminders/<%= r.id %>/delete">
+    <button type="submit">Да, удалить</button>
+    <a class="btn-link" href="/reminders">Отмена</a>
+  </form>
+</div>
+<%- include('../_footer') %>

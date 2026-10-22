@@ -1,0 +1,60 @@
+<%- include('../_header') %>
+<div class="card admin">
+  <p><a href="/admin/users">&larr; Все пользователи</a></p>
+  <h1><%= u.full_name %></h1>
+  <dl class="kv">
+    <dt>Роль</dt><dd><%= roleLabels[u.role] %></dd>
+    <dt>E-mail</dt><dd><%= u.email %></dd>
+    <dt>Статус</dt><dd><span class="badge <%= status.key === 'active' ? 'badge-ok' : (status.key === 'password' ? 'badge-warn' : 'badge-muted') %>"><%= status.label %></span></dd>
+    <dt>Создан</dt><dd><%= formatDate(u.created_at) %></dd>
+    <% if (u.deactivated_at) { %><dt>Деактивирован</dt><dd><%= formatDate(u.deactivated_at) %></dd><% } %>
+  </dl>
+
+  <% if (u.account_status !== 'deleted') { %>
+  <h2>Действия</h2>
+  <p class="row-actions-inline">
+    <% if (u.id !== user.id) { %>
+      <a class="btn btn-secondary" href="/admin/users/<%= u.id %>/reset">Сбросить пароль…</a>
+      <% if (u.deactivated_at) { %>
+        <form method="POST" action="/admin/users/<%= u.id %>/activate" class="inline-form"><button type="submit">Активировать</button></form>
+      <% } else { %>
+        <a class="btn btn-secondary" href="/admin/users/<%= u.id %>/deactivate">Деактивировать…</a>
+      <% } %>
+    <% } else { %>
+      <span class="hint">Это ваша учётная запись: сбросить пароль или деактивировать себя нельзя. Свой пароль меняйте в разделе «Смена пароля».</span>
+      <a class="btn btn-secondary" href="/account/password">Сменить свой пароль</a>
+    <% } %>
+    <% if (['psychiatrist','psychologist'].includes(u.role)) { %>
+      <a class="btn btn-secondary" href="/admin/assignments/reassign?from=<%= u.id %>">Переназначить пациентов…</a>
+      <a class="btn btn-secondary" href="/admin/invites">Коды-приглашения</a>
+    <% } %>
+  </p>
+  <% } %>
+
+  <% if (['psychiatrist','psychologist'].includes(u.role)) { %>
+    <h2>Закреплённые пациенты (<%= patients.length %>)</h2>
+    <% if (patients.length === 0) { %>
+      <div class="empty-state"><p class="empty-state__title">Пациентов нет</p><p>Привязать пациента можно в разделе «Привязки» или выдать код-приглашение, чтобы пациент привязался сам.</p></div>
+    <% } else { %>
+      <p class="hint">Показаны только имена и число открытых эскалаций; карточки пациентов администратору недоступны.</p>
+      <ul class="plain-list">
+        <% patients.forEach(function(p) { %>
+          <li><a href="/admin/assignments/patient/<%= p.id %>"><%= p.full_name %></a><% if (p.open_esc) { %> <span class="badge badge-risk">открытых эскалаций: <%= p.open_esc %></span><% } %></li>
+        <% }) %>
+      </ul>
+    <% } %>
+  <% } %>
+
+  <% if (u.role === 'patient') { %>
+    <h2>Специалисты пациента</h2>
+    <% if (clinicians.length === 0) { %>
+      <div class="empty-state"><p class="empty-state__title">Врач не назначен</p><p><a href="/admin/assignments/patient/<%= u.id %>">Назначить специалиста</a></p></div>
+    <% } else { %>
+      <ul class="plain-list">
+        <% clinicians.forEach(function(c) { %><li><a href="/admin/users/<%= c.id %>"><%= c.full_name %></a> (<%= roleLabels[c.role] %>)<%= c.deactivated_at ? ' — деактивирован' : '' %></li><% }) %>
+      </ul>
+      <p><a href="/admin/assignments/patient/<%= u.id %>">Изменить привязки</a></p>
+    <% } %>
+  <% } %>
+</div>
+<%- include('../_footer') %>

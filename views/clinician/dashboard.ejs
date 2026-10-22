@@ -1,0 +1,71 @@
+<%- include('../_header') %>
+<div class="card clinician-dashboard">
+  <h1>Сводка: кому сейчас нужно внимание</h1>
+  <% if (counts.red > 0 || attention.high > 0) { %>
+    <p class="crisis-strip" role="alert"><span aria-hidden="true">⚠</span> <strong>В кризисной очереди ждут подтверждения: <%= openCount %></strong> — <a href="/crisis">открыть очередь</a></p>
+  <% } else if (openCount > 0) { %>
+    <p class="notice-calm" role="status"><span aria-hidden="true">◐</span> В очереди ждут просмотра: <strong><%= openCount %></strong> — <a href="/crisis">открыть очередь</a>. Срочных (кризисных) среди них нет.</p>
+  <% } %>
+  <% if (attention.tier1 > 0) { %>
+    <div class="notice-calm" role="status" id="attention-note">
+      <p><span aria-hidden="true">◐</span> <strong>Внимание: <%= attention.tier1 %></strong> — эскалации первого уровня ждут вашего просмотра<% if (attention.item9 > 0) { %>, из них <strong><%= attention.item9 %></strong> с отметкой в вопросе о мыслях о смерти или самоповреждении (пункт 9 PHQ-9 / BDI-II)<% } %>.</p>
+      <p class="hint">Почему это не «Кризис»: по протоколу сервиса такие ответы получают уровень «Внимание» без таймера ответа. Пороги не менялись и ждут клинического утверждения; решение о срочности остаётся за вами.</p>
+    </div>
+  <% } %>
+  <% if (typeof repeatDue !== 'undefined' && repeatDue > 0) { %>
+    <p class="tools-soft">Необязательно: у пациентов давно не было повторного теста — <%= repeatDue %>. <a href="/tools/reminders">Посмотреть</a></p>
+  <% } %>
+  <% if (total === 0) { %>
+    <div class="empty-state">
+      <p class="empty-state__title">Пока нет закреплённых пациентов</p>
+      <p>Пациент выбирает врача при регистрации. Заполнять ничего заранее не нужно: сводка заполнится сама, когда у пациентов появятся результаты.</p>
+    </div>
+  <% } else { %>
+    <div class="stat-grid triage-counts">
+      <% [['red','Кризис','⚠'],['yellow','Внимание','◐'],['gray','Мало данных','○'],['green','Спокойно','✓']].forEach(function(s) { %>
+        <a class="stat-card triage-count triage-count--<%= s[0] %><%= status === s[0] ? ' is-active' : '' %>" href="/dashboard?status=<%= s[0] %><%= tag ? '&tag=' + encodeURIComponent(tag) : '' %>">
+          <span class="stat-card__label"><span aria-hidden="true"><%= s[2] %></span> <%= s[1] %></span>
+          <span class="stat-card__value"><%= counts[s[0]] %></span>
+        </a>
+      <% }) %>
+    </div>
+    <form method="GET" action="/dashboard" class="filter-bar">
+      <label>Статус
+        <select name="status">
+          <option value="">Требуют внимания</option>
+          <% [['red','Кризис'],['yellow','Внимание'],['gray','Мало данных'],['green','Спокойно']].forEach(function(s) { %>
+            <option value="<%= s[0] %>"<%= status === s[0] ? ' selected' : '' %>><%= s[1] %></option>
+          <% }) %>
+        </select>
+      </label>
+      <% if (allTags.length) { %>
+      <label>Тег
+        <select name="tag"><option value="">Все</option>
+          <% allTags.forEach(function(t) { %><option value="<%= t %>"<%= tag === t ? ' selected' : '' %>><%= t %></option><% }) %>
+        </select>
+      </label>
+      <% } %>
+      <button type="submit" class="btn-secondary">Показать</button>
+      <% if (status || tag) { %><a href="/dashboard">Сбросить</a><% } %>
+    </form>
+    <% if (rows.length === 0) { %>
+      <div class="empty-state">
+        <p class="empty-state__title"><%= (status || tag) ? 'Нет пациентов с такими условиями' : 'Сейчас никому не требуется внимание' %></p>
+        <p><%= (status || tag) ? 'Сбросьте фильтр, чтобы увидеть всех.' : 'Спокойных пациентов: ' + counts.green + '. Их можно открыть фильтром «Спокойно» или в разделе «Пациенты».' %></p>
+      </div>
+    <% } else { %>
+      <%- include('_rows', { rows: rows, back: '/dashboard' }) %>
+    <% } %>
+    <p class="hint"><a href="/patients">Все пациенты, поиск и архив</a></p>
+    <details class="why"><summary>Как работает светофор и какие пороги</summary>
+      <ul>
+        <li><strong>Кризис</strong> — открытая эскалация уровня 2 и выше, обращение пациента «Мне сейчас тяжело» или просрочка SLA. Откладывать нельзя.</li>
+        <li><strong>Внимание</strong> — открытая эскалация уровня 1; ухудшение по шкале (более тяжёлый уровень или изменение балла не меньше порога шкалы за <%= triageConfig.worseningWindowDays %> дн.); нет активности ≥ <%= triageConfig.inactivityDays %> дн.; назначенный тест не пройден ≥ <%= triageConfig.overdueAssignmentDays %> дн.; низкая приверженность.</li>
+        <li><strong>Мало данных</strong> — нет результатов или нет клинического согласия. Тесты-заглушки каталога не учитываются.</li>
+        <li><strong>Спокойно</strong> — иначе.</li>
+      </ul>
+    </details>
+  <% } %>
+  <p class="result-disclaimer"><%= TRIAGE_DISCLAIMER %></p>
+</div>
+<%- include('../_footer') %>

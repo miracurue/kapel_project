@@ -1,0 +1,10 @@
+{$DEMO_DOMAIN:localhost} {
+  basic_auth {
+    {$CADDY_DEMO_USER} {$CADDY_DEMO_PASSWORD_HASH}
+  }
+  reverse_proxy app:3000
+  encode zstd gzip
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+  }
+}

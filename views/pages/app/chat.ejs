@@ -1,0 +1,71 @@
+<%#
+  P-13 · Чат пациента (F-27, F-28, F-30, F-31). Разметка — из утверждённого прототипа v5
+  (.agents/web-developer/files/07-structure/prototype/patient.html, вкладка chat):
+  история «Сегодня/Ранее» слева, «Чем помочь?» с 4 примерами, композер с подсказками.
+  Тексты — только ключами locales/ru.json (t()). Локалы: t, aiOff, today, earlier.
+  Если ИИ-согласие выключено — поле заменяет строка msg.chat.ai_off (T-415), 112 остаётся в оболочке.
+%>
+<% if (aiOff) { %>
+<section class="chat-tab">
+  <p data-testid="msg.chat.ai_off"><a href="/account/privacy"><%= t('msg.chat.ai_off') %></a></p>
+</section>
+<% } else { %>
+<section class="chat-tab">
+  <aside class="side" aria-label="<%= t('msg.chat.history') %>">
+    <div class="side-head"><a class="new" href="/app?tab=chat" data-testid="msg.chat.history.new"><%= t('msg.chat.history.new') %></a></div>
+    <% if (!today.length && !earlier.length) { %>
+      <p data-testid="msg.chat.history.empty"><%= t('msg.chat.history.empty') %></p>
+    <% } %>
+    <% if (today.length) { %>
+      <h4 data-testid="msg.chat.history.today"><%= t('msg.chat.history.today') %></h4>
+      <% today.forEach(function (th) { %>
+        <span class="chat-th" data-thread="<%= th.id %>"><a class="th" href="/app?tab=chat&amp;thread=<%= th.id %>"><%= th.title %></a><button type="button" data-testid="msg.chat.history.rename" data-id="<%= th.id %>" aria-label="<%= t('msg.chat.history.rename') %>">✎</button><button type="button" data-testid="msg.chat.history.delete" data-id="<%= th.id %>" aria-label="<%= t('msg.chat.history.delete') %>">×</button></span>
+      <% }) %>
+    <% } %>
+    <% if (earlier.length) { %>
+      <h4 data-testid="msg.chat.history.earlier"><%= t('msg.chat.history.earlier') %></h4>
+      <% earlier.forEach(function (th) { %>
+        <span class="chat-th" data-thread="<%= th.id %>"><a class="th" href="/app?tab=chat&amp;thread=<%= th.id %>"><%= th.title %></a><button type="button" data-testid="msg.chat.history.rename" data-id="<%= th.id %>" aria-label="<%= t('msg.chat.history.rename') %>">✎</button><button type="button" data-testid="msg.chat.history.delete" data-id="<%= th.id %>" aria-label="<%= t('msg.chat.history.delete') %>">×</button></span>
+      <% }) %>
+    <% } %>
+    <p class="small muted" data-testid="msg.chat.history.retention"><%= t('msg.chat.history.retention') %></p>
+  </aside>
+  <div class="pane">
+    <div class="scroll">
+      <div class="col feed">
+        <div id="v3-chat" aria-live="polite"></div>
+        <div class="hello" id="v2-chat-hello">
+          <h1 data-testid="msg.chat.empty.title"><%= t('msg.chat.empty.title') %></h1>
+          <p data-testid="msg.chat.empty.lead"><%= t('msg.chat.empty.lead') %></p>
+          <section class="callout today" aria-labelledby="daily-title">
+            <span class="today-gem" aria-hidden="true"><svg class="drop drop--s"><use href="/icons.svg#drop"/></svg></span>
+            <div class="t"><b id="daily-title"><%= t('msg.chat.daily.title') %></b><p><%= t('msg.chat.daily.lead') %></p></div>
+            <a class="btn primary" href="/app?tab=diary"><%= t('msg.chat.daily.write') %></a>
+          </section>
+          <div class="ideas">
+            <button type="button" class="idea" data-testid="msg.chat.example.1" data-idea="<%= t('msg.chat.example.1') %>"><%= t('msg.chat.example.1') %></button>
+            <button type="button" class="idea" data-testid="msg.chat.example.2" data-idea="<%= t('msg.chat.example.2') %>"><%= t('msg.chat.example.2') %></button>
+            <button type="button" class="idea" data-testid="msg.chat.example.3" data-idea="<%= t('msg.chat.example.3') %>"><%= t('msg.chat.example.3') %></button>
+            <button type="button" class="idea" data-testid="msg.chat.example.4" data-idea="<%= t('msg.chat.example.4') %>"><%= t('msg.chat.example.4') %></button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="dock">
+      <div class="col">
+        <p data-testid="msg.ai.patient.composer_note"><%= t('msg.ai.patient.composer_note') %></p>
+        <div data-chips></div>
+        <div class="chat-sugg" data-testid="msg.composer.suggestions"><span class="chat-sugg__label"><%= t('msg.composer.suggestions') %></span> <span id="v2-chat-suggestions"></span></div>
+        <div class="chat-input">
+          <textarea data-testid="msg.chat.placeholder" rows="2" placeholder="<%= t('msg.chat.placeholder') %>" aria-label="<%= t('msg.chat.placeholder') %>"></textarea>
+          <button type="button" data-testid="msg.composer.attach"><%= t('msg.composer.attach') %></button>
+          <div id="v3-attach" hidden></div>
+          <button type="button" data-testid="msg.composer.send"><%= t('msg.composer.send') %></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<script src="/js/patient_chat.js" defer></script>
+<script src="/js/mic.js" defer></script>
+<% } %>

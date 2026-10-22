@@ -1,0 +1,150 @@
+{
+  "ui.undo_window_seconds": 10,
+  "analytics.min_group": 10,
+  "crisis.outcome_due_hours": 24,
+  "crisis.sla": {
+    "work_minutes": 15,
+    "off_minutes": 30
+  },
+  "crisis.contacts": [
+    {
+      "title": "Экстренные службы",
+      "phone": "112"
+    },
+    {
+      "title": "Линия клиники",
+      "phone": "+7 800 000-00-01"
+    }
+  ],
+  "crisis.backup": [],
+  "ai.limits": {
+    "patient_per_10min": 60,
+    "patient_per_day": 200,
+    "clinician_per_hour": 60,
+    "hints_per_day": 20,
+    "admin_per_hour": 60,
+    "budget_tokens": 0,
+    "warn_percent": 80
+  },
+  "ai.timeouts": {
+    "patient_assistant": 60,
+    "clinician_chat": 60,
+    "document_draft": 90,
+    "diagnostic_hints": 90,
+    "ae_extraction": 15,
+    "order_parse": 10,
+    "admin_assistant": 30
+  },
+  "ai.enabled": {
+    "all": true
+  },
+  "course_support.rules": [],
+  "voice.max_seconds": {
+    "patient": 120,
+    "clinician": 900
+  },
+  "files.limits": {
+    "max_mb": 10,
+    "max_count": 5,
+    "types": [
+      "jpeg",
+      "png",
+      "heic",
+      "pdf",
+      "docx",
+      "txt"
+    ]
+  },
+  "messages.channel": {
+    "reply_days": 2,
+    "mode": "organizational",
+    "line": "Ответим в рабочее время"
+  },
+  "pv.responsible": null,
+  "previsit.days_before": {
+    "days": 3,
+    "reminders": 0
+  },
+  "org.timezone_hours": {
+    "timezone": "Europe/Moscow",
+    "work_from": "09:00",
+    "work_to": "18:00",
+    "days": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "holidays": []
+  },
+  "auth.session_timeouts": {
+    "idle_minutes": 30,
+    "staff_absolute_minutes": 120,
+    "patient_remember_minutes": 720
+  },
+  "triage.thresholds": {},
+  "ae.detect_dictionary": [],
+  "reference.search": {
+    "suggestions": 5,
+    "min_chars": 2,
+    "fuzziness": "normal"
+  },
+  "queue.due": {
+    "info_days": 5,
+    "stop_days": 7,
+    "erasure_days": 30,
+    "change_days": 5,
+    "crisis_repeat_min": 15,
+    "taken_return_days": 2
+  },
+  "hints.enabled_real": false,
+  "auth.admin_second_factor": "off",
+  "service.maintenance": {
+    "on": false,
+    "until": null,
+    "message_key": null
+  },
+  "ai.eval.threshold": 0.8,
+  "lists.block_reasons": [
+    "staff_leave",
+    "suspicious",
+    "owner_request",
+    "rules",
+    "other"
+  ],
+  "demo.route": [
+    {
+      "title": "Пациент",
+      "url": "/app"
+    },
+    {
+      "title": "Врач",
+      "url": "/work"
+    },
+    {
+      "title": "Сигналы",
+      "url": "/work?tab=signals"
+    }
+  ],
+  "previsit.questions": [
+    {
+      "id": "sleep",
+      "type": "text_long",
+      "text": "Как вы себя чувствуете?",
+      "required": false
+    },
+    {
+      "id": "changes",
+      "type": "multi",
+      "text": "Что изменилось?",
+      "options": [
+        {
+          "value": "sleep",
+          "label": "Сон"
+        }
+      ],
+      "required": false
+    }
+  ]
+}

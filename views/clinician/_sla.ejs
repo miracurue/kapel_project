@@ -1,0 +1,12 @@
+<%# SLA-таймер: слово + значок + явное время due_at; без JS — значение на момент загрузки. Вход: c (элемент очереди) %>
+<% if (c.status === 'open' && c.effTier >= 2) { var s = slaText(c.due_at); %>
+  <span class="sla <%= s.overdue ? 'sla--overdue' : 'sla--ok' %>" data-due="<%= c.due_at %>">
+    <span class="sla__state"><span aria-hidden="true"><%= s.overdue ? '⚠' : '⏱' %></span> <strong><%= s.overdue ? 'Просрочено' : 'В срок' %></strong></span>
+    <span class="sla__text"><%= s.text %></span>
+    <span class="sla__due">до <time datetime="<%= c.due_at %>"><%= formatDate(c.due_at) %></time></span>
+  </span>
+<% } else if (c.status === 'open') { %>
+  <span class="hint">без срока SLA</span>
+<% } else { %>
+  <span class="hint">подтверждено <%= formatDate(c.acknowledged_at) %></span>
+<% } %>

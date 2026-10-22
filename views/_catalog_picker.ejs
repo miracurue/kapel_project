@@ -1,0 +1,53 @@
+<%# Выбор методики из каталога: группировка domain -> kind; поиск и фильтры domain/kind/mode без перезагрузки.
+    Параметры: pickerId, groups (groupedCatalog), fieldName. Без JS список виден целиком, панель поиска/фильтров скрыта (hidden). %>
+<%
+  var modeLabels = { online: 'Онлайн', online_stub: 'Онлайн (демо)', clinician_entered: 'Вводит врач' };
+  var kindOpts = {}; var modeOpts = {};
+  groups.forEach(function (g) { g.kinds.forEach(function (k) { kindOpts[k.kind] = k.label; k.entries.forEach(function (e) { modeOpts[e.mode] = modeLabels[e.mode] || e.mode; }); }); });
+%>
+<div class="catalog-picker" id="<%= pickerId %>">
+  <div class="catalog-filters" data-filters hidden>
+    <div>
+      <label for="<%= pickerId %>-search">Поиск по названию или коду</label>
+      <input type="search" id="<%= pickerId %>-search" placeholder="например: Гамильтон, bai, Шульте" autocomplete="off" />
+    </div>
+    <div>
+      <label for="<%= pickerId %>-domain">Область</label>
+      <select id="<%= pickerId %>-domain" data-filter="domain"><option value="">Все</option>
+        <% groups.forEach(function (g) { %><option value="<%= g.domain %>"><%= g.label %></option><% }) %>
+      </select>
+    </div>
+    <div>
+      <label for="<%= pickerId %>-kind">Вид</label>
+      <select id="<%= pickerId %>-kind" data-filter="kind"><option value="">Все</option>
+        <% Object.keys(kindOpts).forEach(function (k) { %><option value="<%= k %>"><%= kindOpts[k] %></option><% }) %>
+      </select>
+    </div>
+    <div>
+      <label for="<%= pickerId %>-mode">Режим</label>
+      <select id="<%= pickerId %>-mode" data-filter="mode"><option value="">Все</option>
+        <% Object.keys(modeOpts).forEach(function (m) { %><option value="<%= m %>"><%= modeOpts[m] %></option><% }) %>
+      </select>
+    </div>
+  </div>
+  <% groups.forEach(function(g) { %>
+    <fieldset class="catalog-domain" data-domain="<%= g.domain %>">
+      <legend><%= g.label %></legend>
+      <% g.kinds.forEach(function(k) { %>
+        <div class="catalog-kind">
+          <h4><%= k.label %></h4>
+          <% k.entries.forEach(function(e) { %>
+            <label class="catalog-item" data-search="<%= (e.title + ' ' + e.code).toLowerCase() %>" data-domain="<%= e.domain %>" data-kind="<%= e.kind %>" data-mode="<%= e.mode %>">
+              <input type="radio" name="<%= fieldName %>" value="<%= e.code %>"<%= (typeof noRequired !== 'undefined' && noRequired) ? '' : ' required' %> />
+              <span><%= e.title %>
+              <% if (e.status === 'stub') { %><span class="badge badge-warn">заглушка</span><% } %>
+              <code><%= e.code %></code></span>
+            </label>
+          <% }) %>
+        </div>
+      <% }) %>
+    </fieldset>
+  <% }) %>
+  <p class="catalog-empty result-disclaimer" hidden>Ничего не найдено. Измените запрос или сбросьте фильтры.</p>
+</div>
+<script src="/catalog_picker.js" defer></script>

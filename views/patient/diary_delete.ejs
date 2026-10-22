@@ -1,0 +1,11 @@
+<%- include('../_header') %>
+<%- include('_back', { backHref: '/diary', backLabel: 'К дневнику' }) %>
+<div class="card">
+  <h1>Удалить запись?</h1>
+  <p>Запись за <strong><%= formatDate(entryDate(entry)) %></strong> (настроение <%= entry.mood_score %>) будет удалена без возможности восстановления.</p>
+  <form method="POST" action="/diary/<%= entry.id %>/delete">
+    <button type="submit">Да, удалить</button>
+    <a class="btn-link" href="/diary">Отмена</a>
+  </form>
+</div>
+<%- include('../_footer') %>

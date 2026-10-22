@@ -1,0 +1,41 @@
+<%#
+  P-51 · Утверждения (UC-45, F-98; W-41). Очередь изменений настроек, ждущих отметки клинического ответственного.
+  Решение — POST /api/v1/approvals/{id}/approve|reject (public/js/approvals.js). Тексты — только t().
+  Локали: t, items [{id, title, from, to, author, date}].
+%>
+<section class="work-page approvals-tab" data-work-approvals data-page="P-51" data-t-approved="<%= t('msg.approvals.done.approved') %>" data-t-rejected="<%= t('msg.approvals.rejected') %>" data-t-failed="<%= t('msg.approvals.failed') %>">
+<div class="scroll"><div class="work-wrap">
+  <h1 data-testid="msg.approvals.title"><%= t('msg.approvals.title', { n: items.length }) %></h1>
+  <p class="sub-line"><%= t('msg.approvals.lead') %></p>
+  <% if (!items.length) { %>
+    <div class="card empty" data-testid="msg.approvals.empty">
+      <svg class="i i--32" aria-hidden="true" focusable="false"><use href="/icons.svg#i-check-circle"/></svg>
+      <h3><%= t('msg.approvals.empty') %></h3>
+      <p><%= t('msg.approvals.empty.hint') %></p>
+    </div>
+  <% } else { %>
+    <div class="card appr-list" data-appr-list>
+      <% for (const a of items) { %>
+        <div class="qrow" data-approval="<%= a.id %>">
+          <div class="q-state"><span class="st-pill warn"><svg class="i" aria-hidden="true" focusable="false"><use href="/icons.svg#i-clock"/></svg><%= t('msg.approvals.status.waiting') %></span></div>
+          <div class="q-main" data-testid="msg.approvals.card">
+            <b><%= a.title %></b>
+            <span><%= t('msg.approvals.change', { old: a.from, new: a.to }) %></span>
+            <small class="q-meta"><%= t('msg.approvals.by', { author: a.author, date: a.date }) %></small>
+          </div>
+          <div class="q-act">
+            <button type="button" class="primary" data-approve data-testid="msg.approvals.approve"><%= t('msg.approvals.approve') %></button>
+            <button type="button" data-reject data-testid="msg.approvals.reject"><%= t('msg.approvals.reject') %></button>
+          </div>
+          <div class="q-more" data-appr-more hidden>
+            <label><%= t('msg.approvals.reject.reason') %><textarea data-appr-reason rows="2"></textarea></label>
+            <div class="acts"><button type="button" class="primary" data-reject-send><%= t('msg.approvals.reject.send') %></button><button type="button" data-reject-cancel><%= t('msg.approvals.reject.cancel') %></button></div>
+          </div>
+        </div>
+      <% } %>
+    </div>
+  <% } %>
+  <p class="small muted" role="status" aria-live="polite" data-appr-msg></p>
+</div></div>
+</section>
+<script src="/js/approvals.js" defer></script>

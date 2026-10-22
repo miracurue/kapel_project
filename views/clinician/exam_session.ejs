@@ -1,0 +1,69 @@
+<%- include('../_header') %>
+<div class="card clinician-card concl">
+  <%- include('_patient_head') %>
+  <p><a href="<%= base %>/conclusions">← Заключения и протоколы</a></p>
+  <h2>Сеанс обследования: <%= s.title || ('№' + s.id) %>, <%= formatDate(s.session_date) %></h2>
+  <p class="badge badge-info" id="exam-progress" role="status">внесено <%= sv.progress.entered %> из <%= sv.progress.total %></p>
+  <p class="hint">Вносите методики по частям: каждое поле необязательно, ничто не блокирует сохранение. Баллы вводите сами — автоматической интерпретации у заглушек нет (демо-балл). Можно вернуться в любой момент и в другой день создать новый сеанс.</p>
+
+  <section class="pc-section" aria-labelledby="plan-h">
+    <h3 id="plan-h">Батарея сеанса</h3>
+    <form method="POST" action="<%= base %>/exam/<%= s.id %>/plan" class="pc-entry-picker">
+      <details<%= sv.items.length === 0 ? ' open' : '' %>><summary>Добавить методику в сеанс</summary>
+        <%- include('../_catalog_picker', { pickerId: 'examPicker', groups: groups, fieldName: 'instrument', noRequired: true }) %>
+        <button type="submit" class="btn-secondary">Добавить выбранную методику</button>
+      </details>
+    </form>
+  </section>
+
+  <% if (sv.items.length === 0) { %>
+    <div class="empty-state"><p class="empty-state__title">Методики пока не добавлены</p><p>Выберите методику выше. Необязательно: можно вести только заметку к сеансу.</p></div>
+  <% } %>
+
+  <% sv.items.forEach(function(it) { %>
+    <section class="pc-section concl-proto" id="m-<%= it.code %>" aria-labelledby="h-<%= it.code %>">
+      <h3 id="h-<%= it.code %>"><%= it.title %>
+        <% if (it.ready) { %><span class="badge badge-ok"><span aria-hidden="true">✔</span> готово</span><% } else if (it.row) { %><span class="badge badge-warn"><span aria-hidden="true">✎</span> черновик</span><% } else { %><span class="badge badge-muted">не внесено</span><% } %>
+      </h3>
+      <form method="POST" action="<%= base %>/exam/<%= s.id %>/protocol/<%= it.code %>" class="concl-proto-form" data-autosave="<%= base %>/exam/<%= s.id %>/protocol/<%= it.code %>">
+        <div class="filter-bar">
+          <label>Время выполнения, сек <input type="number" name="duration_sec" min="0" step="any" value="<%= it.p.duration_sec != null ? it.p.duration_sec : '' %>" /></label>
+          <label>Ошибки, количество
+            <span class="concl-counter"><input type="number" name="errors" min="0" value="<%= it.p.errors != null ? it.p.errors : '' %>" /><button type="button" class="btn-secondary" data-inc="errors" aria-label="+1, добавить ошибку" hidden>+1</button></span>
+          </label>
+          <label>Баллы (по вашему протоколу) <input type="number" name="score" min="0" step="any" value="<%= it.p.score != null ? it.p.score : '' %>" /></label>
+        </div>
+        <div class="concl-timer" data-timer hidden>
+          <span>Секундомер: <output data-timer-out>0</output> сек</span>
+          <button type="button" class="btn-secondary" data-timer-start>Старт</button>
+          <button type="button" class="btn-secondary" data-timer-stop>Стоп</button>
+          <button type="button" class="btn-secondary" data-timer-apply>В поле «Время»</button>
+        </div>
+        <input type="hidden" name="timer_sec" value="<%= it.p.timer_sec != null ? it.p.timer_sec : '' %>" />
+        <label>Наблюдения <textarea name="observations" rows="3" maxlength="<%= obsMax %>"><%= it.p.observations || '' %></textarea></label>
+        <label>Дословные ответы / наблюдения <textarea name="verbatim" rows="6" maxlength="<%= textMax %>"><%= it.p.verbatim || '' %></textarea></label>
+        <p class="hint">До <%= textMax %> символов. Сохраняется автоматически при наборе (если включён JavaScript) и по кнопке.</p>
+        <p>
+          <button type="submit">Сохранить</button>
+          <button type="submit" name="ready" value="1" class="btn-secondary">Сохранить и отметить «готово»</button>
+          <span class="hint concl-state" role="status"></span>
+        </p>
+      </form>
+      <form method="POST" action="<%= base %>/exam/<%= s.id %>/plan" class="inline">
+        <input type="hidden" name="remove" value="<%= it.code %>" />
+        <button type="submit" class="btn-secondary">Убрать из сеанса (данные протокола сохраняются)</button>
+      </form>
+    </section>
+  <% }) %>
+
+  <section class="pc-section" aria-labelledby="sn-h">
+    <h3 id="sn-h">Заметка к сеансу</h3>
+    <form method="POST" action="<%= base %>/exam/<%= s.id %>/note">
+      <label>Свободный текст (необязательно) <textarea name="note" rows="3" maxlength="<%= textMax %>"><%= s.note || '' %></textarea></label>
+      <button type="submit" class="btn-secondary">Сохранить заметку</button>
+    </form>
+  </section>
+  <p class="result-disclaimer"><%= disclaimer %></p>
+</div>
+<script src="/conclusions.js" defer></script>
+<%- include('../_footer') %>

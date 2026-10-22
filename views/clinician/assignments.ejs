@@ -1,0 +1,71 @@
+<%- include('../_header') %>
+<div class="card clinician-card">
+  <h1>Назначения</h1>
+  <p class="hint">Назначьте тест или пакет одному или нескольким пациентам. Срок, пояснение и повтор — по желанию. Предпросмотр покажем, если выбран пакет, несколько пациентов или тест уже назначен.</p>
+
+  <% if (patients.length === 0) { %>
+    <div class="empty-state"><p class="empty-state__title">Пока нет закреплённых пациентов</p><p>Создайте <a href="/invites">код-приглашение</a> и передайте его пациенту. Заполнять ничего не нужно.</p></div>
+  <% } else { %>
+  <form method="POST" action="/assignments" class="pc-assign">
+    <fieldset>
+      <legend>1. Кому</legend>
+      <% patients.forEach(function(p) { %>
+        <label class="pc-check<%= (!p.consentOk || p.archived) ? ' is-disabled' : '' %>">
+          <input type="checkbox" name="patient_id" value="<%= p.id %>"<%= preselected.includes(p.id) ? ' checked' : '' %> />
+          <%= p.full_name %>
+          <% if (p.archived) { %><span class="badge badge-muted">архив — назначить нельзя</span><% } else if (!p.consentOk) { %><span class="badge badge-warn">нет согласия — назначить нельзя</span><% } %>
+        </label>
+      <% }) %>
+    </fieldset>
+
+    <fieldset>
+      <legend>2. Пакет (по желанию)</legend>
+      <label>Пакет вместо одной методики
+        <select name="package">
+          <option value="">Без пакета — выберу методику ниже</option>
+          <% packages.forEach(function(p) { %><option value="<%= p.code %>"><%= p.title %> (<%= p.entries.length %>): <%= p.entries.map(function(e) { return e.title; }).join(', ') %></option><% }) %>
+        </select>
+      </label>
+      <p class="hint">Состав пакетов демонстрационный (review-required), утверждается клиническим владельцем.</p>
+    </fieldset>
+
+    <fieldset>
+      <legend>3. Методика</legend>
+      <p class="hint">Онлайн-тесты пациент проходит сам; очные методики попадают в «Ожидают ввода врачом» — пациент их не видит.</p>
+      <%- include('../_catalog_picker', { pickerId: 'assignPicker', groups: groups, fieldName: 'instrument', noRequired: true }) %>
+    </fieldset>
+
+    <fieldset>
+      <legend>4. По желанию</legend>
+      <div class="filter-bar">
+        <label>Выполнить до <input type="date" name="due_date" /></label>
+        <label>Повторять каждые <input type="number" name="repeat_every" min="1" max="52" size="3" class="w-5rem" aria-describedby="rep-h" />
+          <select name="repeat_unit" aria-label="единица повтора"><option value="days">дн.</option><option value="weeks">нед.</option></select></label>
+      </div>
+      <p class="hint" id="rep-h">Повтор: не больше одного ожидающего назначения той же методики; после перерыва копится не больше одного.</p>
+      <label>Пояснение пациенту (до <%= commentMax %> символов, без ФИО и телефонов) <input type="text" name="comment" maxlength="<%= commentMax %>" /></label>
+    </fieldset>
+    <p><button type="submit">Назначить</button></p>
+  </form>
+  <% } %>
+</div>
+
+<div class="card clinician-card">
+  <h2>Текущие назначения</h2>
+  <% if (active.length === 0) { %>
+    <div class="empty-state"><p class="empty-state__title">Активных назначений нет</p><p>Необязательно. Назначения появятся здесь, их можно отменить, если назначили по ошибке.</p></div>
+  <% } else { %>
+    <%- include('_assignment_list', { list: active, back: '/assignments', showPatient: true }) %>
+  <% } %>
+  <% if (schedules.length) { %>
+    <h3>Повторы по расписанию</h3>
+    <ul>
+      <% schedules.forEach(function(s) { %>
+        <li><%- instrumentTag(s.instrument) %> — каждые <%= s.every_days %> дн., пациент №<%= s.patient_id %>, следующее около <%= formatDate(s.next_due_at.slice(0, 10)) %>
+          <form method="POST" action="/schedules/<%= s.id %>/stop" class="inline"><input type="hidden" name="back" value="/assignments" /><button type="submit" class="btn-secondary">Отключить</button></form></li>
+      <% }) %>
+    </ul>
+  <% } %>
+  <p class="result-disclaimer"><%= STUB_DISCLAIMER %> Назначение — рабочая функция врача, не клиническая рекомендация системы.</p>
+</div>
+<%- include('../_footer') %>

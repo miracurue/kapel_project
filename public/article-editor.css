@@ -1,0 +1,71 @@
+/* Раскладка «Шаблонов» и «Моих статей»: список · чат · широкая правая панель.
+   Панель — общий .panel из app.css: на ≥1201 справа шириной 46 % (520…680), на 961–1200 открывается поверх чата
+   с кнопкой «Вернуться к чату», на ≤960 — на весь экран (правило .panel в app.css). */
+.lib-tab {
+  position: relative;
+  min-width: 0;
+  --lib-editor-width: 532px;
+}
+.lib-tab > .pane {
+  min-width: 0;
+  flex: 1;
+}
+.lib-tab .pane > .scroll > .col {
+  width: min(var(--w-chat) - 40px, 100% - 2 * var(--s-5));
+  padding-bottom: var(--s-5);
+}
+.lib-tab .lib-back {
+  display: none;
+}
+.lib-tab > [hidden] {
+  display: none !important;
+}
+
+/* ширина панели меняется ручкой между чатом и панелью: невидимая полоса поверх зазора */
+.lib-tab .lib-resizer {
+  flex: none;
+  align-self: stretch;
+  width: var(--s-2);
+  margin: 0 calc(-1 * var(--s-3)) 0 calc(-1 * var(--s-2));
+  z-index: 2;
+  cursor: col-resize;
+  touch-action: none;
+  border-radius: var(--r-pill);
+  background: none;
+}
+.lib-tab .lib-resizer:hover,
+.lib-tab .lib-resizer:focus {
+  background: var(--sunk-2);
+  outline: none;
+}
+.lib-tab .lib-resizer:focus-visible {
+  box-shadow: var(--ring);
+}
+
+@media (min-width: 1201px) {
+  .lib-tab > .panel {
+    width: var(--lib-editor-width);
+  }
+}
+@media (min-width: 961px) and (max-width: 1200px) {
+  .lib-tab > .lib-resizer {
+    display: none !important;
+  }
+  .lib-tab > .panel {
+    position: absolute;
+    inset: 0;
+    width: auto;
+    z-index: 5;
+  }
+  .lib-tab .lib-back {
+    display: inline-flex;
+  }
+}
+@media (max-width: 960px) {
+  .lib-tab > .lib-resizer {
+    display: none !important;
+  }
+  .lib-tab .lib-back {
+    display: inline-flex;
+  }
+}

@@ -1,0 +1,4 @@
+models/
+*.md
+__pycache__/
+*.pyc

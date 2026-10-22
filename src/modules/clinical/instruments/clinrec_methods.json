@@ -1,0 +1,846 @@
+[
+ {
+  "code": "cssrs_full",
+  "title": "Колумбийская шкала серьёзности суицидальных намерений (Колумбийская шкала оценки тяжести суицида)",
+  "abbreviation": "C-SSRS",
+  "kind": "scale",
+  "administered_by": "clinician",
+  "in_system": false,
+  "status": "soon",
+  "sources": [
+   {
+    "doc": "01_bipolar",
+    "app_label": "app:Г1",
+    "appendix_title": "Приложение Г 1. Оценка суицидального риска и суицидального поведения"
+   },
+   {
+    "doc": "04_depression",
+    "app_label": "app:Г4",
+    "appendix_title": "Приложение Г4. Колумбийская шкала серьёзности суицидальных намерений"
+   }
+  ]
+ },
+ {
+  "code": "hcl32",
+  "title": "Опросник для выявления гипомании HCL-32",
+  "abbreviation": "HCL-32",
+  "kind": "questionnaire",
+  "administered_by": "self",
+  "in_system": false,
+  "status": "soon",
+  "sources": [
+   {
+    "doc": "01_bipolar",
+    "app_label": "app:Г2",
+    "appendix_title": "Приложение Г 2. HCL-32. Опросник для выявления гипомании"
+   }
+  ]
+ },
+ {
+  "code": "ymrs",
+  "title": "Шкала Янга для оценки выраженности маниакальной симптоматики",
+  "abbreviation": "YMRS",
+  "kind": "scale",
+  "administered_by": "clinician",
+  "in_system": true,
+  "status": "soon",
+  "sources": [
+   {
+    "doc": "01_bipolar",
+    "app_label": "app:Янга",
+    "appendix_title": "Приложение Г 3. Шкала Янга для оценки выраженности маниакальной симптоматики"
+   }
+  ]
+ },
+ {
+  "code": "hdrs17",
+  "title": "Шкала Гамильтона для оценки выраженности депрессивной симптоматики (17 пунктов)",
+  "abbreviation": "HAM-D-17",
+  "kind": "scale",
+  "administered_by": "clinician",
+  "in_system": true,
+  "status": "soon",
+  "sources": [
+   {
+    "doc": "01_bipolar",
+    "app_label": "app:Г3",
+    "appendix_title": "Приложение Г3. Шкала Гамильтона для оценки выраженности депрессивной симптоматики (HAM-D-17 пунктов)"
+   },
+   {
+    "doc": "04_depression",
+    "app_label": "app:Г1",
+    "appendix_title": "Приложение Г1. Шкала Гамильтона для оценки депрессии"
+   }
+  ]
+ },
+ {
+  "code": "madrs",
+  "title": "Шкала Монтгомери-Асберг для оценки тяжести депрессивной симптоматики",
+  "abbreviation": "MADRS",
+  "kind": "scale",
+  "administered_by": "clinician",
+  "in_system": true,
+  "status": "soon",
+  "sources": [
+   {
+    "doc": "01_bipolar",
+    "app_label": "app:Г4",
+    "appendix_title": "Приложение Г4. Шкала Монтгомери -Асберг для оценки тяжести депрессивной симптоматики - MADRS"
+   },
+   {
+    "doc": "04_depression",
+    "app_label": "app:Г2",
+    "appendix_title": "Приложение Г2. Шкала Монтгомери - Асберг для оценки депрессии"
+   }
+  ]
+ },
+ {
+  "code": "hcl33",
+  "title": "Опросник для выявления гипомании HCL-33",
+  "abbreviation": "HCL-33",
+  "kind": "questionnaire",
+  "administered_by": "self",
+  "in_system": false,
+  "status": "soon",
+  "sources": [
+   {
+    "doc": "01_bipolar",
+    "app_label": "app:Г5",
+    "appendix_title": "Приложение Г5. HCL-33. Опросник для выявления гипомании"
+   },
+   {
+    "doc": "04_depression",
+    "app_label": "app:Г3",
+    "appendix_title": "Приложение Г3. HCL-33. Опросник для выявления гипомании"
+   }
+  ]
+ },
+ {
+  "code": "hars",
+  "title": "Шкала Гамильтона для оценки тревоги",
+  "abbreviation": "HARS",
+  "kind": "scale",
+  "administered_by": "clinician",
+  "in_system": true,
+  "sources": [
+   {
+    "doc": "02_gad",
+    "app_label": "app:Г1",
+    "appendix_title": "Приложение Г1. Шкала М. Гамильтона для оценки тревоги"
+   },
+   {
+    "doc": "07_panic",
+    "app_label": "app:Г4",
+    "appendix_title": "Приложение Г4.Шкала М. Гамильтона для оценки тревоги"
+   }
+  ]
+ },
+ {
+  "code": "gad7",
+  "title": "Скрининговый опросник ГТР-7",
+  "abbreviation": "GAD-7",
+  "kind": "questionnaire",
+  "administered_by": "self",
+  "in_system": true,
+  "sources": [
+   {
+    "doc": "02_gad",
+    "app_label": "app:Г2",
+    "appendix_title": "Приложение Г2. Скрининговый опросник ГТР-7"
+   },
+   {
+    "doc": "epilepsy",
+    "app_label": "app:Г2",
+    "appendix_title": "Приложение Г2. Шкала Генерализованного тревожного расстройства (ГТР-7)"
+   },
+   {
+    "doc": "onco_depression_anxiety",
+    "app_label": null,
+    "appendix_title": "Таблица 10. Генерализованное тревожное расстройство (ГТР) - 7 (GAD-7)"
+   }
+  ]
+ },
+ {
+  "code": "scl90r",
+  "title": "Опросник выраженности психопатологической симптоматики",
+  "abbreviation": "SCL-90-R",
+  "kind": "questionnaire",
+  "administered_by": "self",
+  "in_system": true,
+  "sources": [
+   {
+    "doc": "02_gad",
+    "app_label": "app:Г3",
+    "appendix_title": "Приложение Г3. Опросник выраженности психопатологической симптоматики"
+   },
+   {
+    "doc": "07_panic",
+    "app_label": "app:Г5",
+    "appendix_title": "Приложение Г5.Опросник выраженности психопатологической симптоматики"
+   }
+  ]
+ },
+ {
+  "code": "itt_l",
+  "title": "Интегративный тест тревожности",
+  "abbreviation": "ИТТ",
+  "kind": "test",
+  "administered_by": "self",
+  "in_system": true,
+  "sources": [
+   {
+    "doc": "02_gad",
+    "app_label": "app:Г4",
+    "appendix_title": "Приложение Г4. Интегративный тест тревожности - ИТТ"
+   },
+   {
+    "doc": "07_panic",
+    "app_label": "app:Г6",
+    "appendix_title": "Приложение Г6. Интегративный тест тревожности"
+   }
+  ]
+ },
+ {
+  "code": "stai",
+  "title": "Методика оценки тревожности Спилбергера-Ханина (шкала реактивной и личностной тревожности)",
+  "abbreviation": "STAI",
+  "kind": "questionnaire",
+  "administered_by": "self",
+  "in_system": true,
+  "sources": [
+   {
+    "doc": "02_gad",
+    "app_label": "app:Г5",
+    "appendix_title": "Приложение Г5. Методика оценки тревожности Ч.Д. Спилбергера, Ю.Л. Ханина"
+   },
+   {
+    "doc": "07_panic",
+    "app_label": "app:Г7",
+    "appendix_title": "Приложение Г7. Методика оценки тревожности Ч.Д. Спилбергера, Ю.Л. Ханина"
+   }
+  ]
+ },
+ {
+  "code": "bai",
+  "title": "Шкала тревоги Бека",
+  "abbreviation": "BAI",
+  "kind": "questionnaire",
+  "administered_by": "self",
+  "in_system": true,
+  "sources": [
+   {
+    "doc": "02_gad",
+    "app_label": "app:Г6",
+    "appendix_title": "Приложение Г6. Шкала тревоги А. Бека"
+   },
+   {
+    "doc": "07_panic",
+    "app_label": "app:Г8",
+    "appendix_title": "Приложение Г8. Шкала тревоги А. Бека"
+   }
+  ]
+ },
+ {
+  "code": "shars",
+  "title": "Шкала самооценки тревоги Шихана",
+  "abbreviation": "ShARS",
+  "kind": "scale",
+  "administered_by": "self",
+  "in_system": true,
+  "sources": [
+   {
+    "doc": "02_gad",
+    "app_label": "app:Г7",
+    "appendix_title": "Приложение Г7. Шкала самооценки тревоги Д. Шихана"
+   },
+   {
+    "doc": "07_panic",
+    "app_label": "app:Г9",
+    "appendix_title": "Приложение Г9. Шкала самооценки тревоги Д. Шихана"
+   }
+  ]
+ },
+ {
+  "code": "mmpi",
+  "title": "Стандартизованный клинический личностный опросник (СМИЛ), адаптация Собчик Л.Н.",
+  "abbreviation": "MMPI / СМИЛ",
+  "kind": "questionnaire",
+  "administered_by": "self",
+  "in_system": true,
+  "sources": [
+   {
+    "doc": "02_gad",
+    "app_label": "app:Г8",
+    "appendix_title": "Приложение Г8. Миннесотский многофакторный личностный опросник (MMPI)"
+   },
+   {
+    "doc": "07_panic",
+    "app_label": "app:Г10",
+    "appendix_title": "Приложение Г10. Миннесотский многофакторный личностный опросник (MMPI)"
+   }
+  ]
+ },
+ {
+  "code": "ista",
+  "title": "Я-структурный тест Аммона",
+  "abbreviation": "ISTA",
+  "kind": "questionnaire",
+  "administered_by": "self",
+  "in_system": true,
+  "sources": [
+   {
+    "doc": "02_gad",
+    "app_label": "app:Г9",
+    "appendix_title": "Приложение Г9. Ich Struktur Test nach G. Ammon - методика «Я-структурный тест» Г. Аммона (1978) (ISTA)"
+   },
+   {
+    "doc": "07_panic",
+    "app_label": "app:Г11",
+    "appendix_title": "Приложение Г11. Я-структурный тест Аммона"
+   }
+  ]
+ },
+ {
+  "code": "usk",
+  "title": "Методика определения уровня субъективного контроля личности (УСК)",
+  "abbreviation": "УСК",
+  "kind": "questionnaire",
+  "administered_by": "self",
+  "in_system": true,
+  "sources": [
+   {
+    "doc": "02_gad",
+    "app_label": "app:Г10",
+    "appendix_title": "Приложение Г10. Методика для определения уровня субъективного контроля личности (УСК)"
+   },
+   {
+    "doc": "07_panic",
+    "app_label": "app:Г12",
+    "appendix_title": "Приложение Г12. Методика для определения уровня субъективного контроля личности (УСК)"
+   }
+  ]
+ },
+ {
+  "code": "personal_beliefs",
+  "title": "Опросник для исследования личностных убеждений",
+  "abbreviation": "PBT",
+  "kind": "questionnaire",
+  "administered_by": "self",
+  "in_system": true,
+  "sources": [
+   {
+    "doc": "02_gad",
+    "app_label": "app:Г11",
+    "appendix_title": "Приложение Г11. «Personal Beliefs Test» (Kassinove H., Berger A., 1988) Опросник для исследования личностных убеждений"
+   },
+   {
+    "doc": "07_panic",
+    "app_label": "app:Г13",
+    "appendix_title": "Приложение Г13. Опросник для исследования личностных убеждений"
+   }
+  ]
+ },
+ {
+  "code": "lsi",
+  "title": "Индекс жизненного стиля",
+  "abbreviation": "LSI",
+  "kind": "questionnaire",
+  "administered_by": "self",
+  "in_system": true,
+  "sources": [
+   {
+    "doc": "02_gad",
+    "app_label": "app:Г12",
+    "appendix_title": "Приложение Г12.Life Style Index - методика «Индекс жизненного стиля» (LSI)"
+   },
+   {
+    "doc": "07_panic",
+    "app_label": "app:Г14",
+    "appendix_title": "Приложение Г14. Индекс жизненного стиля (ИЖС)"
+   }
+  ]
+ },
+ {
+  "code": "coping",
+  "title": "Стратегии совладающего поведения Р. Лазаруса",
+  "abbreviation": "WCQ / СПП",
+  "kind": "questionnaire",
+  "administered_by": "self",
+  "in_system": true,
+  "sources": [
+   {
+    "doc": "02_gad",
+    "app_label": "app:Г13",
+    "appendix_title": "Приложение Г13. Стратегии совладающего поведения (СПП)."
+   },
+   {
+    "doc": "07_panic",
+    "app_label": "app:Г15",
+    "appendix_title": "Приложение Г15. Стратегии совладающего со стрессом поведения Лазаруса (ССП)."
+   }
+  ]
+ },
+ {
+  "code": "melbourne",
+  "title": "Мельбурнский опросник принятия решений",
+  "abbreviation": "MDMQ",
+  "kind": "questionnaire",
+  "administered_by": "self",
+  "in_system": true,
+  "sources": [
+   {
+    "doc": "02_gad",
+    "app_label": "app:Г14",
+    "appendix_title": "Приложение Г14 . Мельбурнский опросник принятия решений (Melbourne Decision Making Questionnaire, - MDMQ"
+   },
+   {
+    "doc": "07_panic",
+    "app_label": "app:Г16",
+    "appendix_title": "Приложение Г16. Мельбурнский опросник принятия решений"
+   }
+  ]
+ },
+ {
+  "code": "kon2006",
+  "title": "Опросник невротической личности KON-2006",
+  "abbreviation": "KON-2006",
+  "kind": "questionnaire",
+  "administered_by": "self",
+  "in_system": true,
+  "sources": [
+   {
+    "doc": "02_gad",
+    "app_label": "app:Г15",
+    "appendix_title": "Приложение Г15. Опросник невротической личности KON-2006"
+   },
+   {
+    "doc": "07_panic",
+    "app_label": "app:Г17",
+    "appendix_title": "Приложение Г17. Опросник невротической личности (KON-2006)"
+   }
+  ]
+ },
+ {
+  "code": "kop25",
+  "title": "Российский универсальный опросник количественной оценки приверженности лечению",
+  "abbreviation": "КОП-25",
+  "kind": "questionnaire",
+  "administered_by": "self",
+  "in_system": true,
+  "sources": [
+   {
+    "doc": "02_gad",
+    "app_label": "app:Г16",
+    "appendix_title": "Приложение Г16. Российский универсальный опросник количественной оценки приверженности к лечению (КОП-25)"
+   },
+   {
+    "doc": "07_panic",
+    "app_label": "app:Г18",
+    "appendix_title": "Приложение Г18. Российский универсальный опросник количественной оценки приверженности к лечению (КОП-25)"
+   }
+  ]
+ },
+ {
+  "code": "flybocs",
+  "title": "Флоридская шкала Йела-Брауна для оценки обсессивно-компульсивной симптоматики",
+  "abbreviation": "FLY-BOCS",
+  "kind": "scale",
+  "administered_by": "clinician",
+  "in_system": false,
+  "status": "soon",
+  "sources": [
+   {
+    "doc": "06_ocd",
+    "app_label": "app:Г",
+    "appendix_title": "Приложение Г"
+   }
+  ]
+ },
+ {
+  "code": "vegetative_q",
+  "title": "Вопросник для выявления признаков вегетативных изменений (шкала Вейна)",
+  "abbreviation": null,
+  "kind": "questionnaire",
+  "administered_by": "self",
+  "in_system": false,
+  "status": "soon",
+  "sources": [
+   {
+    "doc": "07_panic",
+    "app_label": "app:Г1",
+    "appendix_title": "Приложение Г1. Вопросник для выявления признаков вегетативных изменений"
+   }
+  ]
+ },
+ {
+  "code": "pdss",
+  "title": "Шкала оценки тяжести панического расстройства (адаптация Федотова И.А., 2022)",
+  "abbreviation": "PDSS",
+  "kind": "scale",
+  "administered_by": "self",
+  "in_system": false,
+  "status": "soon",
+  "sources": [
+   {
+    "doc": "07_panic",
+    "app_label": "app:Г2",
+    "appendix_title": "Приложение Г2. Шкала оценки тяжести панического расстройства"
+   }
+  ]
+ },
+ {
+  "code": "phq_panic",
+  "title": "Скрининговый опросник для выявления панических атак (Вопросы о тревоге и панических состояниях)",
+  "abbreviation": "PHQ (панический модуль)",
+  "kind": "questionnaire",
+  "administered_by": "self",
+  "in_system": false,
+  "status": "soon",
+  "sources": [
+   {
+    "doc": "07_panic",
+    "app_label": "app:Г3",
+    "appendix_title": "Приложение Г3.Скрининговый опросник для выявления панических атак"
+   }
+  ]
+ },
+ {
+  "code": "ecr_r",
+  "title": "Опросник «Опыт близких отношений» (адаптация Казанцевой Т.В., 2008)",
+  "abbreviation": "ECR-R",
+  "kind": "questionnaire",
+  "administered_by": "self",
+  "in_system": false,
+  "status": "soon",
+  "sources": [
+   {
+    "doc": "07_panic",
+    "app_label": "app:Г19",
+    "appendix_title": "Приложение Г19. Опросник «Опыт близких отношений» К. Бреннан и Р.К. Фрейли"
+   }
+  ]
+ },
+ {
+  "code": "ace",
+  "title": "Опросник неблагоприятного детского опыта (НДО)",
+  "abbreviation": "ACE",
+  "kind": "questionnaire",
+  "administered_by": "self",
+  "in_system": false,
+  "status": "soon",
+  "sources": [
+   {
+    "doc": "07_panic",
+    "app_label": "app:Г20",
+    "appendix_title": "Приложение Г20. Опросник неблагоприятного детского опыта (НДО)"
+   }
+  ]
+ },
+ {
+  "code": "tsq",
+  "title": "Опросник на скрининг ПТСР",
+  "abbreviation": "TSQ",
+  "kind": "questionnaire",
+  "administered_by": "self",
+  "in_system": false,
+  "status": "soon",
+  "sources": [
+   {
+    "doc": "08_ptsd",
+    "app_label": "app:Г1",
+    "appendix_title": "Приложение Г1 Опросник на скрининг ПТСР"
+   }
+  ]
+ },
+ {
+  "code": "caps",
+  "title": "Шкала для клинической диагностики ПТСР",
+  "abbreviation": "CAPS",
+  "kind": "interview",
+  "administered_by": "clinician",
+  "in_system": false,
+  "status": "soon",
+  "sources": [
+   {
+    "doc": "08_ptsd",
+    "app_label": "app:Г2",
+    "appendix_title": "Приложение Г2 Шкала для клинической диагностики ПТСР (Clinical-administered PTSD Scale - CAPS)"
+   }
+  ]
+ },
+ {
+  "code": "scid_ptsd",
+  "title": "Структурированное клиническое диагностическое интервью (СКИД), модуль I «ПТСР»",
+  "abbreviation": "СКИД / SCID",
+  "kind": "interview",
+  "administered_by": "clinician",
+  "in_system": false,
+  "status": "soon",
+  "sources": [
+   {
+    "doc": "08_ptsd",
+    "app_label": "app:Г3",
+    "appendix_title": "Приложение Г3 Структурированное клиническое диагностическое интервью (СКИД) Structured Clinical Interview for DSM (SCID), Davidson, Smith, Kudler)"
+   }
+  ]
+ },
+ {
+  "code": "ies_r",
+  "title": "Шкала оценки влияния травматического события (ШОВТС)",
+  "abbreviation": "IES-R",
+  "kind": "scale",
+  "administered_by": "self",
+  "in_system": false,
+  "status": "soon",
+  "sources": [
+   {
+    "doc": "08_ptsd",
+    "app_label": "app:Г4",
+    "appendix_title": "Приложение Г4 Шкала оценки влияния травматического события (Impact of Event Scale-R - IES-R)"
+   }
+  ]
+ },
+ {
+  "code": "ms_ptsd",
+  "title": "Миссисипская шкала посттравматического стрессового расстройства",
+  "abbreviation": "MS-PTSD",
+  "kind": "scale",
+  "administered_by": "self",
+  "in_system": false,
+  "status": "soon",
+  "sources": [
+   {
+    "doc": "08_ptsd",
+    "app_label": "app:Г5",
+    "appendix_title": "Приложение Г5 Миссисипская шкала посттравматического стрессового расстройства (англ. Mississippi Scale)"
+   }
+  ]
+ },
+ {
+  "code": "ces_combat",
+  "title": "Шкала оценки интенсивности боевого опыта (Т. Кина)",
+  "abbreviation": "CES",
+  "kind": "scale",
+  "administered_by": "self",
+  "in_system": false,
+  "status": "soon",
+  "sources": [
+   {
+    "doc": "08_ptsd",
+    "app_label": "app:Г6",
+    "appendix_title": "Приложение Г6 Шкала оценки интенсивности боевого опыта (Т. Кин) (Combat Exposure Scale - CES) (T.M. Keane, J.A. Fairbank, J.M. Caddell, R.T. Zimmering, K.L. Taylor, C.A. Mora)."
+   }
+  ]
+ },
+ {
+  "code": "psychophys_stress",
+  "title": "Шкала оценки выраженности психофизиологической реакции на стресс",
+  "abbreviation": null,
+  "kind": "scale",
+  "administered_by": "self",
+  "in_system": false,
+  "status": "soon",
+  "sources": [
+   {
+    "doc": "08_ptsd",
+    "app_label": "app:Г7",
+    "appendix_title": "Приложение Г7 Шкала оценки выраженности психофизиологической реакции на стресс"
+   }
+  ]
+ },
+ {
+  "code": "pdeq",
+  "title": "Опросник перитравматической диссоциации",
+  "abbreviation": "ОПД",
+  "kind": "questionnaire",
+  "administered_by": "self",
+  "in_system": false,
+  "status": "soon",
+  "sources": [
+   {
+    "doc": "08_ptsd",
+    "app_label": "app:Г8",
+    "appendix_title": "Приложение Г8 Опросник перитравматической диссоциации"
+   }
+  ]
+ },
+ {
+  "code": "des",
+  "title": "Шкала диссоциации (ШД)",
+  "abbreviation": "DES",
+  "kind": "questionnaire",
+  "administered_by": "self",
+  "in_system": false,
+  "status": "soon",
+  "sources": [
+   {
+    "doc": "08_ptsd",
+    "app_label": "app:Г9",
+    "appendix_title": "Приложение Г9 Шкала диссоциации (ШД) (англ. Dissociative Experience Scale - DES)"
+   }
+  ]
+ },
+ {
+  "code": "bhs",
+  "title": "Шкала безнадёжности Бека",
+  "abbreviation": "BHS",
+  "kind": "scale",
+  "administered_by": "self",
+  "in_system": false,
+  "status": "soon",
+  "sources": [
+   {
+    "doc": "08_ptsd",
+    "app_label": "app:Г10",
+    "appendix_title": "Приложение Г10 Шкала Безнадежности Бека (Beck Hopelessness Scale, BHS)"
+   }
+  ]
+ },
+ {
+  "code": "top8",
+  "title": "Опросник для оценки терапевтической динамики ПТСР",
+  "abbreviation": "TOP-8",
+  "kind": "questionnaire",
+  "administered_by": "clinician",
+  "in_system": false,
+  "status": "soon",
+  "sources": [
+   {
+    "doc": "08_ptsd",
+    "app_label": "app:Г11",
+    "appendix_title": "Приложение Г11 Опросник для оценки терапевтической динамики ПТСР «Treatment Outcome PTSD Scale» (TOP-8)"
+   }
+  ]
+ },
+ {
+  "code": "panss",
+  "title": "Шкала позитивных и негативных симптомов",
+  "abbreviation": "PANSS",
+  "kind": "scale",
+  "administered_by": "clinician",
+  "in_system": false,
+  "status": "soon",
+  "sources": [
+   {
+    "doc": "26_schizophrenia",
+    "app_label": "app:Г1",
+    "appendix_title": "Приложение Г1. Шкала позитивных и негативных симптомов"
+   }
+  ]
+ },
+ {
+  "code": "psp",
+  "title": "Шкала повседневного социального функционирования",
+  "abbreviation": "PSP",
+  "kind": "scale",
+  "administered_by": "clinician",
+  "in_system": false,
+  "status": "soon",
+  "sources": [
+   {
+    "doc": "26_schizophrenia",
+    "app_label": "app:Г2",
+    "appendix_title": "Приложение Г2. Шкала повседневного социального функционирования"
+   }
+  ]
+ },
+ {
+  "code": "nddi_e",
+  "title": "Неврологический опросник депрессивного расстройства при эпилепсии",
+  "abbreviation": "NDDI-E",
+  "kind": "questionnaire",
+  "administered_by": "self",
+  "in_system": false,
+  "status": "soon",
+  "sources": [
+   {
+    "doc": "epilepsy",
+    "app_label": "app:Г1",
+    "appendix_title": "Приложение Г1. Неврологический опросник депрессивного расстройства при эпилепсии"
+   },
+   {
+    "doc": "epilepsy",
+    "app_label": "app:Г4",
+    "appendix_title": "Приложение Г4. «Неврологический опросник депрессивного расстройства при эпилепсии» (Neurological Disorders Depression Inventory for Epilepsy - NDDI-E)"
+   }
+  ]
+ },
+ {
+  "code": "hads",
+  "title": "Госпитальная шкала тревоги и депрессии",
+  "abbreviation": "HADS",
+  "kind": "scale",
+  "administered_by": "self",
+  "in_system": true,
+  "sources": [
+   {
+    "doc": "epilepsy",
+    "app_label": "app:Г3",
+    "appendix_title": "Приложение Г3. Госпитальная шкала тревоги и депрессии (HADS)"
+   }
+  ]
+ },
+ {
+  "code": "phq2",
+  "title": "Опросник состояния здоровья пациента - 2",
+  "abbreviation": "PHQ-2",
+  "kind": "questionnaire",
+  "administered_by": "self",
+  "in_system": false,
+  "status": "soon",
+  "sources": [
+   {
+    "doc": "onco_depression_anxiety",
+    "app_label": null,
+    "appendix_title": "Опросник PHQ-2"
+   }
+  ]
+ },
+ {
+  "code": "phq4",
+  "title": "Опросник состояния здоровья пациентов - 4",
+  "abbreviation": "PHQ-4",
+  "kind": "questionnaire",
+  "administered_by": "self",
+  "in_system": false,
+  "status": "soon",
+  "sources": [
+   {
+    "doc": "onco_depression_anxiety",
+    "app_label": null,
+    "appendix_title": "Опросник PHQ-4"
+   }
+  ]
+ },
+ {
+  "code": "phq9",
+  "title": "Опросник состояния здоровья пациента - 9",
+  "abbreviation": "PHQ-9",
+  "kind": "questionnaire",
+  "administered_by": "self",
+  "in_system": true,
+  "sources": [
+   {
+    "doc": "onco_depression_anxiety",
+    "app_label": null,
+    "appendix_title": "Опросник PHQ-9"
+   }
+  ]
+ },
+ {
+  "code": "gad2",
+  "title": "Генерализованное тревожное расстройство - 2",
+  "abbreviation": "GAD-2",
+  "kind": "questionnaire",
+  "administered_by": "self",
+  "in_system": false,
+  "status": "soon",
+  "sources": [
+   {
+    "doc": "onco_depression_anxiety",
+    "app_label": null,
+    "appendix_title": "Таблица 9. Генерализованное тревожное расстройство - 2 (GАD-2)"
+   }
+  ]
+ }
+]

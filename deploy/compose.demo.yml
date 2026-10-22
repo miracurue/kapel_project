@@ -1,0 +1,65 @@
+services:
+  app:
+    build: ..
+    restart: unless-stopped
+    mem_limit: 768m
+    env_file: ../.env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      DEMO_MODE: 1
+      DATA_MODE: synthetic
+      DB_PATH: /app/data/tdr.sqlite3
+      DATA_DIR: /app/data
+      SMTP_HOST: mailpit
+      ML_WORKER_URL: http://ml-worker:8000
+      ML_WORKER_TOKEN: ${ML_WORKER_TOKEN}
+      NODE_EXTRA_CA_CERTS: /app/certs/russian_trusted_root_ca.pem
+    volumes: ["cc_demo_data:/app/data", "./certs:/app/certs:ro"]
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    networks: [default, internal]
+  ml-worker:
+    build: ../ml-worker
+    restart: unless-stopped
+    mem_limit: 3g
+    environment:
+      ML_WORKER_TOKEN: ${ML_WORKER_TOKEN}
+    volumes:
+      - ../ml-worker/models:/models:ro
+    expose: ["8000"]
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    networks: [internal]
+  caddy:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    mem_limit: 256m
+    environment:
+      DEMO_DOMAIN: ${DEMO_DOMAIN}
+      CADDY_DEMO_USER: ${CADDY_DEMO_USER}
+      CADDY_DEMO_PASSWORD_HASH: ${CADDY_DEMO_PASSWORD_HASH}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [app]
+    security_opt: ["no-new-privileges:true"]
+  mailpit:
+    image: axllent/mailpit:v1.27.9
+    restart: unless-stopped
+    mem_limit: 256m
+    expose: ["1025", "8025"]
+    security_opt: ["no-new-privileges:true"]
+volumes:
+  cc_demo_data:
+  caddy_data:
+  caddy_config:
+networks:
+  internal:
+    internal: true

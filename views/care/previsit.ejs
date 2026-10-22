@@ -1,0 +1,33 @@
+<%- include('../_header') %>
+<%- include('../patient/_back', { backHref: '/dashboard', backLabel: 'На главную' }) %>
+<div class="card care">
+  <h1>Анкета перед приёмом</h1>
+  <% if (sent) { %>
+    <div class="empty-state"><p class="empty-state__title">Готово, спасибо</p><p>Врач увидит ваши ответы в справке к приёму.</p></div>
+  <% } else if (!open) { %>
+    <div class="empty-state"><p class="empty-state__title">Сейчас анкета не нужна</p><p>Если врач попросит заполнить её перед приёмом, она появится здесь и на главной.</p></div>
+  <% } else { %>
+    <p class="muted">Врач попросил заполнить короткую анкету заранее. Все вопросы необязательны, любой можно пропустить. Займёт не больше 5 минут. Вопросы — черновик, ждут клинического ревью.</p>
+    <form method="POST" action="/previsit" data-draft-form>
+      <% questions.forEach(function(q) { %>
+        <fieldset class="take-question">
+          <legend><%= q.text %></legend>
+          <% if (q.type === 'scale') { %>
+            <div class="take-options scale-row">
+              <% for (var i = 1; i <= 10; i++) { %><label><input type="radio" name="<%= q.id %>" value="<%= i %>" /> <%= i %></label><% } %>
+            </div>
+          <% } else if (q.type === 'choice') { %>
+            <div class="take-options">
+              <% q.options.forEach(function(o) { %><label><input type="radio" name="<%= q.id %>" value="<%= o.v %>" /> <%= o.t %></label><% }) %>
+            </div>
+          <% } else { %>
+            <textarea name="<%= q.id %>" rows="3" maxlength="1000" aria-label="<%= q.text %>"></textarea>
+          <% } %>
+        </fieldset>
+      <% }) %>
+      <p class="muted">Врач увидит ответы после отправки. Если вам плохо прямо сейчас — кнопка «Мне плохо» вверху или 112.</p>
+      <p class="actions"><button type="submit" name="action" value="send">Отправить врачу</button> <button type="submit" name="action" value="skip" class="btn-secondary">Пропустить</button></p>
+    </form>
+  <% } %>
+</div>
+<%- include('../_footer') %>

@@ -1,0 +1,65 @@
+<%# Блок «План приёма для пациента» во вкладке «Лечение» (только психиатр). Вход: plan, medView, editItem, base %>
+<section class="pc-section care" aria-labelledby="plan-h">
+  <h2 id="plan-h">План приёма для пациента</h2>
+  <p class="hint">Необязательно. Свободный текст: сервис не содержит базы препаратов, не подсказывает дозы и не проверяет сочетания. Пациент видит пункт только после «Показать пациенту».</p>
+  <% if (plan.length === 0) { %>
+    <div class="empty-state"><p class="empty-state__title">Пунктов нет</p><p>Заполнять не нужно.</p></div>
+  <% } else { %>
+    <ul class="pc-notes">
+      <% plan.forEach(function(it) { %>
+        <li class="pc-note">
+          <strong><%= it.name %></strong>
+          <% if (it.how_text) { %> — <%= it.how_text %><% } %>
+          <div class="hint"><%= it.slot === 'morning' ? 'утро' : it.slot === 'evening' ? 'вечер' : it.slot === 'both' ? 'утро и вечер' : 'без расписания' %> ·
+            <% if (it.ended_at) { %>завершён<% } else if (it.published_at) { %>показан пациенту <%= formatDate(it.published_at) %><%= it.ack_at ? ', пациент отметил «понял»' : ', «понял» пока нет' %><% } else { %>не показан пациенту<% } %></div>
+          <% if (!it.ended_at) { %>
+            <div class="actions">
+              <% if (!it.published_at) { %>
+                <form method="POST" action="<%= base %>/plan/<%= it.id %>/publish" class="inline"><button type="submit">Показать пациенту</button></form>
+              <% } else { %>
+                <form method="POST" action="<%= base %>/plan/<%= it.id %>/hide" class="inline"><button type="submit" class="btn-secondary">Скрыть от пациента</button></form>
+              <% } %>
+              <a class="btn-link" href="<%= base %>/treatment?edit=<%= it.id %>#plan-h">Изменить</a>
+              <form method="POST" action="<%= base %>/plan/<%= it.id %>/end" class="inline"><button type="submit" class="btn-secondary">Завершить</button></form>
+              <form method="POST" action="<%= base %>/plan/<%= it.id %>/delete" class="inline"><button type="submit" class="btn-secondary">Удалить</button></form>
+            </div>
+          <% } %>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+  <form method="POST" action="<%= base %>/plan<%= editItem ? '/' + editItem.id + '/edit' : '' %>">
+    <h3><%= editItem ? 'Изменить пункт' : 'Новый пункт' %></h3>
+    <label for="plan-name">Препарат / что принимать (свободный ввод)</label>
+    <input type="text" id="plan-name" name="name" maxlength="120" value="<%= editItem ? editItem.name : '' %>" />
+    <label for="plan-how">Как принимать (свободный текст)</label>
+    <input type="text" id="plan-how" name="how_text" maxlength="300" value="<%= editItem && editItem.how_text ? editItem.how_text : '' %>" />
+    <label for="plan-slot">Напоминание пациенту</label>
+    <select id="plan-slot" name="slot">
+      <% [['none','Без напоминания'],['morning','Утром'],['evening','Вечером'],['both','Утром и вечером']].forEach(function(o) { %><option value="<%= o[0] %>"<%= editItem && editItem.slot === o[0] ? ' selected' : '' %>><%= o[1] %></option><% }) %>
+    </select>
+    <p><button type="submit"><%= editItem ? 'Сохранить' : 'Добавить пункт' %></button><% if (editItem) { %> <a class="btn-link" href="<%= base %>/treatment">Отмена</a><% } %></p>
+  </form>
+</section>
+
+<section class="pc-section care" aria-labelledby="adh-h">
+  <h2 id="adh-h">Отметки приёма пациента</h2>
+  <% if (!medView.consentOk) { %>
+    <p class="hint">Нет действующего согласия пациента: данные не передаются.</p>
+  <% } else if (!medView.sharesLog) { %>
+    <p class="hint">Пациент не делится журналом приёма.</p>
+  <% } else if (!medView.adherence || medView.adherence.expected === 0) { %>
+    <p class="hint">Пока нечего показать: нужен показанный пациенту пункт с расписанием «утро/вечер» и хотя бы один прошедший день.</p>
+  <% } else { var a = medView.adherence; %>
+    <p>За <%= a.days %> дн. (без сегодняшнего): отмечено «принято» — <%= a.taken %> из <%= a.expected %>; «пропущено» — <%= a.skipped %>; без отметки — <%= a.unlogged + a.later %>.</p>
+    <p class="hint">Это отметки самого пациента, а не контроль приёма. Отсутствие отметки не означает, что приём пропущен.</p>
+  <% } %>
+  <% if (medView.consentOk && medView.sharesOwn) { %>
+    <h3>Личный список пациента (он разрешил показывать)</h3>
+    <% if (medView.own.length === 0) { %><p class="hint">Пусто.</p><% } else { %>
+      <ul><% medView.own.forEach(function(o) { %><li><%= o.name %><%= o.how_text ? ' — ' + o.how_text : '' %></li><% }) %></ul>
+    <% } %>
+  <% } else if (medView.consentOk) { %>
+    <p class="hint">Личный список препаратов пациент врачу не показывает.</p>
+  <% } %>
+</section>

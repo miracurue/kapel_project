@@ -1,0 +1,47 @@
+{
+  "name": "tdr-mvp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MVP ИИ-помощника врача для пациентов с ТДР: БД, авторизация, роли, тесты, дневник, чат-бот, кризисный протокол.",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node scripts/migrate.js && node src/server.js",
+    "dev": "node scripts/migrate.js && node src/server.js",
+    "test": "node tests/tools/gate.js --upto В3 --kind all",
+    "seed": "node scripts/seed-demo.js",
+    "e2e": "node e2e/run.js",
+    "e2e:shots": "node e2e/shots.js",
+    "test:api": "node --test --test-concurrency=1 \"tests/api/*.test.js\"",
+    "test:acceptance": "node --test --test-concurrency=1 \"tests/acceptance/*.spec.js\"",
+    "test:perf": "node --test --test-concurrency=1 --test-timeout=3600000 \"tests/performance/*.test.js\"",
+    "test:gate": "node tests/tools/gate.js",
+    "migrate": "node scripts/migrate.js",
+    "admin:create": "node scripts/admin-create.js",
+    "format:check": "node scripts/check-format.js",
+    "lint": "node scripts/check-code.js",
+    "typecheck": "node scripts/check-code.js",
+    "licenses": "node scripts/check-licenses.js",
+    "openapi": "node scripts/check-openapi.js",
+    "texts": "node scripts/check-texts.js",
+    "secrets": "node scripts/check-secrets.js",
+    "ci": "bash scripts/ci.sh",
+    "test:regression": "node --test --test-concurrency=1 \"tests/regression/*.test.js\""
+  },
+  "dependencies": {
+    "bcryptjs": "2.4.3",
+    "better-sqlite3": "13.0.3",
+    "ejs": "3.1.10",
+    "express": "4.22.3",
+    "express-session": "1.19.0",
+    "nodemailer": "10.1.2",
+    "sharp": "0.35.5"
+  },
+  "devDependencies": {
+    "@types/node": "26.0.0",
+    "axe-core": "4.14.0",
+    "eslint": "9.38.0",
+    "playwright-core": "1.64.0",
+    "prettier": "3.6.2",
+    "typescript": "5.9.3"
+  }
+}

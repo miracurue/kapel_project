@@ -1,0 +1,19 @@
+<%- include('../_header') %>
+<%- include('_back', { backHref: '/reminders', backLabel: 'К напоминаниям' }) %>
+<div class="card">
+  <h1>Изменить напоминание</h1>
+  <form method="POST" action="/reminders/<%= r.id %>/edit">
+    <label for="message">Что напомнить</label>
+    <input type="text" id="message" name="message" maxlength="300" value="<%= r.message %>" required />
+    <label for="remind_at">Когда</label>
+    <input type="datetime-local" id="remind_at" name="remind_at" value="<%= String(r.remind_at).slice(0, 16) %>" required />
+    <label for="recurrence">Повтор</label>
+    <select id="recurrence" name="recurrence">
+      <option value="none"<%= r.recurrence === 'none' ? ' selected' : '' %>>Один раз</option>
+      <option value="daily"<%= r.recurrence === 'daily' ? ' selected' : '' %>>Каждый день</option>
+      <option value="weekly"<%= r.recurrence === 'weekly' ? ' selected' : '' %>>Каждую неделю</option>
+    </select>
+    <p><button type="submit">Сохранить</button> <a class="btn-link" href="/reminders">Отмена</a></p>
+  </form>
+</div>
+<%- include('../_footer') %>

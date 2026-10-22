@@ -1,0 +1,54 @@
+<%- include('../_header') %>
+<div class="card clinician-card pc-visit">
+  <p class="print-only print-banner">Демо · справка, не заключение · черновик</p>
+  <div class="pc-head">
+    <h1>К приёму: <%= patient.full_name %></h1>
+    <p class="hint"><a href="<%= base %>">← К карточке</a> · справка, не заключение · сформирована <%= formatDate(s.generatedAt.toISOString().slice(0, 16)) %></p>
+  </div>
+  <p class="result-disclaimer"><%= s.disclaimer %></p>
+  <p class="pc-actions no-print">
+    <button type="button" id="pc-print" class="btn-secondary" hidden>Печать</button>
+    <a class="btn-link" href="<%= base %>/visit.txt">Скачать .txt</a>
+    <a class="btn-link" href="/tools/export/<%= patient.id %>">PDF / DOCX для МИС</a>
+    <button type="button" id="pc-copy" class="btn-secondary" hidden data-target="pc-visit-text">Копировать</button>
+    <span id="pc-copy-status" class="hint" role="status"></span>
+  </p>
+  <% if (s.verdict) { %><p><%- include('_verdict', { p: { verdict: s.verdict } }) %> <%= s.verdict.oneLine %></p><% } %>
+  <% if (!s.consentOk) { %><p class="notice-honest">Клиническое согласие не оформлено или отозвано: данные пациента врачу не передаются.</p><% } %>
+
+  <h2>Что изменилось</h2>
+  <p class="hint"><%= s.changes.sinceText %></p>
+  <% if (s.changes.empty) { %><p><strong><%= s.changes.unchangedText %></strong></p>
+  <% } else { %><ul class="pc-changes"><% s.changes.rows.forEach(function(r) { %><li><span aria-hidden="true"><%= r.icon %></span> <strong><%= r.word %>.</strong> <%= r.text %></li><% }) %></ul><% } %>
+
+  <h2>Динамика</h2>
+  <% if (s.scores.length === 0) { %><p class="hint">Результатов шкал нет.</p>
+  <% } else { %>
+    <ul><% s.scores.forEach(function(k) { %><li><strong><%= k.title %></strong>: <%= k.value %><%= k.band ? ' (' + k.band + ')' : '' %>, <%= formatDate(k.date) %><%= k.delta ? '; ' + k.delta.text : '' %></li><% }) %></ul>
+  <% } %>
+  <% if (s.diary && s.diary.count) { %><p>Дневник: записей <%= s.diary.count %><%= s.diary.cur !== null ? '; среднее за 7 дней ' + s.diary.cur.toFixed(1).replace('.', ',') : '' %><%= s.diary.prev !== null ? ' (неделей ранее ' + s.diary.prev.toFixed(1).replace('.', ',') + ')' : '' %>.</p><% } %>
+  <% if (s.adherence && s.adherence.total) { %><p>Приверженность: пройдено <%= s.adherence.done %> из <%= s.adherence.total %> назначенных за <%= s.adherence.days %> дн.</p><% } %>
+  <% if (s.waiting.length) { %><p>Ждёт вашего ввода: <%= s.waiting.join(', ') %></p><% } %>
+  <% if (s.escalations.length) { %>
+    <h2>Открытые эскалации</h2>
+    <ul><% s.escalations.forEach(function(e) { %><li><a href="/crisis/<%= e.ref %>"><%= e.label %></a><%= e.sla ? ' (' + e.sla.text + ')' : '' %></li><% }) %></ul>
+  <% } %>
+
+  <% if (typeof careV !== 'undefined') { %>
+    <h2>Перед приёмом от пациента</h2>
+    <% if (careV.previsit) { %>
+      <p class="hint">Анкета от <%= formatDate(careV.previsit.at) %>. Вопросы и ответы необязательные, свободный текст — слова пациента.</p>
+      <% if (careV.previsit.rows.length === 0) { %><p>Пациент отправил анкету без ответов.</p>
+      <% } else { %><dl class="pv-answers"><% careV.previsit.rows.forEach(function(r) { %><dt><%= r.q %></dt><dd><%= r.a %></dd><% }) %></dl><% } %>
+    <% } else { %><p class="hint">Анкета не заполнена<%= careV.previsitOpen ? ' (запрос отправлен, пациент ещё не ответил)' : '' %>. Необязательно.</p><% } %>
+    <% if (careV.adherenceLine) { %><p><%= careV.adherenceLine %></p><% } %>
+    <% if (careV.unread > 0) { %><p><a href="<%= base %>/messages">Непрочитанных сообщений от пациента: <%= careV.unread %></a></p><% } %>
+  <% } %>
+
+  <details class="no-print"><summary>Текст для копирования</summary>
+    <textarea id="pc-visit-text" readonly rows="14" class="pc-copy-area"><%= text %></textarea>
+  </details>
+  <p class="result-disclaimer"><%= s.disclaimer %></p>
+</div>
+<script src="/clinician_card.js" defer></script>
+<%- include('../_footer') %>

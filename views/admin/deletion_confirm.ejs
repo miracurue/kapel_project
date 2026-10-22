@@ -1,0 +1,18 @@
+<%- include('../_header') %>
+<div class="card admin">
+  <p><a href="/admin/deletion/<%= r.id %>">&larr; Назад к запросу</a></p>
+  <h1>Подтвердите удаление</h1>
+  <% if (error) { %><div class="flash flash-error" role="alert"><span class="flash__icon" aria-hidden="true">!</span><span><%= error %></span></div><% } %>
+  <div class="notice-honest" role="note">
+    <p><strong>Это необратимо.</strong> Будут физически удалены все клинические данные пациента (<%= r.patient_name %>) и его файлы; восстановить их нельзя. Журналы доступа остаются без персональных данных. Подробный список — на предыдущем шаге.</p>
+  </div>
+  <form method="POST" action="/admin/deletion/<%= r.id %>/execute">
+    <label for="confirm_email">Введите e-mail пациента для подтверждения: <strong><%= r.patient_email %></strong></label>
+    <input type="email" name="confirm_email" id="confirm_email" required autocomplete="off" />
+    <% if (openEsc) { %>
+      <p>У пациента необработанные эскалации (<%= openEsc %>): при открытом кризисе удаление не исполняется — запрос останется в очереди с пометкой «ждёт обработки кризиса».</p>
+    <% } %>
+    <p><button type="submit" class="btn-danger">Удалить данные безвозвратно</button> <a class="btn btn-secondary" href="/admin/deletion/<%= r.id %>">Отмена</a></p>
+  </form>
+</div>
+<%- include('../_footer') %>

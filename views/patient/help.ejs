@@ -1,0 +1,56 @@
+<%- include('../_header') %>
+
+<div class="card help-screen">
+  <h1>Вы не одни</h1>
+  <p class="lead">Если вам сейчас очень тяжело или есть угроза вашей жизни, позвоните по номеру экстренных служб.</p>
+  <p><a class="help-112" href="tel:112">112 — экстренные службы</a></p>
+  <form method="POST" action="/quick-exit">
+    <p class="muted">Если рядом кто-то, кому не нужно видеть этот экран: <button type="submit" class="quick-exit">Быстрый выход</button> (завершит сеанс и откроет страницу входа).</p>
+  </form>
+</div>
+
+<div class="card" id="contact-doctor">
+  <h2>Связаться с врачом</h2>
+  <% if (sent) { %>
+    <div class="notice" role="status" data-clear-draft="help-message">
+      <p><strong>Обращение отправлено.</strong></p>
+      <p><%= text.handoff(!routedToAdmin) %></p>
+    </div>
+  <% } else { %>
+    <p>Сообщение появится в кабинете врача. Он может ответить не сразу.<% if (!linked) { %> Сейчас вы не привязаны к врачу — обращение получит администратор сервиса.<% } %></p>
+    <form method="POST" action="/help/contact" data-draft-key="help-message">
+      <label for="message">Несколько слов (необязательно)</label>
+      <textarea id="message" name="message" rows="3" maxlength="500"></textarea>
+      <p><button type="submit">Мне сейчас тяжело, сообщить врачу</button></p>
+    </form>
+  <% } %>
+</div>
+
+<div class="card" id="grounding">
+  <h2>Немного опоры прямо сейчас</h2>
+  <ol>
+    <% text.GROUNDING.forEach(function(step) { %><li><%= step %></li><% }) %>
+  </ol>
+  <p class="muted"><%= text.GROUNDING_NOTE %></p>
+</div>
+
+<div class="card">
+  <h2>Поговорить</h2>
+  <p><a class="btn-link" href="/chat">Поговорить с ИИ-помощником</a></p>
+  <p class="muted">Помощник не врач и не ставит диагнозов.</p>
+</div>
+
+<div class="card" id="helplines">
+  <h2>Телефоны доверия</h2>
+  <% if (helplines.length === 0) { %>
+    <p class="muted">Проверенный список телефонов доверия пока не согласован, поэтому мы не показываем номера, в которых не уверены. Экстренный номер 112 работает всегда.</p>
+  <% } else { %>
+    <ul>
+      <% helplines.forEach(function(h) { %>
+        <li><strong><%= h.name %></strong>: <a href="tel:<%= h.phone.replace(/[^+\d]/g, '') %>"><%= h.phone %></a><% if (h.hours) { %> (<%= h.hours %>)<% } %></li>
+      <% }) %>
+    </ul>
+  <% } %>
+</div>
+
+<%- include('../_footer') %>

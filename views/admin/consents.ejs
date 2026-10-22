@@ -1,0 +1,24 @@
+<%- include('../_header') %>
+<div class="card admin">
+  <h1>Согласия пациентов</h1>
+  <p class="hint">Только статусы согласий, без клинических данных. Версия текста согласия, даты и отзыв научного экспорта.</p>
+  <% if (rows.length === 0) { %>
+    <div class="empty-state"><p class="empty-state__title">Пациентов пока нет</p><p>Статусы согласий появятся после регистрации пациентов.</p></div>
+  <% } else { %>
+    <div class="table-responsive"><table class="stack-mobile">
+      <thead><tr><th>Пациент</th><th>ПДн и данные о здоровье</th><th>Использование врачом</th><th>Научный экспорт</th><th>Аккаунт</th></tr></thead>
+      <tbody>
+      <% rows.forEach(function(r) { %>
+        <tr>
+          <td data-label="Пациент"><%= r.full_name %></td>
+          <td data-label="ПДн и данные о здоровье"><%= r.consent_revoked_at ? 'отозвано ' + formatDate(r.consent_revoked_at) : (r.consent_given ? 'дано ' + formatDate(r.consent_at) : 'нет') %><% if (r.consent_version) { %><div class="hint"><%= r.consent_version %></div><% } %></td>
+          <td data-label="Использование врачом"><%= r.clinical_consent_given ? 'дано ' + formatDate(r.clinical_consent_at) : 'нет' %></td>
+          <td data-label="Научный экспорт"><%= r.export_consent_revoked_at ? 'отозвано ' + formatDate(r.export_consent_revoked_at) : (r.anonymized_export_opt_in ? 'дано' : 'не давал(а)') %></td>
+          <td data-label="Аккаунт"><%= r.account_status === 'active' ? 'активен' : 'запрошено удаление' %></td>
+        </tr>
+      <% }) %>
+      </tbody>
+    </table></div>
+  <% } %>
+</div>
+<%- include('../_footer') %>

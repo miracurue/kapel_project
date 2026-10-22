@@ -1,0 +1,66 @@
+<%# ИИ-пространство: баннеры (пациент, кризис), привязка, срок хранения, экспорт, материалы. %>
+<% const mats = ws.materials; %>
+<div class="ws-info">
+  <% if (ws.patient) { %>
+    <div class="ws-banner ws-banner--patient" role="note">
+      <strong>Привязан к пациенту <%= ws.patient.name %></strong>
+      <span>данные сервиса — только по согласиям пациента</span>
+      <details class="ws-consent">
+        <summary>какие данные</summary>
+        <span>Шкалы — <%= ws.patient.consent ? 'да' : 'нет (нет клинического согласия)' %>; оценки дневника — <%= ws.patient.share.diaryScores ? 'да' : 'нет' %>; заметки дневника — <%= ws.patient.share.diaryNotes ? 'да' : 'нет' %>. Диалоги пациента с ИИ не используются.</span>
+      </details>
+    </div>
+  <% } else if (ws.patientLost) { %>
+    <div class="ws-banner ws-banner--warn" role="note">Пациент больше не закреплён за вами или недоступен: данные сервиса по нему не используются.</div>
+  <% } else { %>
+    <details class="ws-bind">
+      <summary>Привязать пациента (необязательно)</summary>
+      <% if (ws.patients.length === 0) { %>
+        <p class="ws-hint">Закреплённых пациентов нет — диалог остаётся общим.</p>
+      <% } else { %>
+        <form method="POST" action="<%= base %>/t/<%= thread.id %>/bind" class="ws-newp__form">
+          <label for="ws-bind-sel" class="visually-hidden">Пациент</label>
+          <select id="ws-bind-sel" name="patient_id" required>
+            <option value="">— выберите пациента —</option>
+            <% ws.patients.forEach(function(p) { %><option value="<%= p.id %>"><%= p.full_name %></option><% }) %>
+          </select>
+          <button type="submit">Привязать</button>
+        </form>
+        <p class="ws-hint">После привязки сменить пациента нельзя — начните новый диалог. Сценарии «сводка», «динамика», «рекомендации», «направление» и «повторное тестирование» используют данные сервиса.</p>
+      <% } %>
+    </details>
+  <% } %>
+  <% if (ws.crisis.length) { %>
+    <div class="ws-banner ws-banner--crisis" role="alert">
+      <strong>У пациента открыта кризисная эскалация (<%= ws.crisis.length %>).</strong>
+      <span>Ответы ИИ её не заменяют.</span> <a href="/crisis">Кризисная очередь</a>
+    </div>
+  <% } %>
+  <p class="ws-meta">Хранится до <strong><%= ws.formatDate(ws.expires) %></strong> (<%= ws.retentionDays %> дней после последней активности), видите только вы.
+    <% if (messages.length) { %> · Экспорт диалога:
+      <a href="<%= base %>/t/<%= thread.id %>/export.docx">DOCX</a> ·
+      <a href="<%= base %>/t/<%= thread.id %>/export.pdf">PDF</a> ·
+      <a href="<%= base %>/t/<%= thread.id %>/export.txt">TXT</a><% } %></p>
+  <% if (mats.length) { %>
+    <details class="ws-materials">
+      <summary>Материалы диалога (<%= mats.length %>)</summary>
+      <ul class="ws-mat-list">
+        <% mats.forEach(function(m) { %>
+          <li class="ws-mat" id="mat-<%= m.id %>">
+            <div class="ws-mat__head">
+              <strong>Материал <%= m.seq %>: <%= m.name %></strong>
+              <span class="ws-mat__meta"><%= m.kind %>, <%= Math.max(1, Math.round(m.size_bytes / 1024)) %> КБ<%= m.masked ? ', замаскировано (замен: ' + m.mask_count + ')' : '' %><%= !m.masked && m.has_text ? ', без маскирования' : '' %> · хранится до <%= ws.formatDate(m.expires_at) %></span>
+            </div>
+            <% if (!m.has_text) { %><p class="ws-hint">Текст не извлечён<%= m.note ? ': ' + m.note : '' %></p><% } else { %>
+              <details class="ws-mat__text"><summary>Показать извлечённый текст</summary><pre><%= m.text_extracted.slice(0, 4000) %><%= m.text_extracted.length > 4000 ? '\n…' : '' %></pre></details>
+            <% } %>
+            <div class="ws-mat__actions">
+              <a href="<%= base %>/materials/<%= m.id %>/download">Скачать</a>
+              <a class="ai-link--danger" href="<%= base %>/materials/<%= m.id %>/delete">Удалить материал</a>
+            </div>
+          </li>
+        <% }) %>
+      </ul>
+    </details>
+  <% } %>
+</div>

@@ -1,0 +1,89 @@
+<%- include('../_header') %>
+<div class="card clinician-dashboard">
+  <h1>Пациенты</h1>
+  <p class="hint"><a href="/invites" class="btn-link">Пригласить пациента: код-приглашение</a></p>
+  <div class="tabs">
+    <a class="tabs__tab<%= view === 'active' ? ' is-active' : '' %>" href="/patients">Основной список</a>
+    <a class="tabs__tab<%= view === 'archive' ? ' is-active' : '' %>" href="/patients?view=archive">Архив (<%= archivedCount %>)</a>
+  </div>
+  <form method="GET" action="/patients" class="filter-bar">
+    <% if (view === 'archive') { %><input type="hidden" name="view" value="archive" /><% } %>
+    <label>Поиск по ФИО <input type="search" name="q" value="<%= q %>" placeholder="например, ирина" /></label>
+    <label>Статус
+      <select name="status"><option value="">Любой</option>
+        <% [['red','Кризис'],['yellow','Внимание'],['gray','Мало данных'],['green','Спокойно']].forEach(function(s) { %>
+          <option value="<%= s[0] %>"<%= status === s[0] ? ' selected' : '' %>><%= s[1] %></option>
+        <% }) %>
+      </select>
+    </label>
+    <% if (allTags.length) { %>
+    <label>Тег <select name="tag"><option value="">Все</option>
+      <% allTags.forEach(function(t) { %><option value="<%= t %>"<%= tag === t ? ' selected' : '' %>><%= t %></option><% }) %>
+    </select></label>
+    <% } %>
+    <button type="submit" class="btn-secondary">Найти</button>
+    <% if (q || status || tag) { %><a href="/patients<%= view === 'archive' ? '?view=archive' : '' %>">Сбросить</a><% } %>
+  </form>
+  <% if (rows.length === 0) { %>
+    <div class="empty-state">
+      <% if (q || status || tag) { %>
+        <p class="empty-state__title">Никого не найдено</p><p>Измените поиск или сбросьте фильтры.</p>
+      <% } else if (view === 'archive') { %>
+        <p class="empty-state__title">В архиве пока никого</p><p>«Завершить наблюдение» убирает пациента из основного списка; вернуть можно отсюда. Необязательно.</p>
+      <% } else { %>
+        <p class="empty-state__title">Пока нет закреплённых пациентов</p><p>Пациент выбирает врача при регистрации. Ничего заполнять заранее не нужно.</p>
+      <% } %>
+    </div>
+  <% } else { %>
+    <p class="hint">Найдено: <%= totalFound %></p>
+    <div class="table-responsive"><table class="patient-table stack-mobile">
+      <thead><tr><th>Статус</th><th>Пациент</th><th>Почему</th><th>Теги (необязательно)</th><th>Действия</th></tr></thead>
+      <tbody>
+      <% rows.forEach(function(p) { %>
+        <tr class="patient-row patient-row--<%= p.verdict.color %>">
+          <td><%- include('_verdict', { p: p }) %></td>
+          <td><a href="/patients/<%= p.id %>"><strong><%= p.full_name %></strong></a>
+            <% if (p.archived) { %><span class="badge badge-muted">архив</span><% } %>
+            <% if (!p.archived && p.assigned_at && (Date.now() - new Date(String(p.assigned_at).replace(' ', 'T') + (String(p.assigned_at).includes('Z') ? '' : 'Z')).getTime()) < 7 * 86400000) { %><span class="badge badge-info">Новый</span><% } %>
+            <% if (p.alsoWith.length) { %><div class="hint">также ведёт: <%= p.alsoWith.join(', ') %></div><% } %></td>
+          <td><%= p.verdict.oneLine %></td>
+          <td>
+            <% p.tags.forEach(function(t) { %>
+              <form method="POST" action="/patients/<%= p.id %>/tags" class="inline">
+                <input type="hidden" name="back" value="/patients" /><input type="hidden" name="remove" value="<%= t %>" />
+                <span class="tag tag-optional"><%= t %> <button type="submit" class="tag-x" aria-label="Убрать тег <%= t %>">×</button></span>
+              </form>
+            <% }) %>
+            <form method="POST" action="/patients/<%= p.id %>/tags" class="inline">
+              <input type="hidden" name="back" value="/patients" />
+              <input type="text" name="tag" maxlength="40" placeholder="+ тег" aria-label="Новый тег для <%= p.full_name %>" size="8" />
+            </form>
+          </td>
+          <td class="row-actions">
+            <a href="/patients/<%= p.id %>">Карточка</a>
+            <% if (p.archived) { %>
+              <form method="POST" action="/patients/<%= p.id %>/unarchive" class="inline"><input type="hidden" name="back" value="/patients?view=archive" /><button type="submit" class="btn-secondary">Вернуть из архива</button></form>
+            <% } else { %>
+              <details class="confirm-inline">
+                <summary class="btn-secondary">Завершить наблюдение</summary>
+                <form method="POST" action="/patients/<%= p.id %>/archive" class="inline"><input type="hidden" name="back" value="/patients" />
+                  <p class="hint">Пациент уйдёт в архив; его можно вернуть. Открытые эскалации останутся в очереди.</p>
+                  <button type="submit" class="btn-secondary">Да, завершить</button></form>
+              </details>
+            <% } %>
+          </td>
+        </tr>
+      <% }) %>
+      </tbody>
+    </table></div>
+    <% if (pages > 1) { %>
+      <p class="pager">Страницы:
+        <% for (var i = 1; i <= pages; i++) { %>
+          <% if (i === page) { %><strong>[<%= i %>]</strong><% } else { %><a href="/patients?page=<%= i %>&q=<%= encodeURIComponent(q) %>&status=<%= status %>&tag=<%= encodeURIComponent(tag) %><%= view === 'archive' ? '&view=archive' : '' %>"><%= i %></a><% } %>
+        <% } %>
+      </p>
+    <% } %>
+  <% } %>
+  <p class="result-disclaimer"><%= TRIAGE_DISCLAIMER %></p>
+</div>
+<%- include('../_footer') %>

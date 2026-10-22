@@ -1,0 +1,78 @@
+/* Журнал (спецификация 8.7): общий стиль сервиса, пять отличий — тёплый фон, один белый лист, крупные заголовки,
+   текст статьи 18/1,7 в колонке 720, фото 3:2 и 4:3 с радиусом 28, расстояния между блоками 64 (телефон 40).
+   Шапка, кнопки, чипы, значки — из app.css; здесь только раскладка страниц /journal и /journal/:id. */
+body.journal-page { background: var(--paper); }
+body.journal-page main.page-wrap { max-width: none; padding: 0 var(--gutter) var(--s-8); }
+
+.journal { max-width: var(--w-work); margin: 0 auto; padding: var(--s-7); background: var(--white); border-radius: var(--r-big); box-shadow: var(--lift); container-type: inline-size; }
+.journal [hidden] { display: none !important; }
+.journal .btn.on { background: var(--white); color: var(--jade); box-shadow: inset 0 0 0 2px var(--jade); }
+
+/* Титул ленты */
+.j-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-5); }
+.j-title { font-size: var(--fs-56); line-height: var(--lh-56); letter-spacing: -.02em; margin-bottom: var(--s-3); }
+.j-tools { display: flex; align-items: center; gap: var(--s-3); flex-wrap: wrap; justify-content: flex-end; padding-top: var(--s-2); }
+
+/* Темы: один ряд, выбранная — тёмная */
+.j-chips { flex-wrap: nowrap; overflow-x: auto; margin: var(--s-5) 0 var(--section-read); padding-bottom: var(--s-1); scrollbar-width: none; }
+.j-chips::-webkit-scrollbar { display: none; }
+.j-chips .chip.is-on { background: var(--ink); color: var(--white); }
+.j-chips-gap { height: var(--section-read); }
+
+/* Лента: главная статья 3/5 ширины, под ней три равные карточки в ряд */
+.j-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-6) var(--s-5); }
+.j-card { display: flex; flex-direction: column; min-width: 0; }
+.j-card.feat { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: var(--s-6); align-items: center; margin-bottom: calc(var(--section-read) - var(--s-6)); }
+.j-img { display: block; overflow: hidden; border-radius: var(--r-big); background: var(--sunk); aspect-ratio: 4 / 3; margin-bottom: var(--s-3); }
+.feat .j-img { aspect-ratio: 3 / 2; margin-bottom: 0; }
+.j-img img, .j-hero img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.j-ph { display: grid; place-items: center; width: 100%; height: 100%; background: var(--sunk); color: var(--ink-2); }
+.j-body { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.j-topics { color: var(--ink-2); margin: 0 0 var(--s-1); }
+.j-card h3 { margin: 0 0 var(--s-2); }
+.feat h2 { font-size: var(--fs-44); line-height: var(--lh-44); letter-spacing: -.02em; margin: var(--s-1) 0 var(--s-3); }
+.j-card h2 a, .j-card h3 a { color: var(--ink); text-decoration: none; }
+.j-card h2 a:hover, .j-card h3 a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.feat .lead { margin-bottom: var(--s-3); }
+.j-meta { color: var(--ink-2); margin: 0; }
+.j-actions { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: center; margin-top: auto; padding-top: var(--s-3); }
+.j-like b { font-family: var(--head); font-weight: 800; }
+
+.j-more { display: flex; flex-direction: column; align-items: center; gap: var(--s-3); margin-top: var(--section-read); }
+.j-note { margin: var(--section-read) 0 0; max-width: var(--w-read); }
+
+/* Статья: колонка 720 */
+.read { max-width: var(--w-read); margin: 0 auto; }
+.j-art-head { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-2); }
+.j-back { margin-left: calc(-1 * var(--s-2)); margin-bottom: var(--s-3); }
+.j-art-head .display { margin: 0; }
+.j-art-head .lead { margin: var(--s-1) 0 var(--s-2); }
+.j-hero { margin: var(--section-read) auto 0; max-width: 960px; aspect-ratio: 3 / 2; border-radius: var(--r-big); overflow: hidden; background: var(--sunk); }
+.j-hero .j-ph { border-radius: var(--r-big); }
+.j-text { margin-top: var(--section-read); font-size: var(--fs-18); line-height: var(--lh-read); }
+.j-text > :first-child { margin-top: 0; }
+.j-text p { margin: 0 0 var(--s-4); }
+.j-text h2 { margin: var(--s-6) 0 var(--s-3); }
+.j-text h3 { margin: var(--s-5) 0 var(--s-2); }
+.j-text ul, .j-text ol { margin: 0 0 var(--s-4); padding-left: var(--s-5); }
+.j-text li { margin: var(--s-1) 0; }
+.j-text li::marker { color: var(--jade); }
+.j-text blockquote { margin: 0 0 var(--s-4); padding: var(--s-3) var(--s-4); background: var(--ground); border-radius: var(--r-card); color: var(--ink-2); }
+.j-text a { color: var(--jade); text-decoration: underline; }
+.j-endrow { margin-top: var(--s-5); padding-top: 0; }
+.j-endrow + .small { margin: var(--s-3) 0 0; }
+.j-related { margin-top: var(--section-read); }
+.j-related h2 { margin-bottom: var(--s-5); }
+
+@container (max-width: 800px) {
+  .j-card.feat { grid-template-columns: minmax(0, 1fr); gap: var(--s-4); }
+  .j-grid { grid-template-columns: minmax(0, 1fr); }
+  .j-head { flex-direction: column; gap: var(--s-3); }
+  .j-tools { justify-content: flex-start; padding-top: 0; }
+}
+@media (max-width: 960px) {
+  body.journal-page main.page-wrap { padding: 0 var(--s-2) var(--s-6); }
+  .journal { padding: 28px 20px; }
+  .j-card.feat { margin-bottom: 0; }
+  .feat h2 { font-size: var(--fs-32); line-height: var(--lh-32); }
+}

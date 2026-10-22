@@ -1,0 +1,156 @@
+/* Администратор и ведущий показа (раскладка Р2). Только токены из public/tokens.css. */
+
+/* ---------- рабочая область ---------- */
+main.page-wrap:has(.adm-head) {
+  max-width: calc(var(--w-work) + 2 * var(--gutter));
+  container-type: inline-size;
+}
+.adm-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--s-4); flex-wrap: wrap; margin: 0 0 var(--s-4); }
+.adm-head h1 { margin: 0; font-size: var(--fs-32); line-height: var(--lh-32); }
+.adm-head .sub { margin: var(--s-1) 0 0; color: var(--ink-2); font-size: var(--fs-16); line-height: var(--lh-16); }
+.adm-bar { display: flex; justify-content: space-between; align-items: center; gap: var(--s-3); flex-wrap: wrap; margin: 0 0 var(--gap-block); }
+.adm-bar .filters { margin: 0; }
+.adm-stack { display: flex; flex-direction: column; gap: var(--gap-block); min-width: 0; }
+.adm-split { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--gap-block); align-items: start; }
+@container (max-width: 800px) {
+  .adm-split { grid-template-columns: minmax(0, 1fr); }
+}
+.adm-card-h { display: flex; justify-content: space-between; align-items: center; gap: var(--s-3); flex-wrap: wrap; }
+.adm-card-h h2 { margin: 0; font-size: var(--fs-24); line-height: var(--lh-24); }
+.adm-card h3 { font-size: var(--fs-18); }
+.adm-note { margin: 0; color: var(--ink-2); font-size: var(--fs-14); line-height: var(--lh-14); }
+.adm-empty { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-2); padding: var(--s-4); border-radius: var(--r-card); background: var(--ground); }
+.adm-empty p { margin: 0; color: var(--ink-2); }
+.adm-empty b { font-size: var(--fs-16); }
+.adm-out { margin: var(--s-2) 0 0; min-height: 0; }
+
+/* ---------- строки очередей ---------- */
+.qrow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--s-4); align-items: center; padding: var(--s-3) var(--s-4); border-radius: var(--r-card); background: var(--white); box-shadow: var(--lift); }
+.qrow + .qrow { margin-top: var(--s-2); }
+.qrow--crisis { background: var(--brick-t); box-shadow: inset 0 0 0 2px var(--brick); }
+.qrow .q-ic { display: grid; place-items: center; width: var(--h-btn); height: var(--h-btn); border-radius: 50%; background: var(--ground); color: var(--ink-2); }
+.qrow--crisis .q-ic { background: var(--white); color: var(--brick); }
+.qrow .q-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.qrow .q-main b { font-size: var(--fs-16); }
+.qrow .q-main small { color: var(--ink-2); font-size: var(--fs-14); }
+.qrow .q-act { display: flex; gap: var(--s-2); flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 600px) {
+  .qrow { grid-template-columns: auto minmax(0, 1fr); }
+  .qrow .q-act { grid-column: 1 / -1; justify-content: flex-start; }
+}
+
+/* ---------- таблицы ---------- */
+.adm-table-card { padding: var(--s-5) var(--s-5) var(--s-4); }
+.tbl-wrap { max-width: 100%; overflow-x: auto; }
+.tbl--dense th { position: sticky; top: 0; background: var(--white); padding: var(--s-2) var(--s-3); border-bottom: 1px solid var(--hair); white-space: nowrap; }
+.tbl--dense td { padding: 0 var(--s-3); height: 44px; border-bottom: 1px solid var(--hair); background: none; }
+.tbl--dense td:first-child, .tbl--dense td:last-child { border-radius: 0; font-weight: 400; }
+.tbl--dense td small { display: block; color: var(--ink-2); font-size: var(--fs-13); }
+.tbl--dense td.act { text-align: right; white-space: nowrap; }
+.tbl--dense td.nowrap { white-space: nowrap; }
+.tbl--dense td.val { min-width: 220px; }
+.tbl--dense tr.is-sub td { height: auto; padding-top: var(--s-2); padding-bottom: var(--s-2); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.adm-pager { display: flex; align-items: center; gap: var(--s-3); justify-content: center; margin: var(--s-4) 0 0; flex-wrap: wrap; }
+main.page-wrap form.adm-filters { flex-direction: row; }
+.adm-filters { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: flex-end; }
+.adm-filters .field { min-width: 160px; flex: 1 1 160px; max-width: 240px; }
+.adm-filters .btn { flex: 0 0 auto; }
+
+/* ---------- Люди: список и карточка человека ---------- */
+.people-head { display: flex; gap: var(--s-3); align-items: center; margin: 0 0 var(--s-3); flex-wrap: wrap; }
+.people-head .search-in { flex: 1 1 280px; }
+.adm-people { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--gap-block); }
+.prow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--s-3); align-items: center; width: 100%; min-height: 56px; padding: var(--s-2) var(--s-4); border-radius: var(--r-card); background: none; text-align: left; }
+.prow:hover { background: var(--white); }
+.prow.on { background: var(--white); box-shadow: var(--lift); }
+.prow b { display: block; font-size: var(--fs-16); }
+.prow small { display: block; color: var(--ink-2); font-size: var(--fs-13); }
+.prow .p-act { display: flex; gap: var(--s-2); }
+.adm-people-list { display: flex; flex-direction: column; gap: var(--s-1); background: var(--white); border-radius: var(--r-big); box-shadow: var(--lift); padding: var(--s-3); min-width: 0; }
+.adm-people-list .prow:hover { background: var(--ground); }
+.adm-people-list .prow.on { background: var(--jade-t); box-shadow: none; }
+.adm-people:has(.panel) { grid-template-columns: minmax(0, 1fr) var(--w-panel); align-items: start; }
+@container (max-width: 800px) { .adm-people:has(.panel) { grid-template-columns: minmax(0, 1fr); } }
+.panel--adm .panel-body { display: flex; flex-direction: column; gap: var(--s-4); }
+.adm-kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--s-2) var(--s-4); margin: 0; }
+.adm-kv dt { color: var(--ink-2); font-size: var(--fs-14); }
+.adm-kv dd { margin: 0; }
+.adm-action { display: flex; align-items: center; gap: var(--s-3); justify-content: space-between; padding: var(--s-3) 0; border-bottom: 1px solid var(--hair); }
+.adm-action:last-child { border-bottom: 0; }
+.adm-action small { display: block; color: var(--ink-2); font-size: var(--fs-13); }
+
+/* ---------- Настройки, Ещё, плитки ---------- */
+.req-filters, .people-filters, .set-tabs, .log-tabs { margin: 0; }
+.adm-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--s-4); }
+.adm-tile { display: flex; flex-direction: column; gap: var(--s-1); background: var(--white); border-radius: var(--r-big); box-shadow: var(--lift); padding: var(--s-5); min-width: 0; }
+.adm-tile .num { font-family: var(--head); font-weight: 800; font-size: var(--fs-32); line-height: var(--lh-32); }
+.adm-tile .cap { color: var(--ink-2); font-size: var(--fs-14); }
+.adm-tile .when { color: var(--ink-2); font-size: var(--fs-13); }
+.adm-tile .st-pill { align-self: flex-start; margin-top: var(--s-1); }
+.adm-details summary { cursor: pointer; color: var(--ink-2); font-weight: 600; min-height: var(--h-btn-sm); display: flex; align-items: center; }
+.adm-details[open] summary { margin-bottom: var(--s-2); }
+.adm-details dl { margin: 0; }
+.more-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--s-4); }
+.more-grid .more-item { min-height: 88px; justify-content: center; }
+.more-item b { font-size: var(--fs-18); }
+
+/* ---------- окна и формы администратора ---------- */
+.modal.wide { max-width: 520px; }
+.modal-bg .pop-list { display: flex; flex-direction: column; gap: var(--s-1); margin: 0; max-height: 240px; overflow: auto; }
+.modal-bg .pop-list .it { display: flex; gap: var(--s-3); align-items: center; width: 100%; min-height: 48px; padding: var(--s-2) var(--s-3); border-radius: var(--r-card); border: 0; background: none; text-align: left; cursor: pointer; font: inherit; color: var(--ink); }
+.modal-bg .pop-list .it:hover { background: var(--ground); }
+.modal-bg .pop-list .it.on { background: var(--jade-t); }
+.modal-bg .pop-list small { color: var(--ink-2); margin-left: auto; }
+.modal-bg .form { display: flex; flex-direction: column; gap: var(--s-3); }
+.modal-bg code { background: var(--ground); padding: 2px 6px; border-radius: var(--r-xs); }
+.modal .acts { display: flex; gap: var(--s-2); justify-content: flex-end; flex-wrap: wrap; }
+.callout.soft { background: var(--jade-t); color: var(--ink); padding: var(--s-3) var(--s-4); margin: 0 0 var(--s-3); }
+.log-filters { max-width: none; }
+.ai-note { margin-bottom: 0; }
+.more-list { max-width: none; }
+.admin-chat .card.draft { margin-top: var(--s-1); }
+.chat-msg .card.draft h3 { margin: 2px 0; }
+.chat-msg_assistant .card { max-width: 520px; }
+
+/* ---------- каталог промптов ИИ (Настройки → Промпт) ---------- */
+.prompt-field { display: flex; margin: 0; }
+.prompt-text { width: 100%; box-sizing: border-box; line-height: var(--lh-15); resize: vertical; }
+.prompt-acts { display: flex; gap: var(--s-2); }
+.prompt-diff { white-space: pre-wrap; margin: var(--s-2) 0 0; font: inherit; line-height: var(--lh-14); }
+.prompt-diff span { display: block; padding: 0 var(--s-2); border-radius: var(--r-xs); }
+.prompt-diff__add { background: var(--ok-bg); }
+.prompt-diff__del { background: var(--err-bg); }
+.prompt-diff__gap { color: var(--ink-2); }
+.itt-switch { display: flex; gap: var(--s-2); align-items: center; flex-wrap: wrap; margin: var(--s-2) 0; }
+.itt-switch button[aria-pressed="true"] { font-weight: 700; box-shadow: var(--ring); }
+.stan { display: inline-flex; gap: 2px; vertical-align: middle; }
+.stan i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; background: var(--sunk-2); }
+.stan i.on { background: var(--jade); }
+.stan i.hi { background: var(--warn); }
+
+/* ---------- ведущий показа (/demo) ---------- */
+.host-steps { display: flex; flex-direction: column; gap: var(--s-4); }
+.host-steps .show-route { margin: 0; }
+.card.host-reset { flex-direction: row; display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); flex-wrap: wrap; }
+.host-reset p { margin: 0; color: var(--ink-2); max-width: var(--w-sum); }
+#demo-reset { gap: var(--s-4); }
+#demo-reset h3 { margin: 0; }
+#demo-reset .acts { display: flex; gap: var(--s-2); justify-content: flex-end; }
+
+.adm-del, .btn.ghost.adm-del { color: var(--brick); }
+.tbl--dense td.nowrap-aud { white-space: nowrap; }
+
+/* ---------- телефон: таблицы строками, сегменты переносятся ---------- */
+@media (max-width: 600px) {
+  main.page-wrap .adm-bar .filters { flex-wrap: wrap; overflow: visible; border-radius: var(--r-card); width: 100%; }
+  .adm-table-card { padding: var(--s-4); }
+  .adm-table-card .tbl--dense thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .adm-table-card .tbl--dense, .adm-table-card .tbl--dense tbody { display: block; }
+  .adm-table-card .tbl--dense tr { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-1); padding: var(--s-3) 0; border-bottom: 1px solid var(--hair); }
+  .adm-table-card .tbl--dense td { display: block; height: auto; padding: 0; border: 0; white-space: normal; min-width: 0; }
+  .adm-table-card .tbl--dense td.val { min-width: 0; color: var(--ink-2); }
+  .adm-table-card .tbl--dense td.act { text-align: left; padding-top: var(--s-1); }
+  .adm-table-card .tbl--dense td.nowrap { white-space: normal; }
+  .adm-table-card .tbl--dense tr:hover td { background: none; }
+}

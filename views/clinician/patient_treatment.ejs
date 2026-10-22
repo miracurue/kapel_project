@@ -1,0 +1,33 @@
+<%- include('../_header') %>
+<div class="card clinician-card">
+  <%- include('_patient_head') %>
+  <h2>Лечение</h2>
+  <% if (!canTreat) { %>
+    <div class="empty-state">
+      <p class="empty-state__title">Раздел ведёт психиатр</p>
+      <p>Психолог лекарственную терапию не назначает и этот раздел не видит; кнопок добавления нет. Психообразовательные модули и анкету перед приёмом можно назначать со страницы «Модули и опросник» (ссылка под вкладками).</p>
+    </div>
+  <% } else { %>
+    <p class="hint">Закрытые рабочие заметки о терапии: пациент их не видит. То, что нужно показать пациенту, ведите ниже в «Плане приёма» (кнопка «Показать пациенту»).</p>
+    <form method="POST" action="<%= base %>/treatment">
+      <label>Новая запись о лечении <textarea name="body" rows="3" maxlength="5000"></textarea></label>
+      <p><button type="submit">Добавить запись</button></p>
+    </form>
+    <% if (items.length === 0) { %>
+      <div class="empty-state"><p class="empty-state__title">Записей нет</p><p>Необязательно. Заполнять не нужно.</p></div>
+    <% } else { %>
+      <ul class="pc-notes">
+        <% items.forEach(function(t) { %>
+          <li class="pc-note">
+            <div class="hint"><%= formatDate(t.created_at) %> · <%= t.author %></div>
+            <div class="pc-note__body"><%= t.body %></div>
+            <form method="POST" action="<%= base %>/treatment/<%= t.id %>/delete" class="inline"><button type="submit" class="btn-secondary">Удалить</button></form>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+    <%- include('../care/_plan', { plan: plan, medView: medView, editItem: editItem, base: base }) %>
+  <% } %>
+  <p class="result-disclaimer">Записи о лечении — рабочие заметки врача, не назначение и не рекомендация системы. Решение остаётся за врачом.</p>
+</div>
+<%- include('../_footer') %>
