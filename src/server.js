@@ -13,9 +13,10 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const path = require('path');
+const { isFullyAssigned } = require('./access/assignment');
 const fs = require('fs');
 const { loadConfig, now } = require('./config');
-const { roleNumber } = require('./access');
+const access = require('./access');
 const { shell, errorPage, esc } = require('./pages');
 const { t } = require('./i18n');
 const P = require('./platform');
@@ -23,10 +24,12 @@ const clinicalRoutes = require('./modules/clinical/routes');
 const v3Routes = require('./modules/v3/routes');
 const analyticsFacts = require('./modules/analytics/facts');
 const contextRoutes = require('./modules/context'); // W-33: композер — подсказки, чипы, S-16
+const chatResume = require('./ai/chatResume'); // возврат в последний чат пациента
 const patientChatPage = require('./modules/patient/chatPage'); // W-34: чат пациента P-13
 const workChatPage = require('./modules/work/chatPage'); // W-35: чат специалиста P-20
 const approvalsPage = require('./modules/work/approvalsPage'); // P-51: «Утверждения»
 const libraryPage = require('./modules/library/page'); // W-48: вкладка «Библиотека» (P-15)
+const techniques = require('./modules/techniques/catalog'); // методики самопомощи (карточки и страницы)
 const libraryWorkPage = require('./modules/library/workPage'); // рабочее место автора в библиотеке (специалисты)
 const crisisGate = require('./ai/crisisGate');
 
@@ -39,12 +42,7 @@ try {
 }
 const db = P.openDb(config);
 const app = express();
-const contract = [
-  ...require('../tests/api/contract/operations.json').operations,
-  ...require('./access/diary').operations,
-  ...require('./access/analytics').operations,
-  ...require('./access/flower').operations,
-];
+const contract = access.contract();
 const apiOps = contract.filter((op) => op.path.startsWith('/api/'));
 const compiled = apiOps.map((op) => ({
   ...op,
@@ -82,22 +80,53 @@ app.use((req, res, next) => {
     (req.session?.data?.role ? { role: req.session.data.role === 'demo_host' ? 'host' : req.session.data.role } : null);
   next();
 });
+// Напоминания пациента (приём лекарств, тесты, вопрос о форме обращения): значок на вкладке «Чат» и карточки в чате.
+app.use((req, res, next) => {
+  if (req.user && req.user.role === 'patient' && req.user.id && req.method === 'GET' && !req.path.startsWith('/api/')) {
+    try {
+      req.reminders = require('./modules/patient/reminders').dueReminders(db, {
+        patientId: req.user.id,
+        now: now(config),
+        timezone: activeSetting('org.timezone_hours').value?.timezone || 'Europe/Moscow',
+        labelOf: (code) => require('./format').instrumentLabelFor('patient', code) || code,
+      });
+      req.user = { ...req.user, reminder_count: req.reminders.length };
+    } catch (_) {
+      req.reminders = [];
+    }
+  }
+  next();
+});
 
-function isAllowed(op, user) {
-  const rn = roleNumber(user);
-  const rule = op.roles.find((r) => r.role === rn);
-  if (!rule) return false;
-  if (rule.scope === 'КО' && !user?.flag_clinical_lead) return false;
-  if (rule.scope === 'ИП' && !user?.flag_research) return false;
-  if (rule.scope === 'ПС' && !user?.flag_reference_reviewer) return false;
-  if (
-    user?.role === 'psychologist' &&
-    ['visit.manage', 'hints.use', 'medication.prescribe_plan', 'ae.review'].includes(op.permission)
-  )
-    return false;
-  if (user?.role === 'psychologist' && ['plan', 'ae'].includes(op.patientAccess)) return false;
-  return true;
-}
+// Регистрация, согласия и их версии, заявки специалистов (src/modules/registration). Функции ниже — объявления,
+// поднимаются выше этой строки.
+// Связь специалистов по пациенту (маршрутизация, src/modules/care_links).
+const careLinks = require('./modules/care_links')({
+  db,
+  P,
+  config,
+  now,
+  access,
+  action: (...args) => action(...args),
+});
+const registration = require('./modules/registration')({
+  db,
+  careLinks,
+  P,
+  config,
+  now,
+  bcrypt,
+  access,
+  shell,
+  t,
+  esc,
+  action: (...args) => action(...args),
+  bumpRate: (...args) => bumpRate(...args),
+  passwordFields: (...args) => passwordFields(...args),
+});
+app.use(registration.gate);
+
+const { isAllowed } = access;
 
 function auditPatient(req, patientId, decision, section, basis = 'assignment') {
   const actor = req.user;
@@ -135,12 +164,8 @@ app.use((req, res, next) => {
       fields: [{ field: 'Idempotency-Key', key: 'err.e-validation.idempotency-key' }],
     });
   }
-  const pendingConsent =
-    Boolean(req.session?.data?.pending_registration) &&
-    (req.path === '/api/v1/consents' || (req.method === 'POST' && req.path === '/api/v1/consents/base'));
-  if (!matched.op.public && !req.user && !pendingConsent) return P.sendError(req, res, 401, 'E-SESSION-EXPIRED');
-  if (!matched.op.public && !pendingConsent && !isAllowed(matched.op, req.user))
-    return P.sendError(req, res, 403, 'E-ACCESS');
+  if (!matched.op.public && !req.user) return P.sendError(req, res, 401, 'E-SESSION-EXPIRED');
+  if (!matched.op.public && !isAllowed(matched.op, req.user)) return P.sendError(req, res, 403, 'E-ACCESS');
   if (
     req.user?.must_change_password &&
     !['/api/v1/me/password', '/api/v1/auth/logout', '/api/v1/csrf'].includes(req.path)
@@ -153,11 +178,7 @@ app.use((req, res, next) => {
     // закрытия закрепления (повторный archive, T-212) — закрепление здесь не
     // проверяем, его проверяет обработчик маршрута.
     if (matched.op.permission !== 'episode.close') {
-      const own = db
-        .prepare(
-          "SELECT 1 FROM care_assignments WHERE patient_id=? AND clinician_id=? AND ended_at IS NULL AND (end_reason IS NULL OR end_reason <> 'signal_only')",
-        )
-        .get(patientId, req.user.id);
+      const own = isFullyAssigned(db, patientId, req.user.id);
       if (!own) {
         try {
           auditPatient(req, patientId, 'deny', matched.op.patientAccess || 'patient');
@@ -204,6 +225,9 @@ app.use((req, res, next) => {
           .status(200)
           .json({ crisis: { ...crisisCard(record.delivered), id: record.id || null }, saved: false });
       }
+      // Решение владельца 2026-10-25: если причина — отзыв обязательного согласия, пациент видит
+      // «нужно согласие», а не общий отказ. Запись не создаётся в обоих случаях.
+      if (!baseConsentGiven(req.user.id)) return P.sendError(req, res, 403, 'E-CONSENT-REQUIRED');
       return P.sendError(req, res, 403, 'E-ACCESS');
     }
     return next();
@@ -257,8 +281,9 @@ require('./ai/patientApi').install(app, {
   makeUndo,
   idemCached,
   saveIdem,
-  crisis: (text, source, patientId) => {
-    if (!crisisText(text)) return null;
+  // opts.force: сигнал передала модель (raise_crisis_signal / навык crisis_signal): словарь не спрашиваем, сигнал создаём.
+  crisis: (text, source, patientId, opts) => {
+    if (!(opts && opts.force) && !crisisText(text)) return null;
     const record = recordCrisis(patientId, source, text);
     return { ...crisisCard(record.delivered), id: record.id || null };
   },
@@ -267,9 +292,30 @@ require('./ai/patientApi').install(app, {
 app.get('/assets/ru.json', (_req, res) => res.sendFile(path.join(__dirname, '..', 'locales', 'ru.json')));
 
 app.get('/healthz', (_req, res) => res.json({ status: 'ok' }));
-app.get('/readyz', (_req, res) => {
+// Знания о лекарствах (Postgres) необязательны: не настроены — 'disabled' и readyz не краснеет; настроены, но
+// недоступны — чаты работают по прежней схеме, а readyz остаётся 'ready' с knowledge.status = 'down'/'degraded'.
+// Жёсткая готовность (оркестратору): KNOWLEDGE_REQUIRED=1 — тогда down/degraded даёт 'not_ready'.
+app.get('/readyz', async (_req, res) => {
   const migrations = db.prepare('SELECT count(*) n FROM schema_migrations').get().n;
-  res.json({ status: migrations >= 6 ? 'ready' : 'not_ready', version: '0.1.0', data_mode: config.dataMode });
+  let knowledge;
+  try {
+    knowledge = await require('./modules/knowledge/service').getKnowledge().status();
+  } catch {
+    knowledge = { configured: true, status: 'down' };
+  }
+  const strict = process.env.KNOWLEDGE_REQUIRED === '1' && knowledge.configured && knowledge.status !== 'ok';
+  res.status(strict ? 503 : 200).json({
+    status: migrations >= 6 && !strict ? 'ready' : 'not_ready',
+    version: '0.1.0',
+    data_mode: config.dataMode,
+    knowledge: {
+      configured: knowledge.configured,
+      status: knowledge.status,
+      ...(knowledge.documents === undefined
+        ? {}
+        : { documents: knowledge.documents, chunks: knowledge.chunks, vectors: knowledge.vectors }),
+    },
+  });
 });
 
 app.get('/api/v1/csrf', (req, res) => {
@@ -288,48 +334,48 @@ function action(actor, name, targetType = null, targetId = null) {
   );
 }
 
-app.post('/api/v1/auth/login', (req, res) => {
+// Общая проверка входа для API и HTML-формы: лимит попыток (5 за 15 минут по почте), журнал попыток, сессия.
+// Возвращает { fail: { status, code, details? } } либо { user, session }.
+function authenticate(req, res) {
   const email = String(req.body.email || '')
     .trim()
     .toLowerCase();
   const current = now(config);
   const emailHmac = P.hmac(config, email);
+  const attempt = (userId, result) =>
+    db
+      .prepare('INSERT INTO login_attempts(email_hmac,user_id,result,created_at) VALUES (?,?,?,?)')
+      .run(emailHmac, userId, result, P.iso(current));
   const since = P.iso(new Date(current.getTime() - 15 * 60 * 1000));
   const failures = db
     .prepare(
       "SELECT count(*) n FROM login_attempts WHERE email_hmac=? AND result IN ('bad_password','unknown') AND created_at>=?",
     )
     .get(emailHmac, since).n;
-  if (failures >= 5) return P.sendError(req, res, 423, 'E-AUTH-LOCKED', { details: { retry_after_s: 60 } });
+  if (failures >= 5) return { fail: { status: 423, code: 'E-AUTH-LOCKED', details: { retry_after_s: 60 } } };
   const user = db.prepare('SELECT * FROM users WHERE email=? COLLATE NOCASE').get(email);
   if (!user || !user.password_hash || !bcrypt.compareSync(String(req.body.password || ''), user.password_hash)) {
-    db.prepare('INSERT INTO login_attempts(email_hmac,user_id,result,created_at) VALUES (?,?,?,?)').run(
-      emailHmac,
-      user?.id || null,
-      user ? 'bad_password' : 'unknown',
-      P.iso(current),
-    );
-    return P.sendError(req, res, 401, 'E-AUTH-INVALID');
+    const application = user ? null : registration.applicationForLogin(email, req.body.password);
+    if (application) return { fail: { status: 403, code: 'E-AUTH-PENDING', application } };
+    attempt(user?.id || null, user ? 'bad_password' : 'unknown');
+    return { fail: { status: 401, code: 'E-AUTH-INVALID' } };
   }
-  if (user.status === 'blocked') {
-    db.prepare('INSERT INTO login_attempts(email_hmac,user_id,result,created_at) VALUES (?,?,?,?)').run(
-      emailHmac,
-      user.id,
-      'blocked',
-      P.iso(current),
-    );
-    return P.sendError(req, res, 403, 'E-AUTH-BLOCKED');
-  }
-  if (user.status !== 'active') return P.sendError(req, res, 403, 'E-AUTH-BLOCKED');
+  if (user.status === 'blocked') attempt(user.id, 'blocked');
+  if (user.status !== 'active') return { fail: { status: 403, code: 'E-AUTH-BLOCKED' } };
   P.closeSession(db, config, req.session, 'rotated');
   const session = P.createSession(db, config, res, { userId: user.id, role: user.role });
-  db.prepare('INSERT INTO login_attempts(email_hmac,user_id,result,created_at) VALUES (?,?,?,?)').run(
-    emailHmac,
-    user.id,
-    'ok',
-    P.iso(current),
-  );
+  attempt(user.id, 'ok');
   action(user, 'auth.login.success');
+  return { user, session };
+}
+
+app.post('/api/v1/auth/login', (req, res) => {
+  const { fail, user, session } = authenticate(req, res);
+  if (fail?.application)
+    return P.sendError(req, res, 403, 'E-AUTH-PENDING', {
+      details: { status: fail.application.status, reason: fail.application.reject_reason },
+    });
+  if (fail) return P.sendError(req, res, fail.status, fail.code, fail.details ? { details: fail.details } : undefined);
   res.json({
     user: { id: user.id, role: user.role, display_name: user.full_name },
     next: user.must_change_password
@@ -361,7 +407,7 @@ const tabs = {
   patient: ['chat', 'meds', 'tests', 'diary', 'library', 'visits', 'doctor'],
   psychiatrist: ['chat', 'patients', 'signals', 'docs', 'tools', 'offline', 'analytics', 'approvals', 'library'],
   psychologist: ['chat', 'patients', 'signals', 'docs', 'tools', 'offline', 'analytics', 'library'],
-  admin: ['chat', 'requests', 'people', 'settings', 'log', 'content', 'program', 'service'],
+  admin: ['dashboard', 'requests', 'people', 'settings', 'log', 'content', 'program', 'service'],
   host: ['route', 'data'],
 };
 
@@ -379,6 +425,8 @@ app.get('/api/v1/me', (req, res) => {
     data_mode: config.dataMode,
     demo_mode: config.demoMode,
     consents,
+    onboarding_pending:
+      user.id && user.role === 'patient' ? registration.service.renewal(user.id).kinds.length > 0 : false,
   });
 });
 
@@ -415,12 +463,15 @@ function passwordFields(password, email) {
 }
 
 app.patch('/api/v1/me/profile', (req, res) => {
-  if (req.body.display_name)
-    db.prepare('UPDATE users SET full_name=?,updated_at=? WHERE id=?').run(
-      String(req.body.display_name),
-      P.iso(now(config)),
-      req.user.id,
-    );
+  if (req.body.display_name !== undefined) {
+    const name = String(req.body.display_name).replace(/\s+/g, ' ').trim();
+    if (!name || name.length > 80 || /[<>]/.test(name))
+      return P.sendError(req, res, 422, 'E-VALIDATION', {
+        fields: [{ field: 'display_name', key: 'err.e-validation.required' }],
+      });
+    db.prepare('UPDATE users SET full_name=?,updated_at=? WHERE id=?').run(name, P.iso(now(config)), req.user.id);
+    action(req.user, 'profile.name_changed', 'user', req.user.id); // значение имени в журнал не пишется
+  }
   if (req.body.email) {
     if (!bcrypt.compareSync(String(req.body.current_password || ''), req.user.password_hash))
       return P.sendError(req, res, 401, 'E-AUTH-INVALID');
@@ -455,49 +506,22 @@ app.post('/api/v1/me/password', (req, res) => {
   res.json({ ok: true });
 });
 
-function currentConsentVersion(kind) {
-  let row = db
-    .prepare("SELECT * FROM content_versions WHERE kind=? AND status='published' ORDER BY version DESC LIMIT 1")
-    .get(`consent.${kind}`);
-  if (!row) {
-    const body = `STAND-IN: текст согласия ${kind}`;
-    const hash = P.sha(body);
-    const info = db
-      .prepare(
-        "INSERT INTO content_versions(kind,version,body_md,body_sha256,sign_method,status,is_stand_in,published_at) VALUES (?,?,?,?,?,'published',1,?)",
-      )
-      .run(`consent.${kind}`, 1, body, hash, 'demo_click', P.iso(now(config)));
-    row = db.prepare('SELECT * FROM content_versions WHERE id=?').get(info.lastInsertRowid);
-  }
-  return row;
-}
-
-function consentList(userId) {
-  return ['base', 'ai', 'research', 'program'].map((kind) => {
-    const version = currentConsentVersion(kind);
-    const event = userId
-      ? db.prepare('SELECT * FROM consent_current WHERE user_id=? AND consent_kind=?').get(userId, kind)
-      : null;
-    return {
-      kind,
-      version: version.version,
-      content_version_id: version.id,
-      state: event?.action || 'not_given',
-      required: kind === 'base',
-    };
-  });
-}
+const consentList = (userId) => registration.service.patientConsents(userId);
 
 app.get('/api/v1/consents', (req, res) => {
-  const pending = req.session?.data?.pending_registration;
-  res.json({ items: consentList(req.user?.id || null), pending: Boolean(pending) });
+  const userId = req.user?.id || null;
+  res.json({
+    items: consentList(userId),
+    agreement: userId ? registration.service.status(userId, 'agreement') : null,
+    pending: false,
+  });
 });
 
 function inviteHash(code) {
   return P.sha(String(code).trim().toUpperCase());
 }
 
-app.post('/api/v1/invites', (req, res) => {
+app.post('/api/v1/invites', async (req, res) => {
   const windowStart = P.iso(new Date(now(config).getTime() - 60 * 60 * 1000));
   const count = db
     .prepare('SELECT count(*) n FROM invite_codes WHERE created_by=? AND created_at>=?')
@@ -511,7 +535,22 @@ app.post('/api/v1/invites', (req, res) => {
       "INSERT INTO invite_codes(code_hash,clinician_id,created_by,status,expires_at,created_at) VALUES (?,?,?,'active',?,?)",
     )
     .run(inviteHash(code), req.user.id, req.user.id, P.iso(expires), P.iso(current));
-  res.status(201).json({ id: Number(info.lastInsertRowid), code, status: 'active', expires_at: P.iso(expires) });
+  // Ссылка и QR: камера телефона открывает регистрацию (или привязку в профиле) с уже подставленным кодом.
+  const link = `${config.baseUrl}/register?code=${encodeURIComponent(code)}`;
+  let qrSvg = null;
+  try {
+    qrSvg = await require('qrcode').toString(link, { type: 'svg', margin: 1, errorCorrectionLevel: 'M' });
+  } catch (_) {
+    qrSvg = null; // код остаётся рабочим и без картинки
+  }
+  res.status(201).json({
+    id: Number(info.lastInsertRowid),
+    code,
+    status: 'active',
+    expires_at: P.iso(expires),
+    link,
+    qr_svg: qrSvg,
+  });
 });
 
 app.get('/api/v1/invites', (req, res) => {
@@ -541,96 +580,25 @@ function bumpRate(key, limit, windowMs) {
   return count > limit;
 }
 
-app.post('/api/v1/auth/register', (req, res) => {
-  const email = String(req.body.email || '')
-    .trim()
-    .toLowerCase();
-  const password = String(req.body.password || '');
-  const fields = passwordFields(password, email);
-  if (fields.length) return P.sendError(req, res, 422, 'E-VALIDATION', { fields });
-  if (bumpRate(`invite:${req.socket.remoteAddress || 'local'}`, 10, 15 * 60 * 1000))
-    return P.sendError(req, res, 429, 'E-RATE-LIMIT', { details: { retry_after_s: 60 } });
-  const invite = db.prepare('SELECT * FROM invite_codes WHERE code_hash=?').get(inviteHash(req.body.invite_code));
-  if (
-    !invite ||
-    invite.status !== 'active' ||
-    new Date(invite.expires_at) < now(config) ||
-    db.prepare('SELECT 1 FROM users WHERE email=? COLLATE NOCASE').get(email)
-  ) {
-    return P.sendError(req, res, 422, 'E-INVITE-INVALID');
-  }
-  const state = {
-    ...req.session.data,
-    pending_registration: {
-      invite_id: invite.id,
-      clinician_id: invite.clinician_id,
-      email,
-      password_hash: bcrypt.hashSync(password, 10),
-      display_name: String(req.body.display_name || 'Новый пациент'),
-    },
-  };
-  db.prepare('UPDATE sessions SET data=? WHERE sid_hash=?').run(JSON.stringify(state), req.session.sid_hash);
-  req.session.data = state;
-  res.json({ next: 'consent' });
-});
-
+// Регистрация (POST /auth/register, /auth/register-specialist) — src/modules/registration/routes.js.
 app.post('/api/v1/consents/:kind', (req, res) => {
   const kind = req.params.kind;
   if (!['base', 'ai', 'research', 'program'].includes(kind)) return P.sendError(req, res, 404, 'E-NOT-FOUND');
-  const version = currentConsentVersion(kind);
+  const userId = req.user?.id;
+  if (!userId) return P.sendError(req, res, 401, 'E-SESSION-EXPIRED');
+  const version = registration.service.current(kind);
+  if (req.body.action === 'decline') return res.json({ state: 'declined', version: version.version });
   const actionName = req.body.action === 'revoke' ? 'revoked' : 'given';
-  if (kind === 'base' && actionName === 'given' && !req.body.checkbox && req.session.data.pending_registration)
+  // Человек видел другую редакцию: пусть откроет новую (E-CONFLICT).
+  if (req.body.version !== undefined && Number(req.body.version) !== version.version)
+    return P.sendError(req, res, 409, 'E-CONFLICT');
+  if (kind === 'base' && actionName === 'given' && !req.body.checkbox)
     return P.sendError(req, res, 403, 'E-CONSENT-REQUIRED');
   if (kind === 'base' && actionName === 'revoked' && !req.body.confirm)
     return P.sendError(req, res, 422, 'E-VALIDATION', { fields: [{ field: 'confirm', key: 'err.e-validation' }] });
-  let userId = req.user?.id;
-  const pending = req.session.data.pending_registration;
-  if (!userId && pending && kind === 'base' && actionName === 'given') {
-    const current = P.iso(now(config));
-    const info = db
-      .prepare(
-        `INSERT INTO users(service_no,email,email_hmac,password_hash,role,full_name,status,is_demo,created_at)
-      VALUES (?,?,?,?,? ,?,'active',1,?)`,
-      )
-      .run(
-        `P-${crypto.randomBytes(3).toString('hex').toUpperCase()}`,
-        pending.email,
-        P.hmac(config, pending.email),
-        pending.password_hash,
-        'patient',
-        pending.display_name,
-        current,
-      );
-    userId = Number(info.lastInsertRowid);
-    db.prepare('INSERT INTO user_prefs(user_id) VALUES (?)').run(userId);
-    const ep = db
-      .prepare('INSERT INTO care_episodes(patient_id,started_at,opened_by) VALUES (?,?,?)')
-      .run(userId, current, pending.clinician_id);
-    db.prepare(
-      'INSERT INTO care_assignments(patient_id,clinician_id,episode_id,started_at,created_by) VALUES (?,?,?,?,?)',
-    ).run(userId, pending.clinician_id, ep.lastInsertRowid, current, pending.clinician_id);
-    db.prepare("UPDATE invite_codes SET status='used',used_by=?,used_at=? WHERE id=?").run(
-      userId,
-      current,
-      pending.invite_id,
-    );
-    const nextState = { ...req.session.data };
-    delete nextState.pending_registration;
-    db.prepare('UPDATE sessions SET user_id=?,data=? WHERE sid_hash=?').run(
-      userId,
-      JSON.stringify(nextState),
-      req.session.sid_hash,
-    );
-  }
-  if (!userId) return P.sendError(req, res, 401, 'E-SESSION-EXPIRED');
-  const existing = db
-    .prepare('SELECT action,content_version_id FROM consent_current WHERE user_id=? AND consent_kind=?')
-    .get(userId, kind);
-  if (!existing || existing.action !== actionName || existing.content_version_id !== version.id) {
-    db.prepare(
-      'INSERT INTO consent_events(user_id,consent_kind,action,content_version_id,text_sha256,sign_method) VALUES (?,?,?,?,?,?)',
-    ).run(userId, kind, actionName, version.id, version.body_sha256, version.sign_method || 'demo_click');
-  }
+  const ipHmac = registration.service.ipHmac(req);
+  registration.service.record(userId, kind, actionName, { ipHmac });
+  if (kind === 'base' && actionName === 'given') registration.service.record(userId, 'agreement', 'given', { ipHmac });
   if (kind === 'base' && actionName === 'revoked') {
     const current = now(config);
     db.prepare(
@@ -735,7 +703,9 @@ function recordCrisis(patientId, source, text) {
       )
       .get(patientId, P.iso(new Date(now(config).getTime() - 86400000)));
     const match = String(text || '').match(/[^.!?]*?(нет смысла жить|поконч|суицид)[^.!?]*[.!?]?/i);
-    const quote = (match?.[0] || String(text || '')).trim().slice(0, 300);
+    const quote = (require('./crisisText').sentenceWithSignal(text) || match?.[0] || String(text || ''))
+      .trim()
+      .slice(0, 300);
     const id =
       open?.id ||
       Number(
@@ -954,9 +924,9 @@ v3MessageRoutes.get('/api/v1/patients/:patientId/messages', (req, res) => {
   const patientId = Number(req.params.patientId);
   const rows = db
     .prepare(
-      "SELECT id,patient_id,clinician_id,body,created_at,read_at,sender_role FROM care_messages WHERE patient_id=? AND status='sent' AND visible_from<=? ORDER BY id",
+      "SELECT id,patient_id,clinician_id,body,created_at,read_at,sender_role FROM care_messages WHERE patient_id=? AND status='sent' AND (visible_from<=? OR sender_id=?) ORDER BY id",
     )
-    .all(patientId, P.iso(now(config)))
+    .all(patientId, P.iso(now(config)), req.user.id)
     .filter((row) => require('./modules/files/service').messageParticipant(db, req.user.id, row, P.iso(now(config))));
   res.json({
     items: rows.map((row) => ({
@@ -974,9 +944,9 @@ v3MessageRoutes.get('/api/v1/patients/:patientId/messages', (req, res) => {
 v3MessageRoutes.get('/api/v1/me/messages', (req, res) => {
   const items = db
     .prepare(
-      "SELECT id,clinician_id,body,created_at,read_at,sender_role FROM care_messages WHERE patient_id=? AND status='sent' AND visible_from<=? ORDER BY id",
+      "SELECT id,clinician_id,body,created_at,read_at,sender_role FROM care_messages WHERE patient_id=? AND status='sent' AND (visible_from<=? OR sender_id=?) ORDER BY id",
     )
-    .all(req.user.id, P.iso(now(config)));
+    .all(req.user.id, P.iso(now(config)), req.user.id);
   const recipients = db
     .prepare(
       "SELECT u.id,u.full_name name,u.role FROM care_assignments ca JOIN users u ON u.id=ca.clinician_id WHERE ca.patient_id=? AND ca.ended_at IS NULL AND COALESCE(ca.end_reason,'')<>'signal_only' AND u.status='active' ORDER BY ca.id",
@@ -1111,7 +1081,7 @@ app.post('/api/v1/undo/:key', (req, res) => {
     db.prepare("UPDATE users SET status='deactivated', sessions_valid_from=? WHERE id=?").run(current, row.object_id);
   if (row.object_type === 'consent_ai' && row.action_type === 'consent.ai.revoke') {
     // W-34 (T-031): «Отменить» выключения ИИ-согласия — новое событие «given», журнал только дописывается.
-    const version = currentConsentVersion('ai');
+    const version = registration.service.current('ai');
     const cur = db
       .prepare("SELECT action FROM consent_current WHERE user_id=? AND consent_kind='ai'")
       .get(row.author_id);
@@ -1257,7 +1227,7 @@ app.get('/api/v1/patients/:patientId', (req, res) => {
     });
     payload.offline_results = db
       .prepare(
-        'SELECT id,instrument,total_score,status,invalid_at,invalid_reason FROM offline_results WHERE patient_id=? ORDER BY id DESC',
+        'SELECT id,instrument,total_score,band,risk_flag,test_date,entry_method,source_file_id,status,invalid_at,invalid_reason FROM offline_results WHERE patient_id=? ORDER BY test_date DESC, id DESC',
       )
       .all(patientId)
       .map((row) => ({ ...row, erroneous: Boolean(row.invalid_at) }));
@@ -1278,7 +1248,7 @@ app.get('/api/v1/patients/:patientId', (req, res) => {
   res.json(payload);
 });
 
-app.post('/api/v1/crisis/help', (req, res) => {
+app.post('/api/v1/crisis/help', async (req, res) => {
   const record = recordCrisis(req.user.id, String(req.body.source || 'button'), req.body.text || '');
   const clinician = db
     .prepare('SELECT clinician_id FROM care_assignments WHERE patient_id=? AND ended_at IS NULL LIMIT 1')
@@ -1295,9 +1265,30 @@ app.post('/api/v1/crisis/help', (req, res) => {
       record.id || null,
       P.iso(now(config)),
     );
+  // Пациент попадает в кризисный разговор (src/ai/crisisFlow.js): сценарное первое сообщение, затем ИИ с оценкой для врача.
+  // Любой сбой режима ответ не ломает: карточка 112 и обращение уже созданы.
+  let crisisChat = null;
+  if (req.user.role === 'patient' && app.locals.crisisFlow) {
+    try {
+      const opened = await app.locals.crisisFlow.open({
+        user: req.user,
+        escalationId: record.id || null,
+        delivered: record.delivered,
+        text: req.body.text || '',
+      });
+      crisisChat = {
+        thread_id: opened.thread.id,
+        ...opened.view,
+        message: opened.message ? { id: opened.message.id, text: opened.message.text } : null,
+      };
+    } catch (e) {
+      console.error('crisis help: chat not opened', e && e.message);
+    }
+  }
   res.status(record.delivered ? 201 : 200).json({
     appeal_id: Number(appeal.lastInsertRowid),
     crisis: { ...crisisCard(record.delivered), id: record.id || null },
+    ...(crisisChat ? { crisis_chat: crisisChat } : {}),
   });
 });
 
@@ -1641,6 +1632,7 @@ function activeSetting(key) {
 const peopleRoutes = require('./modules/admin/people/routes');
 app.use('/api/v1/admin/people', peopleRoutes);
 app.use('/api/v1/admin', peopleRoutes.staffRouter);
+app.use('/api/v1/admin', require('./modules/admin/people/invites'));
 
 // W-36: разбор фразы врача моделью order_parse (F-35, этап 14). Монтируется ДО правил В2 (clinicalRoutes),
 // чтобы дополнить их ответом модели; файл В3 (src/modules/clinical/routes.js) не меняется.
@@ -1673,7 +1665,9 @@ require('./modules/analytics/reporting_routes').install(app, {
   auditPatient,
 });
 require('./modules/analytics/routes').install(app, { db, P, config, now, activeSetting });
+require('./modules/analytics/export_routes').install(app, { db, P, config, now, activeSetting });
 require('./modules/insights/routes').install(app, { db, P, config, now, activeSetting, auditPatient });
+require('./modules/admin/dashboard/routes').install(app, { db, P, config, now, activeSetting });
 require('./modules/diary/routes').install(app, {
   db,
   P,
@@ -1843,6 +1837,7 @@ const queueService = require('./modules/admin/queue').install(app, {
 
 // W-40: замещение специалиста (F-70/F-87) и постоянная передача (F-86).
 require('./modules/admin/logs/routes').install(app, { db, P, config });
+require('./modules/admin/agent/routes').install(app, { db, P });
 require('./modules/admin/prompts/routes').install(app, { db, P, keys: require('./ai/registry').PROMPT_KEYS });
 const substitutionService = require('./modules/substitutions/routes').install(app, {
   db,
@@ -1911,6 +1906,9 @@ require('./modules/patients/routes').install(app, {
   auditPatient,
 });
 
+registration.install(app);
+careLinks.install(app);
+
 app.all('/api/*', genericApi);
 
 function protectedPage(req, res, roles, render) {
@@ -1921,13 +1919,10 @@ function protectedPage(req, res, roles, render) {
 
 const AUTH_FOOT =
   '<p class="page-foot"><a href="/legal">Политика и соглашение</a> · <a href="/account/help">Справка</a> · Если тяжело — 112</p>';
-const demoQuick = (cfg) =>
-  cfg.demoMode
-    ? '<p class="demo-quick small muted">Демо: <a href="#" data-demo-role="patient">пациент</a> · <a href="#" data-demo-role="psychiatrist">психиатр</a> · <a href="#" data-demo-role="psychologist">психолог</a> · <a href="#" data-demo-role="admin">администратор</a></p>'
-    : '';
 
 function loginForm(message = '') {
-  return `<h1 data-testid="msg.login.title">Вход</h1>${message}<p class="form-error warn" data-testid="msg.login.session_expired" hidden>Сессия истекла — введённое сохранено</p><form id="login-form" class="form" action="/login" method="post"><label>Почта<input data-testid="msg.login.email" name="email" type="email" autocomplete="username"></label><label>Пароль<input data-testid="msg.login.password" name="password" type="password" autocomplete="current-password"></label><input type="hidden" name="restore_diary" value="0"><button class="btn primary wide-btn" data-testid="msg.login.submit" type="submit">Войти</button><p class="form-error" aria-live="polite"></p><p class="auth-links"><a href="/password/reset" data-testid="msg.login.forgot">Забыли пароль?</a> · <a href="/register" data-testid="msg.login.have_code">Есть код приглашения</a></p></form>${demoQuick(config)}${AUTH_FOOT}`;
+  const tabs = `<nav class="seg reg-seg" aria-label="${esc(t('msg.login.tabs', 'Вход или регистрация'))}"><a href="/login" aria-current="page" data-testid="msg.login.tab.login">${esc(t('msg.login.tab.login', 'Войти'))}</a><a href="/register" data-testid="msg.login.tab.register">${esc(t('msg.login.tab.register', 'Зарегистрироваться'))}</a></nav>`;
+  return `<h1 data-testid="msg.login.title">Вход</h1>${tabs}${message}<p class="form-error warn" data-testid="msg.login.session_expired" hidden>Сессия истекла — введённое сохранено</p><form id="login-form" class="form" action="/login" method="post"><label>Почта<input data-testid="msg.login.email" name="email" type="email" autocomplete="username"></label><label>Пароль<input data-testid="msg.login.password" name="password" type="password" autocomplete="current-password"></label><input type="hidden" name="restore_diary" value="0"><button class="btn primary wide-btn" data-testid="msg.login.submit" type="submit">Войти</button><p class="form-error" aria-live="polite"></p><p class="auth-links"><a href="/password/reset" data-testid="msg.login.forgot">Забыли пароль?</a> · <a href="/register" data-testid="msg.login.have_code">Есть код приглашения</a></p></form><p class="auth-links login-specialist"><a href="/register?as=specialist" data-testid="msg.login.specialist">${esc(t('msg.login.specialist', 'Я специалист — подать заявку'))}</a></p>${AUTH_FOOT}`;
 }
 const ROLE_CARDS = {
   patient: ['🙂', 'Чат с ИИ-помощником, лекарства, тесты, дневник'],
@@ -1935,17 +1930,25 @@ const ROLE_CARDS = {
   psychologist: ['💬', 'Тесты, заключения, кризисные сигналы'],
   admin: ['⚙️', 'Запросы, люди, настройки — без медицинских данных'],
 };
-app.get('/', (_req, res) => {
-  const roleCards = config.demoMode
-    ? `<div class="roles">${['patient', 'psychiatrist', 'psychologist', 'admin']
-        .map(
-          (r) =>
-            `<button type="button" class="role role-button" data-testid="msg.p01.role.${r}" data-demo-role="${r}"><span class="emo" aria-hidden="true">${ROLE_CARDS[r][0]}</span><span><b>${esc(t(`msg.p01.role.${r}`, r))}</b><small>${esc(t(`msg.p01.role.${r}.desc`, ROLE_CARDS[r][1]))}</small></span></button>`,
-        )
-        .join(
-          '',
-        )}</div><section class="demo-entry"><h2 class="sec-h" data-testid="msg.p01.route.title">Маршрут показа</h2><p class="lead">Пройдите по порядку — каждый шаг сам войдёт под нужной ролью.</p>${demoRouteHtml()}</section><p class="auth-links"><button type="button" class="link" data-testid="msg.p01.link.host" data-demo-role="demo_host">Ведущему демонстрации</button> · <a href="/login">Вход и регистрация</a></p>`
-    : '<p class="lead">Помощник психиатра и пациента между приёмами.</p><p class="auth-links"><a href="/login">Войти</a></p>';
+app.get('/', (req, res) => {
+  // Вошедший попадает к своим страницам, остальные — в окно входа и регистрации; быстрый вход — на /demo.
+  if (req.user?.role === 'host') return res.redirect(302, '/demo');
+  if (req.user?.id)
+    return res.redirect(302, req.user.role === 'patient' ? '/app' : req.user.role === 'admin' ? '/admin' : '/work');
+  return res.send(shell({ page: 'P-02', demo: config.demoMode, styles: ['/css/register.css'], body: loginForm() }));
+});
+// /demo: ведущий (сессия demo_host) попадает на страницу показа ниже, остальные видят быстрый вход по ролям.
+app.get('/demo', (req, res, next) => {
+  if (!config.demoMode) return res.status(404).send(errorPage({ user: req.user, demo: false }));
+  if (req.user?.role === 'host') return next();
+  const roleCards = `<div class="roles">${['patient', 'psychiatrist', 'psychologist', 'admin']
+    .map(
+      (r) =>
+        `<button type="button" class="role role-button" data-testid="msg.p01.role.${r}" data-demo-role="${r}"><span class="emo" aria-hidden="true">${ROLE_CARDS[r][0]}</span><span><b>${esc(t(`msg.p01.role.${r}`, r))}</b><small>${esc(t(`msg.p01.role.${r}.desc`, ROLE_CARDS[r][1]))}</small></span></button>`,
+    )
+    .join(
+      '',
+    )}</div><section class="demo-entry"><h2 class="sec-h" data-testid="msg.p01.route.title">Маршрут показа</h2><p class="lead">Пройдите по порядку — каждый шаг сам войдёт под нужной ролью.</p>${demoRouteHtml()}</section><p class="auth-links"><button type="button" class="link" data-testid="msg.p01.link.host" data-demo-role="demo_host">Ведущему демонстрации</button> · <a href="/login" data-testid="msg.p01.link.login">К входу</a></p>`;
   res.send(
     shell({
       page: 'P-01',
@@ -1954,21 +1957,24 @@ app.get('/', (_req, res) => {
     }),
   );
 });
-app.get('/login', (_req, res) => res.send(shell({ page: 'P-02', demo: config.demoMode, body: loginForm() })));
+app.get('/login', (_req, res) =>
+  res.send(shell({ page: 'P-02', demo: config.demoMode, styles: ['/css/register.css'], body: loginForm() })),
+);
 app.post('/login', (req, res) => {
-  const email = String(req.body.email || '')
-    .trim()
-    .toLowerCase();
-  const user = db.prepare('SELECT * FROM users WHERE email=? COLLATE NOCASE').get(email);
-  if (!user || !user.password_hash || !bcrypt.compareSync(String(req.body.password || ''), user.password_hash)) {
-    return res
-      .status(401)
-      .send(shell({ page: 'P-02', demo: config.demoMode, body: loginForm('<p>Неверная почта или пароль</p>') }));
+  const { fail, user } = authenticate(req, res);
+  if (fail?.code === 'E-AUTH-BLOCKED') return res.redirect(303, '/blocked');
+  if (fail?.application) return res.status(200).send(registration.applicationPage(fail.application));
+  if (fail) {
+    // Одно общее сообщение: страница не различает неверный пароль, неизвестную почту и временную блокировку.
+    return res.status(fail.status).send(
+      shell({
+        page: 'P-02',
+        demo: config.demoMode,
+        styles: ['/css/register.css'],
+        body: loginForm('<p>Неверная почта или пароль</p>'),
+      }),
+    );
   }
-  if (user.status !== 'active') return res.redirect(303, '/blocked');
-  P.closeSession(db, config, req.session, 'rotated');
-  P.createSession(db, config, res, { userId: user.id, role: user.role });
-  action(user, 'auth.login.success');
   const target =
     user.role === 'patient'
       ? req.body.restore_diary === '1'
@@ -2004,15 +2010,6 @@ app.get('/blocked', (_req, res) => {
     }),
   );
 });
-app.get('/register', (_req, res) =>
-  res.send(
-    shell({
-      page: 'P-03',
-      demo: config.demoMode,
-      body: `<h1 data-testid="msg.register.title">Регистрация</h1><p class="lead">По коду, который дал врач. Код действует 7 дней и подходит один раз.</p><form id="register-form" class="form"><label>Код приглашения<input data-testid="msg.register.code" name="invite_code" autocomplete="off"></label><label>Почта<input data-testid="msg.register.email" name="email" type="email" autocomplete="email"></label><label>Пароль<input data-testid="msg.register.password" name="password" type="password" autocomplete="new-password"></label><button class="btn primary wide-btn" data-testid="msg.register.next">Продолжить</button><p class="form-error" aria-live="polite"></p><p class="small muted">Дальше — четыре коротких согласия. Аккаунт появится после первого из них.</p><p class="auth-links"><a href="/login">Уже есть аккаунт? Войти</a></p></form>${demoQuick(config)}${AUTH_FOOT}`,
-    }),
-  ),
-);
 app.get('/password/reset', (_req, res) =>
   res.send(
     shell({
@@ -2062,7 +2059,7 @@ const HELP_FAQ = [
   ],
   [
     'Кто видит мой чат с ИИ',
-    'Только вы. Врач увидит лишь короткую фразу, если сервис заметит опасность.',
+    'Только вы. Если сервис заметит опасность, врач увидит короткую фразу и краткую оценку ИИ, но не сам разговор.',
     'msg.help.faq.who_sees',
   ],
   ['Как связаться с врачом', 'Вкладка «Врач». Ответ обычно в течение 2 рабочих дней.', null],
@@ -2080,7 +2077,7 @@ app.get('/account/help', (req, res) => {
       page: 'P-27',
       user: req.user,
       demo: config.demoMode,
-      body: `${req.user ? accountTabs(req.user, 'help') : ''}<a class="help-112" href="tel:112" data-testid="msg.help.call_112">Позвонить 112</a><h1 data-testid="msg.help.title">Справка</h1><section class="callout"><h3>Если тяжело прямо сейчас</h3><p>Звоните 112. Чат и сообщения врачу — не срочная помощь.</p></section>${contactsHtml}<div class="list help-faq">${[...HELP_FAQ, ...(req.user?.role === 'patient' ? [[t('msg.help.flower.q'), t('msg.help.flower.a'), 'flower']] : [])].map(([q, a, key]) => `<div class="li"${key === 'flower' ? ' id="flower"' : ''}><div class="grow"><b>${esc(q)}</b><small class="wrap">${esc(a)}</small></div></div>`).join('')}</div><p class="footnote" data-standin>Тексты — заглушки, требуют проверки специалистом.</p>`,
+      body: `${req.user ? accountTabs(req.user, 'help') : ''}<a class="help-112" href="tel:112" data-testid="msg.help.call_112">Позвонить 112</a>${req.user?.role === 'patient' ? `<section class="callout" data-testid="msg.help.talk_now.box"><button type="button" class="btn primary" data-crisis-talk data-testid="msg.help.talk_now">${esc(t('msg.help.talk_now'))}</button><p class="small muted">${esc(t('msg.help.talk_now.note'))}</p></section><script src="/js/patient_crisis.js" defer></script>` : ''}<h1 data-testid="msg.help.title">Справка</h1><section class="callout"><h3>Если тяжело прямо сейчас</h3><p>Звоните 112. Чат и сообщения врачу — не срочная помощь.</p></section>${contactsHtml}<div class="list help-faq">${[...HELP_FAQ, ...(req.user?.role === 'patient' ? [[t('msg.help.flower.q'), t('msg.help.flower.a'), 'flower']] : [])].map(([q, a, key]) => `<div class="li"${key === 'flower' ? ' id="flower"' : ''}><div class="grow"><b>${esc(q)}</b><small class="wrap">${esc(a)}</small></div></div>`).join('')}</div><p class="footnote" data-standin>Тексты — заглушки, требуют проверки специалистом.</p>`,
     }),
   );
 });
@@ -2088,8 +2085,8 @@ app.get('/account/help', (req, res) => {
 // Документы сервиса (P-09, F-100): списком, тексты — заглушки до юридической проверки.
 const LEGAL_DOCS = [
   ['about', 'О программе', 'что сервис делает и чего не делает'],
-  ['privacy', 'Политика обработки персональных данных', 'версия 1.0'],
-  ['agreement', 'Пользовательское соглашение', 'версия 1.0'],
+  ['privacy', 'Политика обработки персональных данных', 'текст и версия'],
+  ['agreement', 'Пользовательское соглашение', 'текст и версия'],
   ['cookie', 'Cookie', 'только необходимые'],
   ['org', 'Сведения о медицинской организации', 'заполняются перед боевым запуском'],
 ];
@@ -2181,17 +2178,28 @@ app.get('/app', (req, res) =>
     const substitutionNote = substitution
       ? `<p data-testid="msg.doctor.substitution">${esc(substitution.absent_name)} в отпуске до ${esc(substitution.date_to)}, вас ведёт ${esc(substitution.substitute_name)}.</p>`
       : '';
-    const doctor = `<section class="chat-tab doctor-tab"><div class="pane"><div class="dhead"><span class="avatar-sm" data-doctor-avatar>·</span><div class="who"><h1 data-testid="msg.doctor.header">Связь со специалистом</h1><small class="muted" data-doctor-role></small></div><span data-doctor-pick></span></div>${substitutionNote}<div class="scroll" tabindex="0" role="region" aria-label="Сообщения специалисту"><div class="col feed"><div id="v3-doctor"></div></div></div><div class="dock"><div class="col"><div class="chat-input"><textarea data-testid="msg.doctor.placeholder" rows="2" placeholder="Сообщение врачу" aria-label="Сообщение врачу"></textarea><button type="button" data-testid="msg.composer.send">Отправить</button></div><p class="footnote" data-testid="msg.doctor.channel">Не срочно: ответ обычно в течение ${replyDays} рабочих дней. Если тяжело — 112.</p><p data-testid="msg.shell.offline" hidden>Нет сети. Повторить</p></div></div></div></section><script src="/js/mic.js" defer></script>`;
+    const doctor = `<section class="chat-tab doctor-tab"><div class="pane"><div class="dhead"><span class="avatar-sm" data-doctor-avatar>·</span><div class="who"><h1 data-testid="msg.doctor.header">Связь со специалистом</h1><small class="muted" data-doctor-role></small></div><span data-doctor-pick></span><a class="btn sm" href="/app?tab=visits" data-testid="msg.nav.patient.visits"><svg class="i i--16" aria-hidden="true" focusable="false"><use href="/icons.svg#i-calendar-blank"/></svg>${esc(t('msg.nav.patient.visits'))}</a></div>${substitutionNote}<div class="scroll" tabindex="0" role="region" aria-label="Сообщения специалисту"><div class="col feed"><div id="v3-doctor"></div></div></div><div class="dock"><div class="col"><div class="chat-input"><textarea data-testid="msg.doctor.placeholder" rows="2" placeholder="Сообщение врачу" aria-label="Сообщение врачу"></textarea><button type="button" data-testid="msg.composer.send">Отправить</button></div><p class="footnote" data-testid="msg.doctor.channel">Не срочно: ответ обычно в течение ${replyDays} рабочих дней. Если тяжело — 112.</p><p data-testid="msg.shell.offline" hidden>Нет сети. Повторить</p></div></div></div></section><script src="/js/mic.js" defer></script>`;
     const aeFlow = req.query.flow === 'ae';
     const meds = aeFlow
       ? `<section class="pt-form"><p class="pt-back"><a class="btn sm" href="/app?tab=meds"><svg class="i i--16" aria-hidden="true" focusable="false"><use href="/icons.svg#i-arrow-left"/></svg>${esc(t('msg.pt.back_to_meds'))}</a></p><h1>Плохо переношу препарат</h1><div id="v3-ae" class="card"></div></section>`
       : `<section class="chat-tab meds-tab"><aside class="side" aria-label="${esc(t('msg.meds.side'))}"><div class="side-head"><button type="button" class="new" data-meds-add>${esc(t('msg.meds.side.add'))}</button></div><h4>${esc(t('msg.meds.now'))}</h4><div data-meds-now></div><h4 data-meds-past-h hidden>${esc(t('msg.meds.past'))}</h4><div data-meds-past></div></aside><div class="pane"><div class="scroll"><div class="col"><h1>${esc(t('msg.nav.patient.meds'))}</h1><p data-standin>Справочник лекарств — STAND-IN, требует клинического ревью.</p><div id="v2-meds"></div></div></div></div></section>`;
-    const tests = `<section class="chat-tab tests-tab"><aside class="side" aria-label="Тесты"><div data-tests-side></div></aside><div class="pane"><div class="scroll"><div class="col"><h1>Тесты</h1><div id="v2-tests"></div></div></div></div></section>`;
+    const testsRun = Boolean(req.query.run);
+    // Без боковой панели: сверху методики самопомощи с картинками, ниже тесты двумя группами («Назначено врачом» и
+    // «Можно пройти без врача»), затем недавние результаты. Во время прохождения теста на странице только он.
+    const tests = testsRun
+      ? `<section class="chat-tab tests-tab"><div class="pane"><div class="scroll"><div class="col tests-col"><h1>Методики</h1><div id="v2-tests"></div></div></div></div></section>`
+      : `<section class="chat-tab tests-tab"><div class="pane"><div class="scroll"><div class="col tests-col"><h1>Методики</h1><div class="seg seg--sm segmented tests-tabs" id="tests-tabs" role="group" aria-label="Раздел методик"><button type="button" data-ttab="exercises" aria-pressed="true">Упражнения</button><button type="button" data-ttab="tests" aria-pressed="false">Тесты</button></div><div id="tests-notice"></div>${techniques.section('', { compact: true })}<section class="tech-section tests-block" id="tests" aria-label="Тесты" hidden><p class="tests-intro">Тесты помогают вам и специалисту видеть, как меняется самочувствие. Это не диагноз.</p><div class="tests-groups"><div class="tests-group" id="tests-assigned"></div><div class="tests-group" id="v2-tests"></div></div></section></div></div></div></section>`;
     // W-34: чат пациента P-13 — шаблон прототипа v5; без ИИ-согласия поле заменяет строка (T-415).
     const aiConsent = db
       .prepare("SELECT action FROM consent_current WHERE user_id=? AND consent_kind='ai'")
       .get(req.user.id);
     const aiOff = !aiConsent || aiConsent.action !== 'given';
+    // Возврат в тот же чат: вернулись на вкладку в пределах окна давности — открывается последний тред, а не пустой экран.
+    // «Новый чат» ведёт на /app?tab=chat&new=1, ссылки с ask/thread/flow не перенаправляются.
+    if (tab === 'chat' && !aiOff && Object.keys(req.query).every((k) => k === 'tab')) {
+      const resume = chatResume.activeThread(db, req.user.id, now(config).getTime());
+      if (resume) return res.redirect(302, `/app?tab=chat&thread=${resume.id}`);
+    }
     const chatThreads = aiOff
       ? []
       : db
@@ -2204,8 +2212,17 @@ app.get('/app', (req, res) =>
     const chatEarlier = [];
     for (const th of chatThreads)
       (String(th.updated_at || '').slice(0, 10) === todayIso ? chatToday : chatEarlier).push(th);
-    const chat = patientChatPage.render({ t, aiOff, today: chatToday, earlier: chatEarlier });
-    const visits = `<section class="chat-tab visits-tab"><aside class="side" aria-label="Визиты"><div data-visits-side></div></aside><div class="pane"><div class="scroll"><div class="col"><h1>Визиты</h1><div id="v3-visits"></div></div></div></div></section>`;
+    const chat = patientChatPage.render({
+      t,
+      aiOff,
+      today: chatToday,
+      earlier: chatEarlier,
+      reminders: req.reminders || [],
+      pausedUntil: app.locals.chatConduct
+        ? (app.locals.chatConduct.activeBlock(req.user.id) || {}).blocked_until || null
+        : null,
+    });
+    const visits = `<section class="chat-tab visits-tab"><aside class="side" aria-label="Визиты"><div data-visits-side></div></aside><div class="pane"><div class="scroll"><div class="col"><p class="pt-back"><a class="btn sm" href="/app?tab=doctor"><svg class="i i--16" aria-hidden="true" focusable="false"><use href="/icons.svg#i-arrow-left"/></svg>${esc(t('msg.nav.patient.doctor'))}</a></p><h1>Визиты</h1><div id="v3-visits"></div></div></div></div></section>`;
     const standin = `<h1>${esc(t(`msg.nav.patient.${tab}`, tab))}</h1><p data-standin>STAND-IN</p>`;
     // W-48: «Библиотека» пациента — аудио и видео (S-50). Статьи живут в журнале (/journal).
     const libKind = libraryRoutes.KIND_TO_MEDIA[String(req.query.kind || '')] ? String(req.query.kind) : '';
@@ -2233,7 +2250,9 @@ app.get('/app', (req, res) =>
         styles: tab === 'diary' ? diaryPage.styles : [],
         scripts: tab === 'diary' ? diaryPage.scripts : [],
         layout:
-          (tab === 'chat' && !aiOff) || tab === 'doctor' || (['meds', 'tests', 'visits'].includes(tab) && !aeFlow)
+          (tab === 'chat' && !aiOff) ||
+          tab === 'doctor' ||
+          (['meds', 'tests', 'visits', 'diary'].includes(tab) && !aeFlow)
             ? 'app'
             : '',
         user: req.user,
@@ -2275,10 +2294,10 @@ function workMorePage() {
     .join('')}</section>`;
 }
 
-// P-23: раздел «Документы» — личные шаблоны текстов врача (список слева, текст по центру, кнопка «ИИ» внизу);
+// P-23: вкладка «Шаблоны и документы» — личные шаблоны текстов врача (список слева, текст по центру, кнопка «ИИ» внизу);
 // клиентская часть — public/js/work_docs.js, API — src/ai/workspace/templatesApi.js.
 function workDocsPage(user, patients) {
-  return require('./modules/templates/work_page').render(patients);
+  return require('./modules/templates/work_page').render(patients, { documents: user.role === 'psychiatrist' });
 }
 
 // Пациенты специалиста: список слева, карточка справа (раскладка прототипа v5, P-18/P-19).
@@ -2315,7 +2334,7 @@ function patientsSplit({ user, patients, selected = null, ptab = 'overview' }) {
           `<a class="pill${tab === ptab ? ' on' : ''}" data-testid="msg.card.tab.${tab}" href="?ptab=${tab}"${tab === ptab ? ' aria-current="page"' : ''}>${esc(t(`msg.card.tab.${tab}`, tab))}</a>`,
       )
       .join('');
-    card = `<div class="pcard"><div class="phead"><a class="back link" href="/work?tab=patients"><svg class="i" aria-hidden="true" focusable="false"><use href="/icons.svg#i-caret-left"/></svg><span>${esc(t('msg.card.back', 'Пациенты'))}</span></a><div class="phead-main"><span class="avatar-sm ava ava--lg">${esc(initials(selected.full_name))}</span><div class="grow"><h1>${esc(selected.full_name) || 'Карточка пациента'}</h1><div class="st-line" data-pstatus></div></div></div><div class="btn-row phead-act"><a class="btn primary btn-sm sm" data-testid="msg.card.write" href="?ptab=messages">${esc(t('msg.card.write', 'Написать'))}</a><a class="btn sm" href="/work?tab=chat&p=${selected.id}"><svg class="i" aria-hidden="true" focusable="false"><use href="/icons.svg#i-sparkle"/></svg><span class="lbl">Спросить ИИ</span></a><span class="menu-wrap"><button type="button" class="round round--sm" data-testid="msg.card.menu" aria-haspopup="true" aria-label="Ещё действия" data-card-menu-btn><svg class="i" aria-hidden="true" focusable="false"><use href="/icons.svg#i-dots-three-vertical"/></svg></button><div class="menu card-menu" data-card-menu hidden><a href="/account#vacation" data-testid="msg.card.menu.vacation">Передать коллеге на время отпуска</a>${user.role === 'psychiatrist' ? '<button type="button" class="danger" data-testid="msg.card.menu.archive" data-archive-open>Завершить наблюдение</button>' : ''}</div></span></div></div><nav class="seg seg--sm ptabs" aria-label="Разделы карточки">${tabLinks}</nav><div class="scroll"><div class="pbody"><div id="v2-card" data-patient-id="${selected.id}" data-tab="${esc(ptab)}"></div></div></div></div>`;
+    card = `<div class="pcard"><div class="phead"><a class="back link" href="/work?tab=patients"><svg class="i" aria-hidden="true" focusable="false"><use href="/icons.svg#i-caret-left"/></svg><span>${esc(t('msg.card.back', 'Пациенты'))}</span></a><div class="phead-main"><span class="avatar-sm ava ava--lg">${esc(initials(selected.full_name))}</span><div class="grow"><h1>${esc(selected.full_name) || 'Карточка пациента'}</h1><div class="st-line" data-pstatus></div></div></div><div class="btn-row phead-act"><a class="btn primary btn-sm sm" data-testid="msg.card.write" href="?ptab=messages">${esc(t('msg.card.write', 'Написать'))}</a><a class="btn sm" href="/work?tab=chat&p=${selected.id}"><svg class="i" aria-hidden="true" focusable="false"><use href="/icons.svg#i-sparkle"/></svg><span class="lbl">Спросить ИИ</span></a><span class="menu-wrap"><button type="button" class="round round--sm" data-testid="msg.card.menu" aria-haspopup="true" aria-label="Ещё действия" data-card-menu-btn><svg class="i" aria-hidden="true" focusable="false"><use href="/icons.svg#i-dots-three-vertical"/></svg></button><div class="menu card-menu" data-card-menu hidden><a href="/account#vacation" data-testid="msg.card.menu.vacation">Передать коллеге на время отпуска</a>${user.role === 'psychiatrist' ? '<button type="button" class="danger" data-testid="msg.card.menu.archive" data-archive-open>Завершить наблюдение</button>' : ''}</div></span></div></div><nav class="seg seg--sm ptabs" aria-label="Разделы карточки">${tabLinks}</nav><div class="scroll"><div class="pbody"><div class="ae-bar"${user.role === 'psychiatrist' ? '' : ' hidden'}><button type="button" class="btn sm" data-testid="msg.ae.clinician.add" data-ae-open aria-expanded="false"><svg class="i" aria-hidden="true" focusable="false"><use href="/icons.svg#i-plus"/></svg><span class="lbl">${esc(t('msg.ae.clinician.add', 'Нежелательное явление'))}</span></button></div><div id="v2-card" data-patient-id="${selected.id}" data-tab="${esc(ptab)}"></div></div></div></div>`;
   }
   return `<section class="split ${selected ? 'has-p' : 'no-p'}">${list}${card}</section>`;
 }
@@ -2334,18 +2353,18 @@ app.get('/work', (req, res) =>
     };
     const patients = db
       .prepare(
-        'SELECT u.id,u.full_name FROM care_assignments ca JOIN users u ON u.id=ca.patient_id WHERE ca.clinician_id=? AND ca.ended_at IS NULL ORDER BY u.full_name',
+        "SELECT u.id,u.full_name FROM care_assignments ca JOIN users u ON u.id=ca.patient_id WHERE ca.clinician_id=? AND ca.ended_at IS NULL AND COALESCE(ca.end_reason,'')<>'signal_only' ORDER BY u.full_name",
       )
       .all(req.user.id);
     const patientList = patientsSplit({ user: req.user, patients });
-    const tools = `<section class="chat-tab tools-tab"><aside class="side" aria-label="Тесты и пакеты"><div data-tools-side></div></aside><div class="pane"><div class="scroll"><div class="col"><h1>Тесты и пакеты</h1><div id="work-tools" data-patients="${encodeURIComponent(JSON.stringify(patients.map((p) => ({ id: p.id, name: p.full_name }))))}"><p class="muted">Загружаю…</p></div><h2 class="sec-h" id="offline">Внести очный результат</h2><section class="card" aria-labelledby="offline"><p class="sub">Напишите, надиктуйте или сфотографируйте бланк — появится черновик для проверки.</p><div class="acts"><button data-testid="msg.nav.clinician.more.offline">Очный результат</button><label class="file-btn">Фото бланка<input type="file" data-testid="msg.composer.attach.photo" accept="image/*"></label></div><div id="v2-offline"></div></section></div></div></div></section>`;
+    const tools = `<section class="chat-tab tools-tab"><div class="pane"><div class="scroll"><div class="col"><h1>Методики</h1><p class="lead">Методики для самопомощи, которые пациенты видят сразу, и тесты, которые вы назначаете.</p>${techniques.section('Эти методики сразу доступны всем пациентам во вкладке «Методики», назначать их не нужно: рекомендуйте по ситуации.')}<div id="work-tools" data-patients="${encodeURIComponent(JSON.stringify(patients.map((p) => ({ id: p.id, name: p.full_name }))))}"><p class="muted">Загружаю…</p></div><h2 class="sec-h" id="offline">Внести очный результат</h2><section class="card" aria-labelledby="offline"><p class="sub">Шкала, выбранная выше в «Тестах для назначения», откроется пустой — отметьте ответы пациента с приёма, и результат сохранится в его карточке. Для бумажного бланка (в том числе с рисунком или письмом от руки) — «Фото бланка»: снимок сохранится в карточке пациента.</p><div class="acts"><button type="button" class="btn primary" data-testid="msg.nav.clinician.more.offline" data-offline-open>Заполнить бланк</button><label class="btn file-btn">Фото бланка<input type="file" data-testid="msg.composer.attach.photo" accept="image/jpeg,image/png,application/pdf" hidden></label></div><div id="offline-form"></div><div id="v2-offline"></div></section></div></div></div></section>`;
     // W-41: ответственный по фармаконадзору S-27 — действующее значение сразу (T-189).
     const pv = activeSetting('pv.responsible').value || {};
     const pvWho = pv && pv.name ? `${pv.name}${pv.contact ? `, ${String(pv.contact)}` : ''}` : '';
     const pvLine = pvWho
       ? `<p data-testid="msg.ae.pv_responsible">${esc(t('msg.ae.pv_responsible').replace('{who}', pvWho))}</p>`
       : `<p data-testid="msg.ae.pv_responsible.empty" data-standin>${esc(t('msg.ae.pv_responsible.empty'))}</p>`;
-    const signals = `<section class="work-page signals-page"><div class="scroll"><div class="work-wrap"><h1>Сигналы</h1><div class="sub-line">${pvLine}</div><div id="v3-signals" data-can-ae="${req.user.role === 'psychiatrist' ? '1' : '0'}"></div></div></div></section>`;
+    const signals = `<section class="work-page signals-page"><div class="scroll"><div class="work-wrap"><h1>Сигналы</h1><div class="sig-guide"><p>Сюда попадает всё, на что специалист должен отреагировать. Сигналы бывают двух видов:</p><ul><li><b>Кризис.</b> Пациент написал фразу о нежелании жить или об опасности. Нужно срочно связаться с человеком.</li>${req.user.role === 'psychiatrist' ? '<li><b>Побочный эффект.</b> Пациент пожаловался, что ему хуже после лекарства. Нужно решить, связано ли это с препаратом.</li>' : ''}</ul><p class="muted small">Обработанный сигнал уходит во вкладку «Обработанные».</p></div><div class="sub-line">${pvLine}</div><div id="v3-signals" data-can-ae="${req.user.role === 'psychiatrist' ? '1' : '0'}"></div></div></div></section>`;
     res.send(
       shell({
         page: pages[tab] || 'P-20',
@@ -2382,6 +2401,36 @@ app.get('/work', (req, res) =>
     );
   }),
 );
+// Пустой бланк теста для печати: специалист даёт его пациенту заполнить вручную.
+app.get('/print/test/:code', (req, res) =>
+  protectedPage(req, res, ['psychiatrist', 'psychologist'], () => {
+    const code = String(req.params.code || '').slice(0, 60);
+    const row = db.prepare('SELECT title FROM instruments WHERE code=?').get(code);
+    const preview = row && require('./modules/clinical/instruments/preview').preview(db, code);
+    if (!preview || !preview.questions.length)
+      return res.status(404).send(errorPage({ user: req.user, demo: config.demoMode }));
+    res.set('Cache-Control', 'no-store');
+    return res.send(require('./modules/print/testSheet').render({ title: row.title || code, preview }));
+  }),
+);
+app.get('/methods/:slug', (req, res) =>
+  protectedPage(req, res, ['patient', 'psychiatrist', 'psychologist'], () => {
+    const technique = techniques.bySlug(req.params.slug);
+    if (!technique) return res.status(404).send(errorPage({ user: req.user, demo: config.demoMode }));
+    const patient = req.user.role === 'patient';
+    return res.send(
+      shell({
+        page: patient ? 'P-11' : 'P-21',
+        title: technique.title,
+        user: req.user,
+        demo: config.demoMode,
+        body: techniques.page(technique, patient ? '/app?tab=tests' : '/work?tab=tools', patient),
+        styles: ['/techniques.css'],
+        scripts: ['/techniques.js'],
+      }),
+    );
+  }),
+);
 app.get('/work/approvals', (req, res) =>
   protectedPage(req, res, ['psychiatrist', 'psychologist'], () =>
     res.send(
@@ -2402,7 +2451,7 @@ app.get('/work/approvals', (req, res) =>
   ),
 );
 const ADMIN_TABS = {
-  chat: ['P-34', 'Чат'],
+  dashboard: ['P-34', 'Обзор'],
   requests: ['P-35', 'Запросы'],
   people: ['P-36', 'Люди'],
   settings: ['P-38', 'Настройки'],
@@ -2415,10 +2464,11 @@ const ADMIN_TABS = {
 };
 app.get('/admin', (req, res) =>
   protectedPage(req, res, ['admin'], () => {
-    const tab = ADMIN_TABS[String(req.query.tab || 'chat')] ? String(req.query.tab || 'chat') : 'chat';
+    // Чата администратора больше нет: старые ссылки ведут на обзор.
+    if (req.query.tab === 'chat') return res.redirect(302, '/admin');
+    const tab = ADMIN_TABS[String(req.query.tab || 'dashboard')] ? String(req.query.tab || 'dashboard') : 'dashboard';
     const sub = String(req.query.s || '');
     const [pageId, title] = ADMIN_TABS[tab];
-    const chat = `<section class="chat-tab admin-chat" id="admin-chat"><div class="pane"><div class="scroll"><div class="col feed"><div data-feed aria-live="polite"></div><div class="hello" data-hello><h1 data-testid="msg.admin.chat.empty.title">Чем помочь?</h1><p data-testid="msg.admin.chat.empty.lead">${esc(t('msg.admin.chat.empty.lead', 'Команда или вопрос о работе сервиса — я подготовлю черновик'))}</p><div class="ideas">${['1', '2', '3', '4'].map((n) => `<button type="button" class="idea" data-idea="${esc(t(`msg.admin.chat.example.${n}`, ''))}">${esc(t(`msg.admin.chat.example.${n}`, ''))}</button>`).join('')}</div></div></div></div><div class="dock"><div class="col"><div class="chat-sugg" data-sugg><span class="chat-sugg__label">Подсказки:</span> <a class="hint" href="/admin?tab=requests" data-testid="msg.admin.chat.suggest.open">Открытые запросы</a><button type="button" class="hint" data-fill="заблокируй ">Заблокировать пользователя</button><a class="hint" href="/admin?tab=settings">Последние изменения настроек</a></div><div class="chat-input"><textarea data-testid="msg.admin.chat.placeholder" rows="2" placeholder="${esc(t('msg.admin.chat.placeholder', 'Команда или вопрос — например: заблокируй Петрову'))}" aria-label="Команда администратора"></textarea><button type="button" data-testid="msg.composer.send">Отправить</button></div><p class="footnote">Ассистент понимает команды и готовит черновик — вы подтверждаете кнопкой. Медицинских данных вы не видите: пациенты — номера.</p></div></div></div></section><script src="/admin.js" defer></script><script src="/js/mic.js" defer></script>`;
     res.send(
       shell({
         page:
@@ -2431,11 +2481,10 @@ app.get('/admin', (req, res) =>
                 : pageId,
         user: req.user,
         demo: config.demoMode,
-        layout: tab === 'chat' ? 'app' : '',
-        body:
-          tab === 'chat'
-            ? chat
-            : `<div class="adm-head"><div><h1 data-testid="msg.admin.shell.title">${esc(title)}</h1><p class="sub">${esc(t(`msg.admin.sub.${tab}`, ''))}</p></div></div><div id="admin-app" data-tab="${esc(tab)}" data-s="${esc(sub)}" data-me="${Number(req.user.id)}" data-prompt-keys="${esc(require('./ai/registry').PROMPT_KEYS.join(','))}"><p class="muted">Загружаю…</p></div><script src="/admin.js" defer></script>`,
+        styles: tab === 'dashboard' ? ['/css/dashboard.css'] : tab === 'requests' ? ['/css/register.css'] : [],
+        scripts:
+          tab === 'dashboard' ? ['/js/admin_dashboard.js'] : tab === 'requests' ? ['/js/admin_staff_apps.js'] : [],
+        body: `<div class="adm-head"><div><h1 data-testid="msg.admin.shell.title">${esc(title)}</h1><p class="sub">${esc(t(`msg.admin.sub.${tab}`, ''))}</p></div></div>${tab === 'requests' ? '<section id="staff-apps" class="staff-apps" aria-labelledby="staff-apps-h"></section>' : ''}<div id="admin-app" data-tab="${esc(tab)}" data-s="${esc(sub)}" data-me="${Number(req.user.id)}" data-prompt-keys="${esc(require('./ai/registry').PROMPT_KEYS.join(','))}"><p class="muted">Загружаю…</p></div><script src="/js/admin_invites.js" defer></script><script src="/admin.js" defer></script>`,
       }),
     );
   }),
@@ -2457,7 +2506,7 @@ app.get('/account', (req, res) =>
   ${patient ? '<section class="card acc-block" data-doctor-block><h3>Ваш врач</h3><div class="li"><div class="grow"><b data-doctor-name>—</b><small data-doctor-role></small></div><button class="btn" data-testid="msg.profile.change_doctor" type="button">Попросить сменить</button></div><section class="change-doctor" hidden><label>Причина — необязательно. Её увидит только администратор.<textarea data-testid="msg.profile.change_doctor.reason"></textarea></label><div class="acts"><button class="btn primary" data-testid="msg.profile.change_doctor.send" type="button">Отправить просьбу</button></div><p class="sub" data-testid="msg.profile.change_doctor.sent" hidden>Просьба отправлена. Пока всё работает как раньше.</p></section></section>' : ''}
   ${clinician ? `<section class="card acc-block"><h3>Работа</h3>${req.user.role === 'psychiatrist' ? '<div class="li"><div class="grow"><b>Подсказки ИИ: гипотезы с источниками</b><small>Можно выключить, если не нужны</small></div><button type="button" class="switch" role="switch" aria-checked="false" data-testid="msg.profile.hints" aria-label="Подсказки ИИ"></button></div>' : ''}<div class="li" data-vacation id="vacation"><div class="grow"><b>Отпуск</b><small>Передать пациентов коллеге на время отпуска</small></div><button type="button" class="btn" data-testid="msg.profile.vacation" data-vac-open>Оформить</button></div><div class="vac-form" hidden><div class="row-fields"><label>Кто замещает<select data-testid="msg.profile.vacation.who" data-vac-who></select></label><label>С<input type="date" data-testid="msg.profile.vacation.from" data-vac-from></label><label>По<input type="date" data-testid="msg.profile.vacation.to" data-vac-to></label></div><div class="acts"><button type="button" class="btn primary" data-testid="msg.profile.vacation.send" data-vac-send>Отправить на подтверждение</button></div><p class="sub" data-testid="msg.profile.vacation.waiting" data-vac-waiting hidden>Ждёт подтверждения администратора</p><p class="sub" data-vac-out aria-live="polite"></p></div></section>` : ''}
   <section class="card acc-block"><h3>Второй фактор входа</h3><div class="li"><div class="grow"><b>Подтверждение кодом</b><small>${req.user.role === 'admin' ? 'для администраторов — включается настройкой сервиса' : 'дополнительная защита входа'}</small></div><span class="soon" title="Интерфейс готов, серверная часть в работе">скоро</span></div></section>
-</div><script src="/account.js" defer></script>`,
+</div><script src="/account.js" defer></script>${patient ? '<script src="/js/care_links.js" defer></script>' : ''}`,
       }),
     );
   }),
@@ -2481,7 +2530,7 @@ app.get('/account/data', (req, res) =>
         page: 'P-16',
         user: req.user,
         demo: config.demoMode,
-        body: `${accountTabs(req.user, 'data')}<h1 data-testid="msg.mydata.title">Мои данные и согласия</h1><p class="lead">Что о вас хранится, кто это видел и что можно сделать.</p><div id="my-data"><p class="muted">Загружаю…</p></div><script src="/account.js" defer></script>`,
+        body: `${accountTabs(req.user, 'data')}<h1 data-testid="msg.mydata.title">Мои данные и согласия</h1><p class="lead">Что о вас хранится, кто это видел и что можно сделать.</p><div id="my-data"><p class="muted">Загружаю…</p></div><script src="/account.js" defer></script><script src="/js/care_links.js" defer></script>`,
       }),
     ),
   ),
@@ -2493,7 +2542,7 @@ const notificationPage = (req, res) =>
         page: 'P-32',
         user: req.user,
         demo: config.demoMode,
-        body: `${accountTabs(req.user, 'notifications')}<h1 data-testid="msg.notifications.title">Уведомления</h1><div class="acts head-acts"><button class="btn" data-testid="msg.notifications.read_all" type="button">Прочитать все</button></div><div id="acc-notes" class="list"><p class="muted small">Загружаем…</p></div>${req.user.role === 'patient' ? '<h2 class="sec-h">Напоминания</h2><div class="list" id="acc-reminders"></div>' : ''}<p class="footnote">Уведомления приходят только сюда — без SMS и писем. Хранятся 90 дней.</p><script src="/account.js" defer></script>`,
+        body: `${accountTabs(req.user, 'notifications')}<h1 data-testid="msg.notifications.title">Уведомления</h1><div class="acts head-acts"><button class="btn" data-testid="msg.notifications.read_all" type="button">Прочитать все</button></div><div id="acc-notes" class="list"><p class="muted small">Загружаем…</p></div>${req.user.role === 'patient' ? '<h2 class="sec-h">Напоминания</h2><div class="list" id="acc-reminders"></div><h2 class="sec-h">Цветок и тёплые слова</h2><div class="list" id="acc-flower"></div>' : ''}<p class="footnote">Уведомления приходят сюда и, если включить пуши на устройстве, коротким «Есть напоминание» — без SMS и писем. Хранятся 90 дней.</p><script src="/js/push.js" defer></script><script src="/account.js" defer></script>`,
       }),
     ),
   );
@@ -2533,13 +2582,11 @@ app.get('/demo', (req, res) => {
 });
 app.get('/work/patients/:id', (req, res) =>
   protectedPage(req, res, ['psychiatrist', 'psychologist'], () => {
-    const own = db
-      .prepare('SELECT 1 FROM care_assignments WHERE patient_id=? AND clinician_id=? AND ended_at IS NULL')
-      .get(Number(req.params.id), req.user.id);
+    const own = isFullyAssigned(db, Number(req.params.id), req.user.id);
     if (!own) return res.status(404).send(errorPage({ user: req.user, demo: config.demoMode }));
     const patients = db
       .prepare(
-        'SELECT u.id,u.full_name FROM care_assignments ca JOIN users u ON u.id=ca.patient_id WHERE ca.clinician_id=? AND ca.ended_at IS NULL ORDER BY u.full_name',
+        "SELECT u.id,u.full_name FROM care_assignments ca JOIN users u ON u.id=ca.patient_id WHERE ca.clinician_id=? AND ca.ended_at IS NULL AND COALESCE(ca.end_reason,'')<>'signal_only' ORDER BY u.full_name",
       )
       .all(req.user.id);
     const selected = db.prepare('SELECT id,full_name FROM users WHERE id=?').get(Number(req.params.id));
@@ -2549,6 +2596,7 @@ app.get('/work/patients/:id', (req, res) =>
         user: req.user,
         demo: config.demoMode,
         layout: 'app',
+        scripts: ['/js/ae_wizard.js', '/js/ae_clinician.js'],
         body: patientsSplit({ user: req.user, patients, selected, ptab: String(req.query.ptab || 'overview') }),
       }),
     );
@@ -2558,6 +2606,31 @@ app.get('/work/patients/:id', (req, res) =>
 app.use((req, res) => {
   if (req.path.startsWith('/api/')) return P.sendError(req, res, 404, 'E-NOT-FOUND');
   return res.status(404).send(errorPage({ user: req.user, demo: config.demoMode }));
+});
+
+// Необработанная ошибка: ответ в формате API вместо HTML Express и запись в журнал (стандартный
+// обработчик Express в NODE_ENV=test молчит). Текст ошибки пишем только для SQLite: в сообщениях
+// JSON.parse и прочих бывает кусок данных пациента.
+// eslint-disable-next-line no-unused-vars
+app.use((error, req, res, next) => {
+  if (error.type === 'entity.parse.failed') return P.sendError(req, res, 422, 'E-VALIDATION');
+  if (error.type === 'entity.too.large') return P.sendError(req, res, 413, 'E-FILE-SIZE');
+  console.error(
+    JSON.stringify({
+      event: 'http.error',
+      method: req.method,
+      route: req.route?.path || null,
+      name: error.name,
+      code: error.code || null,
+      ...(error.name === 'SqliteError' ? { message: error.message } : {}),
+      at:
+        String(error.stack || '')
+          .split('\n')[1]
+          ?.trim() || null,
+    }),
+  );
+  if (res.headersSent) return undefined;
+  return P.sendError(req, res, 500, 'E-INTERNAL');
 });
 
 const mailer = nodemailer.createTransport({
@@ -2574,6 +2647,9 @@ function smtpSend(to, text) {
 }
 
 let jobRunning = false;
+const patientPush = require('./modules/patient/push').createPush({ db, config, now: () => now(config) });
+app.locals.push = patientPush;
+
 async function jobs() {
   if (jobRunning) return;
   jobRunning = true;
@@ -2587,6 +2663,11 @@ async function jobs() {
       /* сбой возврата не останавливает остальные задачи планировщика */
     }
     require('./jobs/aiRetention').runPurge({ db, nowIso: () => currentIso }); // W-30: стирание ИИ-тредов старше S-23
+    // Резервная копия базы раз в сутки; идёт в фоне и не держит остальные задачи.
+    require('./jobs/dbBackup')
+      .runBackup({ db, config, current })
+      .then((made) => made && console.log(JSON.stringify({ event: 'db.backup', file: path.basename(made.file) })))
+      .catch((error) => console.error(JSON.stringify({ event: 'db.backup_failed', code: error.code || 'error' })));
     db.prepare('DELETE FROM notifications WHERE created_at<?').run(P.iso(new Date(current.getTime() - 90 * 86400000)));
     const expiredFiles = db
       .prepare("SELECT id,storage_name FROM stored_files WHERE status='temp' AND expires_at<=?")
@@ -2714,6 +2795,15 @@ async function jobs() {
         );
       }
     }
+    // Пуши о напоминаниях на подписанные устройства пациентов (src/modules/patient/push.js).
+    try {
+      await patientPush.deliverDue({
+        timezone: activeSetting('org.timezone_hours').value?.timezone || 'Europe/Moscow',
+        labelOf: (code) => require('./format').instrumentLabelFor('patient', code) || code,
+      });
+    } catch (e) {
+      console.error(JSON.stringify({ event: 'push.failed', message: String(e.message || e) }));
+    }
     for (const reminder of db.prepare('SELECT id,patient_id FROM reminders WHERE active=1').all()) {
       const eventKey = `reminder:${reminder.id}:${currentIso.slice(0, 10)}`;
       const exists = db.prepare('SELECT 1 FROM notifications WHERE event_key=?').get(eventKey);
@@ -2785,8 +2875,13 @@ const server = app.listen(config.port, config.host, () => {
 function shutdown() {
   clearInterval(timer);
   server.close(() => {
-    db.close();
-    process.exit(0);
+    require('./modules/knowledge/service')
+      .closeKnowledge()
+      .catch(() => {})
+      .finally(() => {
+        db.close();
+        process.exit(0);
+      });
   });
 }
 process.on('SIGTERM', shutdown);

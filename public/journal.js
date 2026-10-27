@@ -19,6 +19,9 @@
     new MutationObserver(clear).observe(tabs, { attributes: true, attributeFilter: ['aria-current'], subtree: true });
   }
 
+  // --- Печать статьи: тихая кнопка рядом со сведениями об авторе; оформление страницы для бумаги — в journal.css ---
+  document.querySelector('[data-print-article]')?.addEventListener('click', () => window.print());
+
   // --- Статья: разметка в DOM ---
   for (const el of document.querySelectorAll('.j-text[data-md]')) {
     if (window.CCMarkdown) {

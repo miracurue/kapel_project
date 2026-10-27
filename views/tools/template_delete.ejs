@@ -1,9 +1,0 @@
-<%- include('../_header') %>
-<div class="card tools">
-  <h1>Удалить шаблон?</h1>
-  <p>Шаблон «<%= tpl.title %>» будет удалён без возможности восстановления.</p>
-  <form method="POST" action="/tools/templates/<%= tpl.id %>/delete">
-    <button type="submit">Удалить</button> <a href="/tools/templates">Отмена</a>
-  </form>
-</div>
-<%- include('../_footer') %>

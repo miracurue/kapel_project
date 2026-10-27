@@ -37,7 +37,7 @@ function fixture() {
     db.prepare('INSERT INTO user_prefs(user_id) VALUES (?)').run(id);
   }
   for (const id of [10, 11])
-    for (const kind of ['base', 'program'])
+    for (const kind of ['base', 'research'])
       db.prepare(
         "INSERT INTO consent_events(user_id,consent_kind,action,content_version_id,text_sha256,sign_method) VALUES (?,?,'given',1,'x','demo')",
       ).run(id, kind);
@@ -153,7 +153,7 @@ test('historical assignments/episodes filter event dates, deduplicate patients a
       'metric-specific participants below min',
     );
     db.prepare(
-      "INSERT INTO consent_events(user_id,consent_kind,action,content_version_id,text_sha256,sign_method) VALUES (10,'program','revoked',1,'x','demo')",
+      "INSERT INTO consent_events(user_id,consent_kind,action,content_version_id,text_sha256,sign_method) VALUES (10,'research','revoked',1,'x','demo')",
     ).run();
     assert.equal(report.cohortReport(db, { scope: 'program', ...period, minGroup: 1 }).rows.length, 0);
     db.prepare(

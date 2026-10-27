@@ -30,6 +30,21 @@ const FILTERED_REPLY =
   'Назначать и менять лечение может только ваш врач. '
   + 'Я могу помочь понять его назначения, сформулировать вопросы к нему или записать наблюдения в дневник самочувствия.';
 
+// Ответ специалисту, скрытый фильтром: без обращения «ваш врач» (это текст для пациента).
+const FILTERED_REPLY_CLINICIAN =
+  'Ответ скрыт фильтром безопасности: в нём были формулировки диагноза, назначения или обещания. '
+  + 'Переформулируйте вопрос, например: «опиши динамику по дневнику за две недели» или «подготовь вопросы к визиту». '
+  + 'Решения о диагнозе и лечении остаются за специалистом.';
+
+// Нецелевое обращение специалиста (слой guard.scope_clinician): модель ничего не сочиняет, шлюз показывает это сообщение.
+const OFF_TOPIC_REPLY = 'Извините, кажется, мне нечего сказать. Либо измените тему, либо уточните вопрос.';
+
+// Подпись при мягкой паузе чата пациента (статус ТРОЛЛЬ); дословно по решению владелицы 2026-10-27.
+const CHAT_PAUSED = 'Мне кажется, вы меня разыгрываете, я от этого очень устаю. Ровно час я буду отдыхать, потом можем снова пообщаться.';
+
+// Запасной ответ, если модель вернула только служебную метку без текста.
+const CONDUCT_EMPTY_REPLY = 'Давай вернёмся к тому, что для тебя сейчас важно. Как ты себя чувствуешь?';
+
 const RATE_LIMITED = 'Слишком много сообщений за минуту. Подождите немного и отправьте снова — ваш текст сохранён в поле ввода.';
 const TOO_LONG = (max) => `Сообщение длиннее ${max} символов. Сократите его или разделите на части — введённый текст не потерян.`;
 const EMPTY = 'Напишите сообщение, прежде чем отправлять.';
@@ -49,7 +64,7 @@ const DELETE_CONFIRM =
 
 const PRIVACY_NOTE =
   'Ваши диалоги с ИИ-помощником не видны врачу и администратору. Исключение: если сообщение похоже на кризис, '
-  + 'врачу передаётся короткая цитата (до 200 символов).';
+  + 'врачу передаётся короткая цитата (до 200 символов) и краткая оценка ИИ из кризисного разговора.';
 
 const CHIPS = [
   'Не могу уснуть уже несколько дней',
@@ -66,6 +81,6 @@ const INTRO = {
 };
 
 module.exports = {
-  REVIEW_REQUIRED, AI_BADGE, CRISIS_WITH_CLINICIAN, CRISIS_NO_CLINICIAN, CRISIS_DELIVERY_FAILED, UNAVAILABLE, FILTERED_REPLY,
-  RATE_LIMITED, TOO_LONG, EMPTY, handoff, CONTACT_SENT_WITH_CLINICIAN, CONTACT_SENT_NO_CLINICIAN, DELETE_CONFIRM, PRIVACY_NOTE, CHIPS, INTRO,
+  REVIEW_REQUIRED, AI_BADGE, CRISIS_WITH_CLINICIAN, CRISIS_NO_CLINICIAN, CRISIS_DELIVERY_FAILED, UNAVAILABLE, FILTERED_REPLY, FILTERED_REPLY_CLINICIAN,
+  OFF_TOPIC_REPLY, CHAT_PAUSED, CONDUCT_EMPTY_REPLY, RATE_LIMITED, TOO_LONG, EMPTY, handoff, CONTACT_SENT_WITH_CLINICIAN, CONTACT_SENT_NO_CLINICIAN, DELETE_CONFIRM, PRIVACY_NOTE, CHIPS, INTRO,
 };

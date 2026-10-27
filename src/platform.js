@@ -9,9 +9,13 @@ const token = (bytes = 24) => crypto.randomBytes(bytes).toString('base64url');
 const iso = (date) => date.toISOString().replace(/\.\d{3}Z$/, 'Z');
 
 function openDb(config) {
-  const db = new Database(config.dbPath);
+  // Ждём чужую запись до 15 с (сид демо, миграция), а не отвечаем 500 «database is locked».
+  const db = new Database(config.dbPath, { timeout: 15000 });
   db.pragma('foreign_keys = ON');
   db.pragma('journal_mode = WAL');
+  // Удалённые строки (стирание по запросу пациента) затираются нулями, а не остаются в свободных страницах.
+  // Настройка действует на соединение, поэтому её ставит каждое открытие, как в src/db.js.
+  db.pragma('secure_delete = ON');
   return db;
 }
 

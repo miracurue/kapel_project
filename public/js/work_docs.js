@@ -1,11 +1,19 @@
 'use strict';
 // Templates use the article workspace layout; patient-filled copies never enter saved drafts or AI context.
+// Вкладка «Шаблоны и документы»: здесь шаблоны и переключатель режима; документы по пациентам — work_documents.js.
 (function () {
   const root = document.querySelector('[data-work-docs]');
   if (!root) return;
   const T = (name) =>
     root.dataset['t' + name.charAt(0).toUpperCase() + name.slice(1).replace(/-(\w)/g, (_, c) => c.toUpperCase())] || '';
   const q = (name) => root.querySelector('[data-tpl-' + name + ']');
+  let docTexts = {};
+  try {
+    docTexts = JSON.parse(root.parentNode.querySelector('[data-doc-i18n]')?.textContent || '{}');
+  } catch (_) {
+    /* Подписи формы необязательны для работы шаблонов. */
+  }
+  const DT = (name) => docTexts['msg.doc.' + name] || '';
   const editor = q('editor'),
     editorBody = editor.querySelector('.panel-body'),
     title = q('title'),
@@ -18,9 +26,15 @@
     editing = false,
     busy = false,
     dirty = false,
-    filled = null;
+    filled = null,
+    filledFor = null,
+    mode = 'templates';
   const drafts = new Map();
   const initialPlaceholder = input.placeholder;
+  const viewTpl = q('view-tpl') || root.querySelector('[data-view-tpl]');
+  const viewDoc = root.querySelector('[data-view-doc]');
+  const dock = root.querySelector('[data-dock]');
+  const formView = root.querySelector('[data-tpl-form]');
   function say(text, undo) {
     for (const box of [q('msg'), q('panel-msg')]) {
       box.textContent = text || '';
@@ -48,7 +62,7 @@
       headers['idempotency-key'] = crypto.randomUUID();
     }
     const res = await fetch(path, { method, headers, body: data === undefined ? undefined : JSON.stringify(data) });
-    return { ok: res.ok, data: await res.json().catch(() => ({})) };
+    return { ok: res.ok, status: res.status, data: await res.json().catch(() => ({})) };
   }
   function snapshot() {
     if (current)
@@ -61,6 +75,7 @@
         dirty,
       });
   }
+  // Один список «Шаблоны»: сначала свои, потом встроенные с пометкой.
   function renderList() {
     const needle = q('filter').value.trim().toLowerCase();
     const select = q('mobile-select');
@@ -82,9 +97,15 @@
         if (needle && !(item.title + item.body).toLowerCase().includes(needle)) continue;
         const a = document.createElement('a');
         a.href = '#';
-        a.className = 'th' + (current?.id === item.id ? ' on' : '');
-        a.textContent = item.title;
+        a.className = 'th' + (isBuiltin ? ' th-builtin' : '') + (current?.id === item.id ? ' on' : '');
         a.dataset.id = item.id;
+        if (current?.id === item.id) a.setAttribute('aria-current', 'true');
+        a.append(item.title);
+        if (isBuiltin) {
+          const mark = document.createElement('small');
+          mark.textContent = T('builtin') + (item.kind === 'form' ? ' · ' + DT('form_tag').toLowerCase() : '');
+          a.appendChild(mark);
+        }
         a.addEventListener('click', (e) => {
           e.preventDefault();
           switchTo(item, isBuiltin);
@@ -101,7 +122,7 @@
     for (const m of messages) {
       const row = document.createElement('div');
       row.className = m.role === 'user' ? 'u' : 'a';
-      row.textContent = m.role === 'user' ? m.text : T('chat-result');
+      row.textContent = m.role === 'user' || m.status === 'notice' ? m.text : T('chat-result');
       if (m.role !== 'user') {
         const ns = 'http://www.w3.org/2000/svg';
         const svg = document.createElementNS(ns, 'svg');
@@ -135,14 +156,24 @@
     }
   }
   function paint() {
-    root.classList.toggle('lib-panel-open', editing);
-    editor.hidden = !editing;
-    q('resizer').hidden = !editing;
+    const inTemplates = mode === 'templates';
+    const isForm = Boolean(current?.kind === 'form');
+    root.classList.toggle('lib-panel-open', editing && inTemplates);
+    editor.hidden = !editing || !inTemplates;
+    q('resizer').hidden = !editing || !inTemplates;
     q('empty').hidden = Boolean(current && (current.id || body.value || editing)) && !(editing && !messages.length);
-    q('reading').hidden = editing || !current || !(current.id || title.value || body.value);
+    q('reading').hidden = isForm || editing || !current || !(current.id || title.value || body.value);
     q('reading-title').textContent = title.value;
     q('preview').textContent = filled ?? body.value;
     q('delete').hidden = !current?.id || current.builtin;
+    q('builtin-tag').hidden = !current?.builtin;
+    const saveDoc = q('save-doc');
+    if (saveDoc) saveDoc.hidden = filled === null || !filledFor;
+    if (formView) {
+      formView.hidden = !isForm;
+      formView.querySelector('[data-tpl-form-title]').textContent = isForm ? current.title : '';
+    }
+    if (dock) dock.hidden = !inTemplates || isForm;
     input.placeholder = current?.id || body.value ? T('edit-placeholder') : initialPlaceholder;
     renderChat();
   }
@@ -164,7 +195,14 @@
   }
   function setBusy(on) {
     busy = on;
-    for (const field of root.querySelectorAll('button, select, input, textarea')) field.disabled = on;
+    const scope = '[data-view-tpl],[data-tpl-editor],[data-pane-templates],[data-dock],[data-tpl-mobile]';
+    for (const field of root.querySelectorAll(
+      scope
+        .split(',')
+        .map((x) => x + ' :is(button,select,input,textarea)')
+        .join(','),
+    ))
+      field.disabled = on;
     editor.setAttribute('aria-busy', String(on));
   }
   async function action(fn) {
@@ -243,7 +281,7 @@
     title.focus({ preventScroll: true });
     editorBody.scrollTop = 0;
   });
-  for (const name of ['close', 'back', 'preview-toggle'])
+  for (const name of ['close', 'preview-toggle'])
     q(name).addEventListener('click', () => {
       editing = false;
       paint();
@@ -292,16 +330,32 @@
       if (!ok) return say(T('save-failed'));
       filled = body.value;
       for (const [key, value] of Object.entries(data)) if (value) filled = filled.split('[' + key + ']').join(value);
+      filledFor = Number(q('patient').value);
       editing = false;
       say(T('filled'));
     }),
   );
+  // «Сохранить как документ»: подставленный текст — документом пациента; сам шаблон не меняется.
+  const saveDocButton = q('save-doc');
+  if (saveDocButton)
+    saveDocButton.addEventListener('click', () =>
+      action(async () => {
+        if (filled === null || !filledFor) return;
+        const { ok } = await call('/work/api/documents/from-text', 'POST', {
+          patient_id: filledFor,
+          title: title.value.trim() || T('untitled'),
+          body: filled,
+        });
+        say(ok ? DT('saved_as_doc') : DT('save_as_doc_failed'));
+        if (ok) root.dispatchEvent(new CustomEvent('docs:created'));
+      }),
+    );
   async function askAi() {
     const request = input.value.trim();
     if (!request || busy) return;
     if (!current) current = { id: null, builtin: false };
     const previous = { title: title.value, body: body.value };
-    const history = messages.filter((m) => m.status !== 'pending' && m.status !== 'error').slice(-12);
+    const history = messages.filter((m) => !['pending', 'error', 'notice'].includes(m.status)).slice(-12);
     setBusy(true);
     editing = true;
     filled = null;
@@ -311,6 +365,14 @@
     say(T('wait'));
     try {
       const { ok, data } = await call('/work/api/templates/ai', 'POST', { request, current: previous, history });
+      // Нецелевой запрос: сообщение сервера в чате, шаблон не меняется и не сохраняется (в историю и на сервер не уходит).
+      if (ok && data.off_topic) {
+        pending.status = 'notice';
+        messages.push({ role: 'assistant', text: data.message, status: 'notice' });
+        input.value = '';
+        say('');
+        return;
+      }
       if (!ok || !data.body) throw new Error('ai');
       body.value = data.body;
       if (!title.value.trim()) title.value = request.slice(0, 120);
@@ -397,6 +459,32 @@
       e.returnValue = '';
     }
   });
+  // Режим вкладки: «Шаблоны» (редактор и ИИ) или «Документы» (заполненные бланки по пациентам).
+  function setMode(next) {
+    if (next === mode || busy || (next === 'documents' && !viewDoc)) return;
+    mode = next;
+    editing = false;
+    root.dataset.mode = mode;
+    viewTpl.hidden = mode !== 'templates';
+    if (viewDoc) viewDoc.hidden = mode !== 'documents';
+    for (const [name, on] of [
+      ['pane-templates', mode === 'templates'],
+      ['pane-documents', mode === 'documents'],
+      ['tpl-mobile', mode === 'templates'],
+      ['doc-mobile', mode === 'documents'],
+    ]) {
+      const box = root.querySelector('[data-' + name + ']');
+      if (box) box.hidden = !on;
+    }
+    for (const b of root.querySelectorAll('[data-doc-seg] [data-doc-mode]'))
+      b.setAttribute('aria-pressed', String(b.dataset.docMode === mode));
+    paint();
+    root.dispatchEvent(new CustomEvent('docs:mode', { detail: { mode } }));
+  }
+  for (const b of root.querySelectorAll('[data-doc-mode]'))
+    b.addEventListener('click', () => setMode(b.dataset.docMode));
+  root.docsApi = { call, setMode, text: DT, mode: () => mode };
+
   async function init() {
     try {
       const { ok, data } = await call('/work/api/templates', 'GET');
@@ -404,17 +492,6 @@
       own = data.own || [];
       builtin = data.builtin || [];
       renderList();
-      const raw = sessionStorage.getItem('cc.doc_prefill');
-      sessionStorage.removeItem('cc.doc_prefill');
-      const text = String((raw && JSON.parse(raw).text) || '').trim();
-      if (text) {
-        open(null, false);
-        title.value = text.split('\n')[0].slice(0, 120);
-        body.value = text;
-        editing = true;
-        dirty = true;
-        say(T('from-chat'));
-      }
     } catch (_) {
       say(T('save-failed'));
     }

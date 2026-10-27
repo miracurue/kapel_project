@@ -34,10 +34,20 @@ function loadConfig(env = process.env) {
     fileScanner: env.FILE_SCANNER || 'none',
     mlWorkerUrl: env.ML_WORKER_URL || '',
     mlWorkerToken: env.ML_WORKER_TOKEN || '',
+    // Пуш-уведомления (Web Push): 'webpush' — отправлять, 'dry' — только записывать в журнал (тесты, демо без ключей), 'off' — выключено.
+    pushMode: env.PUSH_MODE || 'webpush',
+    vapidPublicKey: env.VAPID_PUBLIC_KEY || '',
+    vapidPrivateKey: env.VAPID_PRIVATE_KEY || '',
+    vapidSubject: env.VAPID_SUBJECT || '',
+    pushExtraHosts: (env.PUSH_ENDPOINT_HOSTS || '')
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean),
     mlNerTimeoutMs: Number(env.ML_NER_TIMEOUT_MS || 5000),
   };
   if (!['synthetic', 'real'].includes(config.dataMode)) throw new Error('E-CONFIG: DATA_MODE');
   if (!['none', 'clamd'].includes(config.fileScanner)) throw new Error('E-CONFIG: FILE_SCANNER');
+  if (!['webpush', 'dry', 'off'].includes(config.pushMode)) throw new Error('E-CONFIG: PUSH_MODE');
   if (config.dataMode === 'real' && config.demoMode) throw new Error('E-CONFIG: DEMO_MODE недопустим при real');
   if (config.env === 'production') {
     for (const [name, value] of [

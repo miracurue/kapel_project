@@ -150,7 +150,7 @@ function cohortDb(patients, consenting = patients) {
     ).run(id, ver);
     if (i < consenting)
       db.prepare(
-        "INSERT INTO consent_events(user_id,consent_kind,action,content_version_id,text_sha256,sign_method) VALUES (?,'program','given',?,'x','demo')",
+        "INSERT INTO consent_events(user_id,consent_kind,action,content_version_id,text_sha256,sign_method) VALUES (?,'research','given',?,'x','demo')",
       ).run(id, ver);
     for (let d = 0; d < 6; d += 1)
       db.prepare(
@@ -205,7 +205,7 @@ test('программа поддержки: считаются только с�
     assert.equal(rep().rows[0].denominator, 10);
     t.db
       .prepare(
-        "INSERT INTO consent_events(user_id,consent_kind,action,content_version_id,text_sha256,sign_method) VALUES (100,'program','revoked',1,'x','demo')",
+        "INSERT INTO consent_events(user_id,consent_kind,action,content_version_id,text_sha256,sign_method) VALUES (100,'research','revoked',1,'x','demo')",
       )
       .run();
     assert.equal(rep().suppressed, true, 'после отзыва осталось 9 — всё скрыто');

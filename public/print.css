@@ -1,0 +1,30 @@
+/* Бланк теста для печати (src/modules/print/testSheet.js) */
+* { box-sizing: border-box; }
+body { margin: 0; background: #fff; color: #111; font: 16px/1.45 system-ui, "Segoe UI", Arial, sans-serif; }
+.bar { display: flex; gap: 16px; align-items: center; padding: 10px 20px; background: #f1f3f2; border-bottom: 1px solid #d5dad8; font-size: 14px; }
+.bar button { min-height: 40px; padding: 0 20px; border: 0; border-radius: 999px; background: #2a5d4a; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+.bar a { color: #2a5d4a; }
+.bar span { color: #55605c; }
+.sheet { max-width: 800px; margin: 0 auto; padding: 24px 20px 40px; }
+h1 { margin: 0 0 12px; font-size: 24px; }
+.who { display: flex; gap: 32px; margin-bottom: 12px; }
+.who p { margin: 0; }
+.line { display: inline-block; min-width: 240px; border-bottom: 1px solid #111; }
+.line.short { min-width: 120px; }
+.instr { margin: 8px 0; }
+.qs { margin: 16px 0; padding-left: 28px; }
+.q { margin: 0 0 14px; break-inside: avoid; }
+.qt { margin: 0 0 4px; font-weight: 600; }
+.hint { margin: 0 0 4px; font-size: 13px; color: #555; }
+.opts { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 20px; }
+.opts li { display: flex; align-items: center; gap: 8px; }
+.box { flex: none; width: 16px; height: 16px; border: 1.5px solid #111; border-radius: 3px; }
+.lines span { display: block; height: 28px; border-bottom: 1px solid #888; }
+.compact .qs { font-size: 14px; line-height: 1.3; }
+.compact .q { margin-bottom: 8px; }
+.foot { margin-top: 20px; font-size: 13px; color: #555; }
+@media print {
+  .no-print { display: none !important; }
+  .sheet { max-width: none; padding: 0; }
+  @page { margin: 14mm; }
+}

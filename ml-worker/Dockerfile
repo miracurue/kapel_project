@@ -7,7 +7,8 @@ ENV PYTHONUNBUFFERED=1 \
     HF_HUB_OFFLINE=1 \
     TRANSFORMERS_OFFLINE=1 \
     TOKENIZERS_PARALLELISM=false \
-    ML_WORKER_MODELS_DIR=/models
+    ML_WORKER_MODELS_DIR=/models \
+    HF_HOME=/tmp/hf
 
 # Tesseract, poppler (pdftoppm) и ffmpeg — отдельные программы из Debian
 # bookworm (GPL — только как отдельные процессы, 16-license-policy.md).
@@ -25,6 +26,13 @@ RUN pip install --require-hashes \
     --index-url https://download.pytorch.org/whl/cpu \
     --extra-index-url https://pypi.org/simple \
     -r requirements.lock
+
+# modeling_gigaam.py импортирует pyannote внутри transcribe_longform (нужен токен HF, мы его
+# не используем), но transformers проверяет такие импорты при загрузке модели и без пакета
+# отказывается её грузить. Пустая заглушка снимает проверку; при вызове longform упадёт
+# ImportError — наш код его не вызывает (нарезка своя, см. 04-technologies).
+RUN mkdir -p /usr/local/lib/python3.12/site-packages/pyannote \
+    && echo "# заглушка: см. ml-worker/Dockerfile" > /usr/local/lib/python3.12/site-packages/pyannote/__init__.py
 
 COPY app.py fetch_models.py models.lock.json ./
 

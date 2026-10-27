@@ -1,7 +1,7 @@
 'use strict';
 
 // Единый реестр методик клинических рекомендаций: один код на методику.
-// Данные — clinrec_methods.json (из experiments/поиск_по_оглавлению/methods_registry.json).
+// Данные — clinrec_methods.json (из knowledge/clinrecs/methods_registry.json).
 // Реализованные методики остаются в gad_registry / INSTRUMENT_DEFS; здесь — их связка с клинреками
 // и карточки «Скоро появится» для остальных (без пунктов, ключей, назначения и прохождения).
 const METHODS = require('./clinrec_methods.json');

@@ -1,8 +1,9 @@
 'use strict';
 
-// Пациент · Чат (P-13) как в прототипе v5: «Чем помочь?» и примеры, подсказки → чип в поле и «×» назад,
-// ответ ИИ с пометкой и 👍/👎, кризисная карточка вместо ответа, «✦ Спросить ИИ» с готовыми вопросами
-// и проверкой «Мне хуже», ИИ недоступен, предложение НЯ, выключенное ИИ-согласие, голос и фото.
+// Пациент · Чат (P-13) как в прототипе v5: «Чем помочь?» и примеры, чип прикрепления из
+// «✦ Спросить ИИ» на записи, ответ ИИ с пометкой и 👍/👎, кризисная карточка вместо ответа,
+// готовые вопросы с проверкой «Мне хуже», ИИ недоступен, предложение НЯ, выключенное
+// ИИ-согласие, голос и фото.
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -22,7 +23,9 @@ async function chat(who = 'patA') {
 }
 
 // covers: T-410, UC-24, UC-25, UC-41, F-12, F-27, F-31, F-26
-test('T-410 [W-34] чат: пусто — «Чем помочь?» с 4 примерами; подсказка → чип в поле, «×» возвращает; ответ с пометкой ИИ, 👍/👎; «ИИ — не врач»', async () => {
+// test-change (владелица, 2026-10-25): подсказки прикрепления «Прикрепить:» убраны из поля ввода
+// пациента. Прикрепление осталось — чип создаёт «✦ Спросить ИИ» на самом объекте (покрыто T-412).
+test('T-410 [W-34] чат: пусто — «Чем помочь?» с 4 текстовыми примерами без подсказок прикрепления; ответ с пометкой ИИ, 👍/👎; «ИИ — не врач»', async () => {
   const doc = await ctx.api('psy1');
   const p = await ctx.api('patA');
   await F.sertralinePrescribedAndAccepted(ctx.app, doc, p, ctx.app.ids.patA);
@@ -30,13 +33,10 @@ test('T-410 [W-34] чат: пусто — «Чем помочь?» с 4 прим
   await B.expectVisible(page, 'msg.chat.empty.title');
   for (let i = 1; i <= 4; i += 1) await B.expectVisible(page, `msg.chat.example.${i}`);
   await B.expectVisible(page, 'msg.ai.patient.composer_note');
-  const sugg = page.locator(`${B.tid('msg.composer.suggestions')} button`).first();
-  const label = await sugg.textContent();
-  await sugg.click();
-  await B.expectVisible(page, 'msg.composer.chip.remove');
-  assert.equal(await page.locator(`${B.tid('msg.composer.suggestions')} button`, { hasText: label }).count(), 0, 'подсказка ушла из строки');
-  await page.click(B.tid('msg.composer.chip.remove'));
-  assert.ok(await page.locator(`${B.tid('msg.composer.suggestions')} button`, { hasText: label }).count() >= 1, '«×» вернул подсказку');
+  const idea2 = await page.locator(B.tid('msg.chat.example.2')).textContent();
+  assert.ok(!/результат/i.test(idea2), 'пример не отсылает к прикреплённому документу');
+  assert.equal(await page.locator(B.tid('msg.composer.suggestions')).count(), 0, 'подсказок прикрепления над полем ввода нет');
+  assert.equal(await page.locator('[data-chips] button').count(), 0, 'прикреплённых объектов нет');
   await page.fill(B.tid('msg.chat.placeholder'), F.CALM_PHRASE);
   await page.click(B.tid('msg.composer.send'));
   await B.expectVisible(page, 'msg.ai.mark');
@@ -96,12 +96,13 @@ test('T-413 [W-30] ИИ недоступен: «Не получилось отв
 });
 
 // covers: T-414, UC-30, UC-07, F-30, F-45
-test('T-414 [W-34] жалоба в чате → мягкая карточка «Похоже на побочный эффект. Сообщить врачу?» → предзаполненная форма P-14', async () => {
+test('T-414 [W-34] жалоба в чате → мягкая карточка-опрос о побочном действии → «Открыть полную форму» → предзаполненная форма P-14', async () => {
+  // test-change (пакет C плана 2026-10-23-ae-intake): вместо карточки «Сообщить врачу?» — AeWizard; старая форма остаётся по ссылке.
   const page = await chat('patA');
   await page.fill(B.tid('msg.chat.placeholder'), F.AE_PHRASE);
   await page.click(B.tid('msg.composer.send'));
-  await B.expectVisible(page, 'msg.chat.ae.suggest');
-  await page.click(B.tid('msg.chat.ae.suggest.yes'));
+  await B.expectVisible(page, 'msg.ae.wizard.title.patient');
+  await page.click(B.tid('msg.ae.wizard.full_form'));
   await B.expectPage(page, 'P-14');
   await B.expectVisible(page, 'msg.ae.card.prefilled');
 });

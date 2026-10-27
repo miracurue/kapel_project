@@ -40,6 +40,7 @@
   const balanceEl = counter.querySelector('[data-flower-balance]');
   const gainEl = counter.querySelector('[data-flower-gain]');
 
+  const nativeFetch = window.fetch;
   const csrf = async () => (await (await fetch('/api/v1/csrf')).json()).token;
   const stageName = (s) => t(`msg.flower.stage.${s.stage.key}`);
 
@@ -64,12 +65,111 @@
     }, 2000);
   }
 
+  // Тёплое окошко под капелькой: фразу и пределы выбирает сервер; закрывается само или по нажатию.
+  let bubbleEl = null;
+  let bubbleTimer = 0;
+  const crisisOnScreen = () => Boolean(document.querySelector('.crisis-card'));
+  function hideBubble() {
+    window.clearTimeout(bubbleTimer);
+    if (bubbleEl) bubbleEl.hidden = true;
+  }
+  function showBubble(message) {
+    if (!message?.text || crisisOnScreen()) return;
+    if (!bubbleEl) {
+      bubbleEl = document.createElement('button');
+      bubbleEl.type = 'button';
+      bubbleEl.className = 'flower-bubble';
+      bubbleEl.setAttribute('role', 'status');
+      bubbleEl.setAttribute('aria-live', 'polite');
+      bubbleEl.addEventListener('click', hideBubble);
+      document.body.append(bubbleEl);
+    }
+    const rect = counter.getBoundingClientRect();
+    bubbleEl.style.top = `${Math.round(rect.bottom + 10)}px`;
+    bubbleEl.style.right = `${Math.max(12, Math.round(window.innerWidth - rect.right - 8))}px`;
+    bubbleEl.textContent = message.text;
+    bubbleEl.hidden = false;
+    bubbleEl.classList.remove('on');
+    void bubbleEl.offsetWidth;
+    bubbleEl.classList.add('on');
+    window.clearTimeout(bubbleTimer);
+    bubbleTimer = window.setTimeout(hideBubble, 6000);
+  }
+  // Порядок важности: за что человеку приятнее услышать слово.
+  const BUBBLE_ORDER = [
+    'plan',
+    'technique',
+    'visit',
+    'habit',
+    'test',
+    'diary',
+    'note',
+    'med',
+    'article',
+    'ai',
+    'start',
+  ];
+  async function askBubble(actions) {
+    const action = BUBBLE_ORDER.find((a) => actions.includes(a));
+    if (!action) return;
+    try {
+      const response = await nativeFetch('/api/v1/me/flower/message', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-csrf-token': await csrf() },
+        body: JSON.stringify({ action }),
+      });
+      if (response.ok) showBubble((await response.json()).message);
+    } catch {
+      /* фраза не обязательна */
+    }
+  }
+
+  // Капелька с цифрой рядом с тем, за что можно получить капельки: число считает сервер (state.left),
+  // «сегодня уже получено» — галочка, никогда не «0».
+  function applyBadges() {
+    if (!state) return;
+    for (const el of document.querySelectorAll('[data-flower-badge]')) {
+      const action = el.dataset.flowerBadge;
+      const key = (el.dataset.flowerKey || '').replace('{day}', state.day);
+      const doneToday = key ? state.today_keys.includes(key) : false;
+      const left = state.left?.[action] || 0;
+      const shown = doneToday ? 'done' : left > 0 ? `n${left}` : '';
+      if (el.dataset.shown === shown) continue;
+      el.dataset.shown = shown;
+      if (!shown) {
+        el.innerHTML = '';
+        el.removeAttribute('title');
+        continue;
+      }
+      const drop =
+        '<svg class="drop" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3S5 11 5 15a7 7 0 0 0 14 0c0-4-7-12-7-12Z"/></svg>';
+      const text = doneToday ? t('msg.flower.badge.done') : drops(left);
+      el.classList.toggle('is-done', doneToday);
+      el.innerHTML = doneToday
+        ? `${drop}<span aria-hidden="true">✓</span><span class="sr">${esc(text)}</span>`
+        : `${drop}<span aria-hidden="true">+${left}</span><span class="sr">${esc(t('msg.flower.badge.title', { text }))}</span>`;
+      el.title = doneToday ? text : t('msg.flower.badge.title', { text });
+    }
+  }
+  let badgeTimer = 0;
+  new MutationObserver(() => {
+    window.clearTimeout(badgeTimer);
+    badgeTimer = window.setTimeout(applyBadges, 80);
+  }).observe(document.body, { childList: true, subtree: true });
+
+  let greeted = false;
   async function load() {
     const response = await fetch('/api/v1/me/flower');
     if (!response.ok) throw new Error('flower');
     state = await response.json();
     setBalance(state.balance);
     render();
+    applyBadges();
+    if (!greeted) {
+      greeted = true;
+      showGain(state.fresh?.gained);
+      if (state.greeting) showBubble(state.greeting);
+    }
     return state;
   }
 
@@ -101,7 +201,10 @@
     panel.className = 'flower-panel';
     panel.hidden = true;
     panel.setAttribute('aria-labelledby', 'flower-panel-title');
-    panel.innerHTML = `<div class="fp-head"><button type="button" class="btn ghost" data-flower-close>${esc(t('msg.flower.screen.back'))}</button><h2 id="flower-panel-title" data-testid="msg.flower.panel.title">${esc(t('msg.flower.panel.title'))}</h2></div>
+    // Как в обычном окне: «Развернуть» — в левом верхнем углу, крестик — в правом.
+    const icon = (name) =>
+      `<svg class="i" aria-hidden="true" focusable="false"><use href="/icons.svg#i-${name}"/></svg>`;
+    panel.innerHTML = `<div class="fp-head"><button type="button" class="btn ghost sm fp-expand" data-flower-enlarge>${icon('arrows-out-simple')}${esc(t('msg.flower.panel.expand'))}</button><h2 id="flower-panel-title" data-testid="msg.flower.panel.title">${esc(t('msg.flower.panel.title'))}</h2><button type="button" class="round fp-close" data-flower-close aria-label="${esc(t('msg.flower.panel.close'))}">${icon('x')}</button></div>
       <div class="fp-body"><div class="fp-scene"><button type="button" class="fp-plant" data-fp-plant data-flower-water aria-label="${esc(t('msg.flower.screen.water'))}"></button><p class="fp-scene-hint" data-fp-scene-hint>${esc(t('msg.flower.screen.hint'))}</p></div><div data-fp-info><p class="muted" role="status">${esc(t('msg.flower.panel.loading'))}</p></div></div>`;
     panel.addEventListener('cancel', (event) => {
       event.preventDefault();
@@ -125,9 +228,6 @@
     canvas.toggleAttribute('data-flower-water', !sidebar);
     canvas.setAttribute('aria-label', t(sidebar ? 'msg.flower.screen.open' : 'msg.flower.screen.water'));
     canvas.disabled = !sidebar && (busy || !state.can_water);
-    panel.querySelector('[data-flower-close]').textContent = t(
-      sidebar ? 'msg.flower.panel.close' : 'msg.flower.screen.back',
-    );
     panel.querySelector('[data-fp-scene-hint]').textContent = t(
       sidebar ? 'msg.flower.panel.enlarge' : state.full ? 'msg.flower.full' : 'msg.flower.screen.hint',
     );
@@ -236,7 +336,7 @@
     panel.style.setProperty('--fl-top', `${Math.max(0, Math.round(top?.getBoundingClientRect().bottom || 0))}px`);
   }
 
-  function openSidebar(trigger = null, fromFull = false) {
+  function openSidebar(trigger = null, fromFull = false, quiet = false) {
     if (!panel) buildPanel();
     if (trigger) returnFocus = trigger;
     if (panel.open) panel.close();
@@ -249,7 +349,9 @@
     document.body.classList.add('flower-sidebar');
     counter.setAttribute('aria-expanded', 'true');
     refreshPanel();
-    panel.querySelector(fromFull ? '[data-fp-plant]' : '[data-flower-close]').focus();
+    if (!quiet) panel.querySelector(fromFull ? '[data-fp-plant]' : '[data-flower-close]').focus();
+    // show() сам ставит фокус на первую кнопку и обводит её рамкой; панель, открытая при входе на страницу, фокус не забирает.
+    else if (panel.contains(document.activeElement)) document.activeElement.blur();
   }
 
   function open(recordHistory = true, trigger = null) {
@@ -293,7 +395,10 @@
   }
 
   function close() {
-    if (mode === 'sidebar') return hidePanel();
+    if (mode === 'sidebar') {
+      remember(true);
+      return hidePanel();
+    }
     leaveFull();
     if (!isFlowerLocation()) return;
     if (history.state?.flowerScreen) history.back();
@@ -308,13 +413,72 @@
   window.addEventListener('resize', () => {
     if (mode === 'sidebar') positionSidebar();
   });
-  counter.addEventListener('click', () => (mode === 'sidebar' ? close() : openSidebar(counter)));
+  // Шапка закреплена, а баннер демо над ней уезжает при прокрутке: панель цветка следует за нижней кромкой шапки.
+  window.addEventListener(
+    'scroll',
+    () => {
+      if (mode === 'sidebar') positionSidebar();
+    },
+    { passive: true },
+  );
+  counter.addEventListener('click', () => {
+    if (mode === 'sidebar') return close();
+    remember(false);
+    openSidebar(counter);
+  });
+  // Панель с цветком открыта справа на страницах пациента, кроме «Журнала», в том числе в дневнике.
+  // Закрыл — до конца сеанса не навязываем; на узком экране панель сама не открывается: она закрыла бы страницу.
+  const FLAG = 'kapel.flowerSidebarClosed';
+  function remember(closed) {
+    try {
+      if (closed) sessionStorage.setItem(FLAG, '1');
+      else sessionStorage.removeItem(FLAG);
+    } catch {
+      /* без хранилища панель просто откроется на следующей странице */
+    }
+  }
+  const dismissed = () => {
+    try {
+      return sessionStorage.getItem(FLAG) === '1';
+    } catch {
+      return false;
+    }
+  };
+  // В «Журнале» (статьи, чтение) цветок сам не открывается: он по-прежнему доступен по счётчику в шапке.
+  const inJournal = location.pathname === '/journal' || location.pathname.startsWith('/journal/');
+  if (!dismissed() && !inJournal && !isFlowerLocation() && window.matchMedia('(min-width: 1201px)').matches) {
+    openSidebar(null, false, true);
+  }
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && mode === 'sidebar') close();
   });
   window.addEventListener('popstate', () => {
     if (isFlowerLocation()) open(false);
     else if (mode === 'full') leaveFull();
+  });
+  // Упражнение на странице методики пройдено до конца (событие от public/techniques.js): капельки раз в день за методику.
+  window.addEventListener('technique:complete', async (event) => {
+    const feedback = document.querySelector('[data-technique-feedback]');
+    try {
+      const response = await fetch('/api/v1/me/flower/technique', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-csrf-token': await csrf() },
+        body: JSON.stringify({ slug: event.detail?.slug }),
+      });
+      if (!response.ok) throw new Error('technique');
+      const data = await response.json();
+      state = data;
+      setBalance(state.balance);
+      render();
+      applyBadges();
+      if (data.gained > 0) {
+        showGain(data.gained);
+        askBubble(['technique']);
+      }
+      if (feedback) feedback.textContent = t(data.gained > 0 ? 'msg.technique.done.ok' : 'msg.technique.done.again');
+    } catch {
+      if (feedback) feedback.textContent = t('msg.technique.done.error');
+    }
   });
   document.addEventListener('click', (e) => {
     const target = e.target.closest('[data-flower-open]');
@@ -324,7 +488,6 @@
   });
 
   // «+N» после любой записи пациента: сервер сообщает заголовками X-Flower-Gain / X-Flower-Balance.
-  const nativeFetch = window.fetch;
   let refresh = 0;
   window.fetch = async function flowerFetch(...args) {
     const response = await nativeFetch.apply(this, args);
@@ -335,6 +498,7 @@
       if (gain > 0) {
         showGain(gain);
         window.dispatchEvent(new CustomEvent('flower:gain', { detail: { gain } }));
+        askBubble((response.headers.get('x-flower-actions') || '').split(','));
       }
       if (balance !== null && (panel && !panel.hidden ? true : minis.length)) {
         window.clearTimeout(refresh);

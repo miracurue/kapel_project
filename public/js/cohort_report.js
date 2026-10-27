@@ -21,7 +21,13 @@
         : `<b>${fmt(r.value ?? '—')}</b> <small>${esc(r.unit || '')}</small><small>из ${r.denominator} · ${r.n_patients} чел.</small>`
     }</div></div>`;
 
-  function html(report) {
+  // Ссылка на CSV с теми же цифрами: обычный GET, без скрипта; подпись и ключ текста передаёт страница.
+  const csvLink = (csv) =>
+    csv && csv.url
+      ? `<p><a class="btn sm" data-cohort-csv data-testid="${esc(csv.testid)}" href="${esc(csv.url)}" download>${esc(csv.label)}</a></p>`
+      : '';
+
+  function html(report, csv) {
     if (!report) return '<p class="muted">Цифры сейчас недоступны.</p>';
     const note = report.suppressed
       ? `<p class="sub" data-testid="msg.analytics.small">Недостаточно данных: в группе меньше ${report.min_group} человек, цифры скрыты, чтобы нельзя было узнать пациента.</p>`
@@ -40,7 +46,8 @@
         : '') +
       `<p class="muted small">${esc(report.scope_label || '')}, период ${esc(report.period.from)} — ${esc(report.period.to)}${
         report.updated_at ? `, обновлено ${esc(String(report.updated_at).slice(0, 10))}` : ''
-      }. Это не рейтинг пациентов и специалистов.</p>`
+      }. Это не рейтинг пациентов и специалистов.</p>` +
+      csvLink(csv)
     );
   }
   window.CCCohort = { html };

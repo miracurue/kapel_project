@@ -76,3 +76,15 @@ body.journal-page main.page-wrap { max-width: none; padding: 0 var(--gutter) var
   .j-card.feat { margin-bottom: 0; }
   .feat h2 { font-size: var(--fs-32); line-height: var(--lh-32); }
 }
+
+/* Печать статьи: тихая иконка у сведений об авторе; на бумаге остаются заголовок, обложка и текст */
+.j-print { display: inline-grid; place-items: center; width: 28px; height: 28px; margin-left: var(--s-2); padding: 0; border: 0; border-radius: 50%; background: none; color: var(--ink-2); vertical-align: middle; cursor: pointer; opacity: .6; }
+.j-print:hover, .j-print:focus-visible { opacity: 1; background: var(--sunk); color: var(--ink); }
+@media print {
+  header.top, .demo-banner, .j-back, .j-print, .j-actions, .j-related, .states, dialog.flower-panel, .alert-rail, .skip-link, .toast { display: none !important; }
+  body { background: #fff !important; }
+  main, .app-main, .page-wrap { margin: 0 !important; width: auto !important; max-width: none !important; padding: 0 !important; }
+  .j-hero { break-inside: avoid; }
+  .j-text a::after { content: " (" attr(href) ")"; font-size: 0.85em; color: #555; }
+  .j-text h2, .j-text h3 { break-after: avoid; }
+}

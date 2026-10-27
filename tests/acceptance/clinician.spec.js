@@ -64,15 +64,17 @@ test('T-442 [W-16] «Тесты» в карточке: подсказка «Па
 });
 
 // covers: T-443, UC-21, F-62, F-15, F-14
-test('T-443 [W-22] очный результат по фото бланка: исходник и распознанный текст рядом, поля черновика, «Сохранить» — только после проверки', async () => {
+test('T-443 [W-22] очный результат по фото бланка: снимок сохраняется в карточке пациента как исходник, без распознавания; «Сохранить» — после выбора пациента и шкалы', async () => {
   const page = await as('psy1', '/work?tab=tools', 'P-21');
-  await page.click(B.tid('msg.nav.clinician.more.offline'));
-  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.click(B.tid('msg.composer.attach.photo'))]);
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.click('label.file-btn')]);
   await chooser.setFiles(path.join(F.FILES, 'printed_form.png'));
-  await B.expectVisible(page, 'msg.offline.source');
-  await B.expectVisible(page, 'msg.offline.recognized');
-  await B.expectVisible(page, 'msg.offline.draft');
-  await page.click(B.tid('msg.offline.save'));
+  await page.waitForSelector('[data-offline-photo]', { state: 'visible', timeout: 10000 });
+  await page.click('[data-photo-save]');
+  await page.waitForSelector('[data-offline-saved]', { state: 'visible', timeout: 15000 });
+  const saved = ctx.app.query("SELECT linked_type, status, patient_id FROM stored_files WHERE purpose = 'offline_source' ORDER BY id DESC LIMIT 1")[0];
+  assert.equal(saved.linked_type, 'offline_result');
+  assert.equal(saved.status, 'linked');
+  assert.ok(saved.patient_id, 'снимок привязан к пациенту');
 });
 
 // covers: T-444, UC-33, F-48
@@ -87,9 +89,9 @@ test('T-444 [W-28] «Следующий приём» в «Лечении»: да
 });
 
 // covers: T-445, UC-14, F-32, F-12, F-33, F-31
-test('T-445 [W-35] чат специалиста: «Выберите пациента…» до выбора; «@Мар» — только закреплённые; подсказки объектов пациента; ответ — черновик с «В черновик документа», «Открыть карточку», 👍/👎', async () => {
+test('T-445 [W-35] чат специалиста: «Выберите пациента…» до выбора; «@Мар» — только закреплённые; подсказки объектов пациента; ответ — черновик с пометкой ИИ и 👍/👎, без кнопок «В черновик документа» и «Открыть карточку»', async () => {
   const page = await as('psy1', '/work', 'P-20');
-  await B.expectVisible(page, 'msg.wchat.pick_patient');
+  await B.expectVisible(page, 'msg.wchat.empty.title');
   await page.fill(B.tid('msg.wchat.placeholder'), '@Мар');
   await page.locator('[role="option"]', { hasText: 'Марина' }).first().click();
   await B.expectVisible(page, 'msg.wchat.patient_chip');
@@ -97,8 +99,8 @@ test('T-445 [W-35] чат специалиста: «Выберите пацие�
   assert.ok(!options.some((o) => /Олег/.test(o)), 'чужой пациент не предлагается');
   await page.fill(B.tid('msg.wchat.placeholder'), 'Что изменилось за 2 недели?');
   await page.click(B.tid('msg.composer.send'));
-  await B.expectVisible(page, 'msg.wchat.to_doc');
-  await B.expectVisible(page, 'msg.wchat.open_card');
+  await B.expectHidden(page, 'msg.wchat.to_doc');
+  await B.expectHidden(page, 'msg.wchat.open_card');
   await B.expectVisible(page, 'msg.ai.clinician.under_answer');
 });
 

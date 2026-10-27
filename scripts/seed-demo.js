@@ -21,8 +21,8 @@ db.transaction(() => {
     if (!row) {
       const info = db
         .prepare(
-          `INSERT INTO users(service_no,email,email_hmac,password_hash,role,full_name,status,is_demo,flag_clinical_lead,created_at)
-        VALUES (?,?,?,?,?,?,'active',1,?,?)`,
+          `INSERT INTO users(service_no,email,email_hmac,password_hash,role,full_name,status,is_demo,flag_clinical_lead,flag_reference_reviewer,created_at)
+        VALUES (?,?,?,?,?,?,'active',1,?,?,?)`,
         )
         .run(
           service,
@@ -32,6 +32,8 @@ db.transaction(() => {
           role,
           name,
           role === 'psychiatrist' ? 1 : 0,
+          // Демо-админ видит в «Контенте» проверку названий препаратов (отметка ПС).
+          role === 'admin' ? 1 : 0,
           current,
         );
       row = { id: Number(info.lastInsertRowid) };

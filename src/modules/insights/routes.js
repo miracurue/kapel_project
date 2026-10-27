@@ -14,6 +14,7 @@ const { loadInsights } = require('./data');
 const { buildReport, SPECIALTY, ORG_KIND } = require('./report');
 const { narrate } = require('./story');
 const { shiftDay } = require('../analytics/facts');
+const { insightsRows, buildCsv, fileName } = require('../analytics/export_csv');
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const norm = (s) =>
@@ -68,51 +69,19 @@ function install(app, { db, P, config, now, activeSetting, auditPatient }) {
     const dx = dxParam(req);
     if (!range || !dx) return P.sendError(req, res, 422, 'E-VALIDATION');
     const r = adminReport(range, dx);
-    const rows = [['раздел', 'показатель', 'значение', 'единица', 'примечание']];
-    const add = (section, name, value, unit = '', note = '') =>
-      rows.push([
-        section,
-        name,
-        value === null || value === undefined ? '' : value,
-        unit,
-        value === null || value === undefined ? 'скрыто или нет данных' : note,
-      ]);
-    const sec = Object.fromEntries(r.sections.map((s) => [s.key, s]));
-    add('Кто они', 'Пациентов', sec.who.n_patients, 'чел.');
-    for (const d of sec.who.dynamics) add('Кто они', `Начали наблюдение, ${d.month}`, d.n_patients, 'чел.');
-    for (const s of sec.clinicians.specialties)
-      add('Кто их ведёт', `Специальность: ${s.label}`, s.n_patients, 'пациентов');
-    for (const s of sec.clinicians.org_kinds)
-      add('Кто их ведёт', `Тип организации: ${s.label}`, s.n_patients, 'пациентов');
-    for (const s of sec.clinicians.regions) add('Кто их ведёт', `Регион: ${s.label}`, s.n_patients, 'пациентов');
-    for (const s of sec.clinicians.organizations)
-      add('Кто их ведёт', `Организация: ${s.label}`, s.n_patients, 'пациентов');
-    for (const j of sec.doctors.journals) add('Чем живут врачи', `Журнал: ${j.title}`, j.n_doctors, 'специалистов');
-    for (const j of sec.doctors.conferences)
-      add('Чем живут врачи', `Конференция: ${j.title}`, j.n_doctors, 'специалистов');
-    for (const s of sec.prescribed.by_inn) add('Что назначают', `Препарат: ${s.label}`, s.n_patients, 'пациентов');
-    for (const s of sec.prescribed.duration) add('Что назначают', `Срок: ${s.label}`, s.n, 'назначений');
-    for (const s of sec.reality.funnel) add('Что реально происходит', s.label, s.n_patients, 'пациентов');
-    for (const s of sec.reality.adherence)
-      add('Что реально происходит', `Приём: ${s.label}`, s.n_patients, 'пациентов');
-    for (const m of sec.outcomes.measures) {
-      add('Что получается', `${m.label}: пациентов в расчёте`, m.n_patients, 'чел.', m.cut_text);
-      add('Что получается', `${m.label}: улучшение`, m.share_improved, '%');
-      add('Что получается', `${m.label}: медиана времени до улучшения`, m.median_days, 'дн.');
-    }
-    add('Какова цена', 'Сообщили о побочных эффектах', sec.cost.n_reporters, 'чел.');
-    for (const c of sec.cost.complaints) add('Какова цена', `Жалоба: ${c.label}`, c.n_patients, 'пациентов');
-    const q = (v) => `"${String(v).replace(/"/g, '""')}"`;
-    const head = [
-      `# Clinical Compass: аналитика программы, ${r.diagnosis.selected.label}, ${range.from} — ${range.to}`,
-      `# Предварительные данные (${r.formula_version}); группы меньше ${r.min_group} человек скрыты; идентификаторов нет.`,
-    ];
-    const csv = `﻿${[...head, ...rows.map((row) => row.map(q).join(','))].join('\n')}\n`;
+    const rows = insightsRows(r);
+    const csv = buildCsv({
+      scope: 'program',
+      period: range,
+      minGroup: r.min_group,
+      formulaVersion: r.formula_version,
+      rows,
+    });
     db.prepare(
       "INSERT INTO export_log(actor_id,kind,filter_json,row_count,recipient_class,created_at) VALUES (?,'program',?,?,'sponsor_aggregate',?)",
-    ).run(req.user.id, JSON.stringify({ kind: 'insights', dx, ...range }), rows.length - 1, P.iso(now(config)));
+    ).run(req.user.id, JSON.stringify({ kind: 'insights', dx, ...range }), rows.length, P.iso(now(config)));
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', 'attachment; filename="insights.csv"');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName(today())}"`);
     return res.send(csv);
   });
 

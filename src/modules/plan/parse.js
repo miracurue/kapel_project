@@ -145,7 +145,15 @@ function install(app, h) {
         piiCounts: p.counts,
       });
       const draft = { ...base.draft };
-      if (validateModel(out, draft)) return res.json({ draft, missing: base.missing });
+      // Аргументы вызова функции order_parse (src/ai/skills.js), а не весь результат шлюза.
+      const args = out.tool && out.tool.name === 'order_parse' ? out.tool.arguments : null;
+      if (validateModel(args, draft)) {
+        const missing = [];
+        if (!draft.inn_id) missing.push('inn');
+        if (!draft.dose) missing.push('dose');
+        if (!draft.times || !draft.times.length) missing.push('times');
+        return res.json({ draft, missing });
+      }
     } catch (_) {
       /* отказ модели → черновик из правил */
     }

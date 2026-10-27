@@ -22,6 +22,7 @@
 const bcrypt = require('bcryptjs');
 const field = require('../../crypto/field');
 const svc = require('./service');
+const { isFullyAssigned } = require('../../access/assignment');
 
 const DOC_KINDS = Object.keys(svc.DOC_TYPES);
 const LOCK_ATTEMPTS = 5;
@@ -32,13 +33,7 @@ function install(app, { db, P, config, now, makeUndo, idemCached, saveIdem, audi
   const encKey = () => process.env.PII_ENC_KEY;
 
   function assigned(clinicianId, patientId) {
-    return Boolean(
-      db
-        .prepare(
-          "SELECT 1 FROM care_assignments WHERE patient_id=? AND clinician_id=? AND ended_at IS NULL AND (end_reason IS NULL OR end_reason<>'signal_only')",
-        )
-        .get(patientId, clinicianId),
-    );
+    return isFullyAssigned(db, patientId, clinicianId);
   }
 
   function yearOf(iso) {

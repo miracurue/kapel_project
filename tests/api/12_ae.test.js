@@ -33,14 +33,18 @@ test('T-185 [W-26] НЯ: «Отправлено врачу · Отменить»
 });
 
 // covers: T-186, UC-07, UC-17, F-45, F-83, PD-20, PD-16
-test('T-186 [W-26] без закреплённого психиатра НЯ уходит в служебную очередь «НЯ без психиатра» без текста; пустое описание — E-VALIDATION', async () => {
+test('T-186 [W-26] без закреплённого психиатра НЯ остаётся личной записью пациента: службе не уходит, врачам не видна; пустое описание — E-VALIDATION', async () => {
   const p = await ctx.as('patI');
   expectError(await p.post('/api/v1/me/adverse-events', { symptoms: [], text: '' }), 422, 'E-VALIDATION');
   const r = expectOk(await p.post('/api/v1/me/adverse-events', { symptoms: ['headache'], text: 'Синтетика: болит голова', severity: 'mild', related: 'unknown' }));
+  assert.equal(r.ae.attached, false);
+  assert.equal(r.ae.status, 'saved_private');
   await F.passUndoWindow(ctx.app);
   const q = expectOk(await (await ctx.as('admin1')).get('/api/v1/admin/requests?filter=open'));
-  assert.ok(q.items.some((i) => i.kind === 'ae_no_psychiatrist'));
-  assert.doesNotMatch(JSON.stringify(q), /болит голова|Инна/);
+  assert.ok(!q.items.some((i) => i.kind === 'ae_no_psychiatrist'), 'очередь службы больше не создаётся');
+  const mine = expectOk(await p.get('/api/v1/me/adverse-events')).items.find((x) => x.id === r.ae.id);
+  assert.equal(mine.status, 'saved_private');
+  assert.equal(mine.attached, false);
   assert.ok(!(await F.signalsOf(await ctx.as('plg1'), 'kind=all&status=all')).some((s) => s.id === r.ae.id), 'психолог НЯ не видит');
 });
 

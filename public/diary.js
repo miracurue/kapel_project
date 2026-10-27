@@ -15,6 +15,9 @@
     medicationsShared = true,
     blocked = false;
   let calendarMonth;
+  // Заметки, которые ещё не подтвердил сервер, и ключ восстановленного черновика (F-03).
+  const unconfirmedNotes = new Set();
+  let draftKey = null;
   const shiftDay = (date, amount) =>
     new Date(Date.parse(date + 'T00:00:00Z') + amount * 86400000).toISOString().slice(0, 10);
   const dateAt = (index) => shiftDay(today, index - 13);
@@ -35,7 +38,7 @@
       holder.dataset.diaryCrisis = '';
       holder.className = 'diary-crisis';
       holder.setAttribute('role', 'alert');
-      root.prepend(holder);
+      (root.querySelector('.diary-col') || root).prepend(holder);
     }
     holder.replaceChildren();
     const heading = document.createElement('h2');
@@ -62,7 +65,11 @@
     const headers = {};
     if (method !== 'GET') {
       const csrf = await fetch('/api/v1/csrf');
-      if (!csrf.ok) throw Error(t('msg.diary.workspace.save_error'));
+      if (!csrf.ok) {
+        const error = Error(t('msg.diary.workspace.save_error'));
+        error.status = csrf.status;
+        throw error;
+      }
       headers['x-csrf-token'] = (await csrf.json()).token;
       headers['idempotency-key'] = crypto.randomUUID();
       headers['content-type'] = 'application/json';
@@ -72,6 +79,11 @@
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
     });
+    if (response.status === 401) {
+      const error = Error(t('msg.diary.workspace.save_error'));
+      error.status = 401;
+      throw error;
+    }
     const data = await response.json();
     if (data.crisis) showCrisis(data.crisis);
     if (data.ae_suggestion && !data.crisis) {
@@ -84,7 +96,7 @@
         link.href = '/app?tab=meds&flow=ae';
         link.textContent = t('msg.diary.workspace.ae_suggestion');
         holder.append(link);
-        $('.diary-main').prepend(holder);
+        ($('.diary-col') || $('.diary-main')).prepend(holder);
       }
     }
     if (!response.ok || data.saved === false) {
@@ -298,10 +310,8 @@
   }
   const initialNotes = () => state.dayNotes.map((n) => ({ ...n, index: indexOfDate(n.day), order: n.order || 0 }));
   let journalNotes = initialNotes(),
-    historyMode = 'state',
     showUnscheduled = false,
-    drawerDay = 13,
-    drawerHabit = null;
+    drawerDay = 13;
   const moodNames = [
     t('msg.diary.workspace.dynamic.043'),
     t('msg.diary.workspace.dynamic.044'),
@@ -322,6 +332,7 @@
   let habits = [...initialHabits(), ...state.habits].map(attachDateView),
     mode = 'patient',
     selected = 'mood',
+    view = 'today',
     editing = null,
     toastTimer;
   let reminder = state.reminder;
@@ -361,6 +372,7 @@
         });
         revision = result.revision;
         analytics = result.analytics;
+        for (const n of snapshot.dayNotes) unconfirmedNotes.delete(n.id);
         const outside = (day) => day < stateWindow.from || day > stateWindow.to;
         const mergeHistory = (current, received) => ({
           ...received,
@@ -394,6 +406,14 @@
         if (pendingSaves === 1) state = mergeHistory(state, result.state);
         renderInterpretation();
       } catch (error) {
+        if (error.status === 401) {
+          // Сессия истекла (F-03): несохранённые заметки остаются только в этом браузере и вернутся
+          // тому же пользователю после входа (shell.js переносит их под его почту).
+          const unsaved = journalNotes.filter((n) => unconfirmedNotes.has(n.id)).map((n) => n.text);
+          if (unsaved.length) localStorage.setItem('cc_diary_pending', unsaved.join('\n\n'));
+          location.assign('/login?expired=1');
+          return;
+        }
         blocked = true;
         saveStatus('error', error.message);
         $('[data-diary-content]').inert = true;
@@ -542,14 +562,35 @@
       .filter((v) => v !== '')
       .join(' · ');
   }
+  // Радиокнопки одной строкой: выбранная — «нажата», повторное нажатие снимает отметку.
+  const radios = (state, names, selectedValue, first, off) =>
+    names
+      .map(
+        (name, i) =>
+          `<button type="button" role="radio" data-state="${state}" data-state-value="${i + first}" aria-checked="${selectedValue === i + first}" tabindex="${selectedValue === i + first || (selectedValue == null && i === 0) ? 0 : -1}" ${off}>${esc(name)}</button>`,
+      )
+      .join('');
+  const stepper = (attrs, value, unit, label, off) =>
+    `<div class="stepper" role="group" aria-label="${esc(label)}"><button type="button" class="round round--sm round--sunk" ${attrs}="-1" aria-label="${t('msg.diary.workspace.quick.less')}" ${off}>${ico('minus', 'i--16')}</button><span class="stepper-value"><strong>${value == null ? '—' : number(value)}</strong>${unit ? `<span>${esc(unit)}</span>` : ''}</span><button type="button" class="round round--sm round--sunk" ${attrs}="1" aria-label="${t('msg.diary.workspace.quick.more')}" ${off}>${ico('plus', 'i--16')}</button></div>`;
+  // «Сон» и «Лекарства» отмечаются прямо в строке: без окон и кнопки «Сохранить».
   function essentialCards() {
     const sleep = habits.find((h) => h.id === 'sleep'),
       quality = habits.find((h) => h.id === 'quality'),
-      rows = medicationRows(13);
+      rows = medicationRows(13),
+      off = mode === 'doctor' ? 'disabled' : '';
     const planned = rows.filter((m) => !m.legacy);
-    const taken = planned.filter((m) => m.status === 'taken').length;
+    const meds = planned.length
+      ? `<ul class="med-list">${rows
+          .map((row, i) =>
+            row.legacy
+              ? ''
+              : `<li class="med-item"><span class="med-name">${esc(medicationLabel(row))}</span><span class="seg seg--sm segmented" role="group" aria-label="${esc(row.name)}">${['taken', 'skipped'].map((status) => `<button type="button" data-med-index="${i}" data-med-status="${status}" aria-pressed="${row.status === status}" ${off}>${t('msg.diary.workspace.medication.' + status)}</button>`).join('')}</span></li>`,
+          )
+          .join('')}</ul>`
+      : `<p class="p-hint">${t('msg.diary.workspace.no_medications')} <a href="/app?tab=meds">${t('msg.diary.workspace.medication_plan')}</a></p>`;
     $('#essential-cards').innerHTML =
-      `<article class="inset essential-card" data-habit="sleep"><h4 class="card-top">${ico('moon', 'i--18')}<span class="card-title">${t('msg.diary.workspace.dynamic.040')}</span></h4><div class="card-value"><strong>${sleep.values[13] == null ? '—' : number(sleep.values[13])}</strong><span>${t('msg.diary.workspace.dynamic.085')}</span></div><div class="sleep-quality small">${quality.values[13] == null ? t('msg.diary.workspace.quality_empty') : qualityNames[quality.values[13] - 1] + ' ' + t('msg.diary.workspace.sleep')}</div><div class="card-bottom">${mode === 'patient' ? t('msg.diary.workspace.dynamic.083') : ''}${accessBadge(true)}</div></article><article class="inset essential-card" data-habit="med"><h4 class="card-top">${ico('pill', 'i--18')}<span class="card-title">${t('msg.diary.workspace.dynamic.041')}</span></h4><div class="card-value"><strong>${planned.length ? taken : '—'}</strong><span>${planned.length ? t('msg.diary.workspace.out_of') + ' ' + planned.length + ' ' + t('msg.diary.workspace.doses') : ''}</span></div><div class="med-slots">${rows.map((row) => `<span class="med-slot ${esc(row.status || 'pending')}">${row.status === 'taken' ? ico('check', 'i--16') : ''}${esc(medicationLabel(row))}</span>`).join('') || '<p class="p-hint">' + t('msg.diary.workspace.no_medications') + '</p>'}</div><div class="card-bottom">${mode === 'patient' && planned.length ? t('msg.diary.workspace.dynamic.084') : ''}<a class="small" href="/app?tab=meds">${t('msg.diary.workspace.medication_plan')}</a>${accessBadge(true)}</div></article>`;
+      `<div class="quick-row" data-habit="sleep"><h3 class="quick-label">${ico('moon', 'i--18')}${t('msg.diary.workspace.dynamic.040')}</h3><div class="quick-controls">${stepper('data-sleep-step', sleep.values[13], t('msg.diary.workspace.quick.hours_short'), t('msg.diary.workspace.quick.sleep_hours'), off)}<span class="seg seg--sm rating-buttons" role="radiogroup" aria-label="${t('msg.diary.workspace.dynamic.038')}">${radios('quality', qualityNames, quality.values[13], 1, off)}</span></div></div>` +
+      `<div class="quick-row" data-habit="med"><h3 class="quick-label">${ico('pill', 'i--18')}${t('msg.diary.workspace.dynamic.041')}</h3><div class="quick-controls">${meds}</div></div>`;
     $('[data-habit="med"]').hidden = mode === 'doctor' && !medicationsShared;
     $('[data-habit="sleep"]').hidden = mode === 'doctor' && !Object.keys(sharedState.wellbeings).length;
   }
@@ -562,19 +603,31 @@
         : s === 'partial'
           ? ico('check', 'i--16')
           : '';
-  function personalCard(h) {
+  // Как отмечается привычка прямо в строке: галочка, «− N +», выбор из вариантов, число или время.
+  function quickControl(h) {
     const v = h.values[13],
-      textual = ['note', 'choice'].includes(h.type);
-    const main = v == null ? '—' : numericTypes.includes(h.type) ? shortNumber(v) : valueLabel(h, v);
-    const progress = v == null ? 0 : h.goal === 'none' ? 100 : meets(h, v) ? 100 : 50;
-    const strip = days
-      .slice(7)
-      .map((d) => {
-        const s = status(h, d);
-        return `<span class="mx mx--${s}" role="img" aria-label="${esc(formatDate(dateAt(d)))}: ${statusNames[s]}">${cellMark(s)}</span>`;
-      })
-      .join('');
-    return `<article class="habit-card qrow" data-habit="${h.id}" data-progress="${progress}"><div class="q-main"><h3 class="card-title">${esc(h.name)}</h3><p class="card-plan small">${esc(planLabel(h))}</p><div class="card-value"><strong class="${textual ? 'text-value' : ''}">${esc(main.length > 70 ? main.slice(0, 70) + '…' : main)}</strong><span>${v == null ? t('msg.diary.workspace.dynamic.086') : numericTypes.includes(h.type) ? esc(h.unit) : ''}</span></div></div><div class="mx-strip" role="group" aria-label="${esc(h.name)}">${strip}</div><div class="q-act">${mode === 'patient' ? `<button class="btn sm" type="button" data-edit="${h.id}">${v == null ? t('msg.diary.workspace.dynamic.087') : t('msg.diary.workspace.dynamic.088')}</button>` : ''}<button class="round round--sm habit-more" type="button" data-about="${h.id}" aria-label="${t('msg.diary.workspace.dynamic.089')} ${esc(h.name)}">${ico('dots-three-vertical', 'i--18')}</button></div>${accessBadge(h.shared)}</article>`;
+      off = mode === 'doctor' ? 'disabled' : '';
+    if (h.type === 'check')
+      return `<button type="button" class="btn sm done-toggle" data-quick="${h.id}" data-quick-value="1" aria-pressed="${v === 1}" ${off}>${ico('check', 'i--16')}${t('msg.diary.workspace.quick.done')}</button>`;
+    if (h.type === 'count') return stepper(`data-quick="${h.id}" data-quick-step`, v, h.unit, h.name, off);
+    if (h.type === 'choice' || (h.type === 'scale' && h.maximum - h.minimum <= 10)) {
+      const names =
+        h.type === 'choice'
+          ? h.choices
+          : Array.from({ length: h.maximum - h.minimum + 1 }, (_, i) => String(h.minimum + i));
+      const first = h.type === 'choice' ? 1 : h.minimum;
+      return `<span class="seg seg--sm segmented quick-choices" role="group" aria-label="${esc(h.name)}">${names.map((name, i) => `<button type="button" data-quick="${h.id}" data-quick-value="${i + first}" aria-pressed="${v === i + first}" ${off}>${esc(name)}</button>`).join('')}</span>`;
+    }
+    if (h.type === 'time')
+      return `<input class="quick-input" type="time" data-quick-input="${h.id}" value="${v == null ? '' : clock(v)}" aria-label="${esc(h.name)}" ${off}>`;
+    if (h.type === 'note') {
+      const text = v == null ? '' : String(v);
+      return `${text ? `<span class="quick-note">${esc(text.length > 60 ? text.slice(0, 60) + '…' : text)}</span>` : ''}${mode === 'patient' ? `<button type="button" class="btn sm" data-edit="${h.id}">${text ? t('msg.diary.workspace.quick.edit') : t('msg.diary.workspace.quick.write')}</button>` : ''}`;
+    }
+    return `<label class="quick-input"><input type="number" inputmode="decimal" data-quick-input="${h.id}" min="${h.minimum}" max="${h.maximum}" step="${h.step}" value="${v ?? ''}" placeholder="—" aria-label="${esc(h.name)}" ${off}><span>${esc(h.unit)}</span></label>`;
+  }
+  function personalCard(h) {
+    return `<article class="habit-card qrow" data-habit="${h.id}"><div class="q-main"><h3 class="card-title">${esc(h.name)}</h3><p class="card-plan small">${esc(planLabel(h))}</p></div><div class="q-act">${quickControl(h)}<button class="round round--sm habit-more" type="button" data-about="${h.id}" aria-label="${t('msg.diary.workspace.dynamic.089')} ${esc(h.name)}">${ico('dots-three-vertical', 'i--18')}</button></div></article>`;
   }
   function render() {
     const shown = visible();
@@ -600,14 +653,9 @@
     $('#show-unscheduled').textContent = showUnscheduled
       ? t('msg.diary.workspace.dynamic.091')
       : `${t('msg.diary.workspace.dynamic.092')} ${off.length} ${t('msg.diary.workspace.dynamic.093')}`;
-    $('#today-caption').textContent =
-      mode === 'doctor' ? t('msg.diary.workspace.dynamic.094') : t('msg.diary.workspace.dynamic.095');
-    document
-      .querySelectorAll('[data-history-mode]')
-      .forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.historyMode === historyMode)));
-    $('#state-history').hidden = historyMode !== 'state';
-    $('#habit-history').hidden = historyMode !== 'habits';
-    $('#history-period').hidden = historyMode !== 'habits';
+    $('#view-today').hidden = view !== 'today';
+    $('#habit-detail').hidden = view !== 'habit';
+    renderHabitSide();
     renderMonth();
     renderHabitCalendar();
     $('#metric').innerHTML = shown
@@ -615,9 +663,97 @@
       .join('');
     renderChart();
     renderInsights();
+    renderDetailRecords();
     renderNotes();
     renderReminder();
     if ($('#day-drawer').open) renderDrawer();
+  }
+  // Левая панель: привычки как список — клик раскрывает график и записи привычки.
+  function sideValue(h) {
+    const v = h.values[13];
+    if (v == null) return '—';
+    if (h.type === 'check') return v === 1 ? '✓' : '—';
+    if (h.type === 'note') {
+      const text = String(v);
+      return text.length > 24 ? text.slice(0, 24) + '…' : text;
+    }
+    if (h.type === 'time') return clock(v);
+    if (h.type === 'choice') return h.choices[v - 1] || '—';
+    return shortNumber(v);
+  }
+  function sideButton(h) {
+    const on = view === 'habit' && selected === h.id,
+      v = sideValue(h);
+    return `<button type="button" class="side-th th ${on ? 'on' : ''}" data-side-habit="${h.id}" aria-current="${on}"><span class="th-name">${esc(h.name)}</span>${v === '—' ? '' : `<span class="th-val">${esc(v)}</span>`}</button>`;
+  }
+  function renderHabitSide() {
+    const shown = visible();
+    $('#side-today').classList.toggle('on', view === 'today');
+    $('#side-today').setAttribute('aria-current', String(view === 'today'));
+    $('#side-state').innerHTML = shown
+      .filter((h) => h.system)
+      .map(sideButton)
+      .join('');
+    $('#side-habits').innerHTML =
+      shown
+        .filter((h) => !h.system)
+        .map(sideButton)
+        .join('') || `<div class="side-empty">${t('msg.diary.workspace.dynamic.090')}</div>`;
+  }
+  // Записи выбранной привычки: значения по дням, для заметок — сами заметки.
+  function detailRecord(h, index) {
+    const v = h.values[index];
+    if (v == null) return '';
+    const canEdit =
+      mode === 'patient' &&
+      index === 13 &&
+      index >= h.startIndex &&
+      (h.id !== 'med' || medicationRows(13).some((row) => !row.legacy));
+    const extra =
+      h.id === 'med'
+        ? medicationRows(index)
+            .map(
+              (row) => medicationLabel(row) + ' — ' + t('msg.diary.workspace.medication.' + (row.status || 'unknown')),
+            )
+            .join(' · ')
+        : h.id === 'sleep'
+          ? `${t('msg.diary.workspace.dynamic.182')} ${valueLabel(
+              habits.find((x) => x.id === 'quality'),
+              habits.find((x) => x.id === 'quality').values[index],
+            )}`
+          : '';
+    return `<div class="detail-record"><div class="detail-record-main"><button type="button" class="link" data-open-day="${index}">${esc(dayLabel(index))}</button><strong>${esc(valueLabel(h, v))}</strong>${extra ? `<p class="p-hint">${esc(extra)}</p>` : ''}</div>${canEdit ? `<button type="button" class="btn sm" data-edit="${h.id}" data-entry-index="${index}">${t('msg.diary.workspace.dynamic.184')}</button>` : ''}</div>`;
+  }
+  function renderDetailRecords() {
+    const h = habits.find((x) => x.id === selected);
+    if (!h) {
+      $('#detail-records').innerHTML = '';
+      return;
+    }
+    const rows = days
+      .slice()
+      .reverse()
+      .map((index) => detailRecord(h, index))
+      .filter(Boolean)
+      .join('');
+    // Связанные записи: сами заметки привычки-заметки, у остальных — заметки тех дней, когда по привычке есть запись.
+    const notes = allNotes()
+      .filter((n) => (h.type === 'note' ? n.habitId === h.id : n.source === 'day' && h.values[n.index] != null))
+      .slice(0, 6)
+      .map((n) => noteHtml(n, false))
+      .join('');
+    const manage =
+      mode === 'patient' && !h.system
+        ? `<div class="detail-manage"><label class="check-label"><input type="checkbox" data-share="${h.id}" ${h.shared ? 'checked' : ''}>${t('msg.diary.workspace.dynamic.202')}</label><button type="button" class="btn sm" data-edit="${h.id}">${t('msg.diary.workspace.dynamic.203')}</button>${h.id.startsWith('custom-') ? `<button type="button" class="btn sm danger" id="delete-diary-habit" data-id="${h.id}">${t('msg.diary.workspace.dynamic.205')}</button>` : ''}</div>`
+        : `<div class="detail-manage">${accessBadge(h.shared)}</div>`;
+    $('#detail-records').innerHTML =
+      manage +
+      (rows
+        ? `<h3 class="field-label">${t('msg.diary.workspace.static.044')}</h3><div class="detail-records-list">${rows}</div>`
+        : '') +
+      (notes
+        ? `<h3 class="field-label">${t('msg.diary.workspace.static.045')}</h3><div class="recent-notes">${notes}</div>`
+        : '');
   }
   function renderInterpretation() {
     const lines = [...(analytics?.flag ? [analytics.flag] : []), ...(analytics?.observations || [])];
@@ -655,7 +791,7 @@
         hasNotes = notes.some((n) => n.index === index),
         future = date > today;
       const label = `${formatDate(date)}, ${value == null ? t('msg.diary.workspace.dynamic.057').toLocaleLowerCase('ru') : `${t('msg.diary.workspace.cal_mood')} ${value} ${t('msg.diary.workspace.cal_of_5')}`}${hasNotes ? `, ${t('msg.diary.workspace.cal_has_note')}` : ''}`;
-      html += `<button type="button" class="cal-day ${future ? 'is-future' : value == null ? 'm0' : 'm' + value} ${date === today ? 'is-today' : ''}" ${value == null ? '' : `data-mood="${value}"`} data-open-day="${index}" aria-label="${esc(label)}" aria-pressed="${$('#day-drawer').open && !drawerHabit && drawerDay === index}" ${future ? 'disabled' : ''}><span class="n">${day}</span>${future ? '<span></span>' : value == null ? '<span class="v v--none">—</span>' : `<span class="v">${value}</span>`}${hasNotes ? ico('note-pencil', 'note-i') : ''}</button>`;
+      html += `<button type="button" class="cal-day ${future ? 'is-future' : value == null ? 'm0' : 'm' + value} ${date === today ? 'is-today' : ''}" ${value == null ? '' : `data-mood="${value}"`} data-open-day="${index}" aria-label="${esc(label)}" aria-pressed="${$('#day-drawer').open && drawerDay === index}" ${future ? 'disabled' : ''}><span class="n">${day}</span>${future ? '<span></span>' : value == null ? '<span class="v v--none">—</span>' : `<span class="v">${value}</span>`}${hasNotes ? ico('note-pencil', 'note-i') : ''}</button>`;
     }
     $('#month-calendar').innerHTML = html;
   }
@@ -757,6 +893,7 @@
   }
   function renderChart() {
     const h = habits.find((h) => h.id === selected);
+    $('#chart-habit').textContent = h ? h.name : '';
     if (!h) {
       $('#chart').innerHTML = '';
       $('#chart-value').textContent = t('msg.diary.workspace.dynamic.117');
@@ -903,10 +1040,7 @@
   function openEntry(id, index = 13) {
     const h = habits.find((h) => h.id === id);
     if (mode === 'doctor') {
-      selected = id;
-      setTab('dynamics');
-      render();
-      $('#chart-title').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      openHabitDetail(id);
       return;
     }
     if (index !== 13) {
@@ -917,11 +1051,8 @@
       toast(t('msg.diary.workspace.dynamic.135'));
       return;
     }
-    $('#entry-clear').hidden = false;
     editing = { id, index };
     $('#entry-title').textContent = `${h.name} · ${formatDate(dateAt(index))}`;
-    $('#entry-hint').textContent =
-      `${planLabel(h)}. ${aggregations[h.aggregation]}.${h.id === 'med' ? t('msg.diary.workspace.dynamic.136') : ''}`;
     if (h.id === 'med') {
       openMedEditor(h, index);
       return;
@@ -944,19 +1075,15 @@
     }
     $('#entry-fields').innerHTML = field;
     if (h.id === 'sleep') $('#entry-value').required = false;
-    $('#entry-operation').value = 'replace';
-    $('#entry-operation-label').hidden = h.system || h.type === 'check';
-    $('#entry-records').textContent = h.logs[index].length
-      ? `${t('msg.diary.workspace.dynamic.141')} ${h.logs[index].map((v) => valueLabel(h, v)).join('; ')}`
-      : t('msg.diary.workspace.dynamic.142');
-    $('#entry-missed').hidden = h.type !== 'check';
+    // «Убрать запись» — только когда есть что убирать.
+    $('#entry-clear').hidden = v == null;
     $('#editor').showModal();
+    $('#entry-value').focus();
   }
   function saveEntry(v, clearSleep = false) {
     const h = habits.find((h) => h.id === editing.id),
       i = editing.index;
     if (v === null) h.logs[i] = [];
-    else if ($('#entry-operation').value === 'append' && !h.system && h.type !== 'check') h.logs[i] = [...h.logs[i], v];
     else h.logs[i] = [v];
 
     if (h.id === 'sleep') {
@@ -998,19 +1125,6 @@
     saveEntry(v);
   });
   $('#entry-fields').addEventListener('input', () => $('#entry-value')?.setCustomValidity(''));
-  $('#entry-operation').addEventListener('change', () => {
-    const h = habits.find((h) => h.id === editing.id);
-    if ($('#entry-operation').value === 'append')
-      $('#entry-value').value = ['note', 'time'].includes(h.type) ? '' : h.type === 'choice' ? '1' : '';
-    else
-      $('#entry-value').value =
-        h.type === 'time'
-          ? h.values[editing.index] == null
-            ? ''
-            : clock(h.values[editing.index])
-          : ((h.aggregation === 'mean' ? h.logs[editing.index].at(-1) : h.values[editing.index]) ?? '');
-  });
-  $('#entry-missed').addEventListener('click', () => saveEntry(0));
   $('#entry-clear').addEventListener('click', () => {
     const h = habits.find((x) => x.id === editing.id);
     if (h.id === 'med') {
@@ -1023,7 +1137,7 @@
       about = e.target.closest('[data-about]'),
       day = e.target.closest('[data-open-day]');
     if (edit) openEntry(edit.dataset.edit, edit.dataset.entryIndex == null ? 13 : Number(edit.dataset.entryIndex));
-    if (about) openHabit(about.dataset.about);
+    if (about) openHabitDetail(about.dataset.about);
     if (day) openDay(Number(day.dataset.openDay));
   });
   document.addEventListener('change', (e) => {
@@ -1240,9 +1354,19 @@
   }
   $('#add').addEventListener('click', () => {
     $('#builder-error').hidden = true;
+    $('#builder-more').open = false;
     updateBuilder();
-    $('#creator').showModal();
+    openSide('#creator');
+    $('#habit-name').focus();
   });
+  // Редкие настройки спрятаны в «Ещё настройки»; если ошибка в них — раскрываем, чтобы было видно поле.
+  $('#habit-form').addEventListener(
+    'invalid',
+    (e) => {
+      if (e.target.closest('#builder-more')) $('#builder-more').open = true;
+    },
+    true,
+  );
   $('#habit-form').addEventListener('input', () => {
     $('#builder-error').hidden = true;
     updateBuilder();
@@ -1408,8 +1532,10 @@
   function addNote(index, text, shared) {
     text = text.trim();
     if (!text) return false;
+    const id = `day-note-${Date.now()}-${Math.floor(Math.random() * 1e5)}`;
+    unconfirmedNotes.add(id);
     journalNotes.push({
-      id: `day-note-${Date.now()}-${Math.floor(Math.random() * 1e5)}`,
+      id,
       index,
       order: Date.now(),
       text,
@@ -1419,19 +1545,37 @@
     render();
     return true;
   }
+  // День и «Все заметки» открываются в правой панели на месте цветка и не блокируют страницу: одно окно за раз.
+  function openSide(selector) {
+    const dialog = $(selector);
+    document.querySelectorAll('dialog.day-drawer[open]').forEach((other) => other !== dialog && other.close());
+    if (dialog.open) return;
+    const top = document.querySelector('header.top');
+    dialog.style.setProperty('--fl-top', `${Math.max(0, Math.round(top?.getBoundingClientRect().bottom || 0))}px`);
+    dialog.show();
+    document.body.classList.add('diary-day-open');
+  }
   function openDay(index) {
-    if ($('#notes-dialog').open) $('#notes-dialog').close();
-    drawerHabit = null;
     drawerDay = Math.min(13, index);
     renderDrawer();
-    if (!$('#day-drawer').open) $('#day-drawer').showModal();
+    openSide('#day-drawer');
     renderMonth();
   }
-  function openHabit(id) {
-    drawerHabit = id;
-    renderDrawer();
-    if (!$('#day-drawer').open) $('#day-drawer').showModal();
+  function openHabitDetail(id) {
+    selected = id;
+    view = 'habit';
+    render();
+    $('.pane .scroll')?.scrollTo({ top: 0 });
   }
+  $('.diary-side').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-side-habit]');
+    if (b) openHabitDetail(b.dataset.sideHabit);
+    else if (e.target.closest('#side-today')) {
+      view = 'today';
+      render();
+      $('.pane .scroll')?.scrollTo({ top: 0 });
+    }
+  });
   function drawerRow(h, index) {
     if (mode === 'doctor' && !visible().some((item) => item.id === h.id)) return '';
     const v = h.values[index],
@@ -1457,10 +1601,6 @@
     return `<div class="drawer-row"><div><h4>${esc(h.name)}</h4><strong>${esc(label)}</strong>${recordText ? `<p>${esc(recordText)}</p>` : ''}<p>${accessBadge(h.shared)}</p></div>${canEdit ? `<button type="button" class="btn sm" data-edit="${h.id}" data-entry-index="${index}">${v == null ? t('msg.diary.workspace.dynamic.183') : t('msg.diary.workspace.dynamic.184')}</button>` : ''}</div>`;
   }
   function renderDrawer() {
-    if (drawerHabit) {
-      renderHabitDrawer();
-      return;
-    }
     const index = drawerDay,
       notes = allNotes().filter((n) => n.index === index);
     $('#drawer-kicker').textContent = t('msg.diary.workspace.dynamic.185');
@@ -1478,46 +1618,12 @@
     $('#drawer-content').innerHTML =
       `${mode === 'patient' && index !== 13 ? '<p class="drawer-privacy">' + t('msg.diary.workspace.history_readonly') + ' <a href="/app?tab=doctor">' + t('msg.diary.workspace.ask_correction') + '</a></p>' : ''}<section class="drawer-section"><h3>${t('msg.diary.workspace.dynamic.193')}</h3>${drawerRow(mood, index)}${drawerRow(anxiety, index)}</section><section class="drawer-section"><h3>${t('msg.diary.workspace.dynamic.194')}</h3>${drawerRow(sleep, index)}${drawerRow(med, index)}</section><section class="drawer-section"><h3>${t('msg.diary.workspace.dynamic.195')}</h3>${personal.map((h) => drawerRow(h, index)).join('') || t('msg.diary.workspace.dynamic.186')}</section><section class="drawer-section"><h3>${t('msg.diary.workspace.dynamic.196')}</h3>${notes.map((n) => `<article class="drawer-note"><p>${esc(n.text)}</p><div class="drawer-note-footer"><span>${esc(n.sourceName)}</span>${mode === 'patient' && n.source === 'day' ? `<label><input type="checkbox" data-note-share="${esc(n.id)}" ${n.shared ? 'checked' : ''}>${t('msg.diary.workspace.dynamic.080')}</label>` : accessBadge(n.shared)}</div></article>`).join('') || t('msg.diary.workspace.dynamic.187')}${mode === 'patient' && index === 13 ? `<form id="drawer-note-form"><label for="drawer-note-text" class="field-label">${t('msg.diary.workspace.dynamic.188')}</label><textarea id="drawer-note-text" rows="3" maxlength="2000" required placeholder="${t('msg.diary.workspace.dynamic.189')}"></textarea><label class="check-label"><input type="checkbox" id="drawer-note-share">${t('msg.diary.workspace.dynamic.190')}</label><button type="submit" class="btn primary">${t('msg.diary.workspace.dynamic.191')}</button></form>` : ''}</section>${mode === 'patient' ? t('msg.diary.workspace.dynamic.192') : ''}`;
   }
-  function renderHabitDrawer() {
-    const h = visible().find((h) => h.id === drawerHabit);
-    if (!h) {
-      $('#day-drawer').close();
-      drawerHabit = null;
-      return;
-    }
-    $('#drawer-kicker').textContent = t('msg.diary.workspace.dynamic.197');
-    $('#drawer-title').textContent = h.name;
-    $('#drawer-nav').hidden = true;
-    $('#drawer-content').innerHTML = `<section class="drawer-section">${[
-      [t('msg.diary.workspace.dynamic.198'), typeNames[h.type]],
-      [t('msg.diary.workspace.dynamic.199'), h.unit],
-      [t('msg.diary.workspace.dynamic.200'), goalLabel(h)],
-      [t('msg.diary.workspace.dynamic.201'), scheduleLabel(h)],
-      [t('msg.diary.workspace.dynamic.133'), aggregations[h.aggregation]],
-    ]
-      .map(([label, value]) => `<div class="drawer-property"><span>${label}</span><strong>${esc(value)}</strong></div>`)
-      .join(
-        '',
-      )}<p class="drawer-privacy">${t('msg.diary.workspace.dynamic.206')}</p>${mode === 'patient' ? `<label class="check-label"><input type="checkbox" data-share="${h.id}" ${h.shared ? 'checked' : ''}>${t('msg.diary.workspace.dynamic.202')}</label><button type="button" class="btn primary" data-edit="${h.id}">${t('msg.diary.workspace.dynamic.203')}</button>` : accessBadge(h.shared)}</section><section class="drawer-section"><h3>${t('msg.diary.workspace.dynamic.207')}</h3>${
-      days
-        .map((d, index) =>
-          h.values[index] == null
-            ? ''
-            : `<button type="button" class="drawer-record" data-open-day="${index}"><span>${dayLabel(index).split(',')[0]}</span><span>${esc(valueLabel(h, h.values[index]))}</span></button>`,
-        )
-        .reverse()
-        .join('') || t('msg.diary.workspace.dynamic.204')
-    }</section>${mode === 'patient' && h.id.startsWith('custom-') ? `<button type="button" class="btn danger" id="delete-diary-habit" data-id="${h.id}">${t('msg.diary.workspace.dynamic.205')}</button>` : ''}`;
-  }
   function openMedEditor(h, index) {
     const rows = medicationRows(index);
     if (!rows.length) return;
     $('#entry-fields').innerHTML =
       `<input id="entry-value" type="hidden" value="0"><p class="muted">${t('msg.diary.workspace.medication_note')}</p>${rows.map((row, i) => `<label>${esc(medicationLabel(row))}<select id="med-slot-${i}" ${row.legacy ? 'disabled' : ''}>${['unknown', 'taken', 'skipped', 'later'].map((status) => `<option value="${status}" ${(row.status || 'unknown') === status ? 'selected' : ''}>${t('msg.diary.workspace.medication.' + status)}</option>`).join('')}</select></label>`).join('')}`;
-    $('#entry-operation-label').hidden = true;
-    $('#entry-missed').hidden = true;
     $('#entry-clear').hidden = true;
-    $('#entry-records').textContent = t('msg.diary.workspace.medication_self_report');
     $('#editor').showModal();
   }
   async function saveMedEditor(h, index) {
@@ -1545,28 +1651,98 @@
       $('#entry-form button[type="submit"]').disabled = false;
     }
   }
-  $('#state-pickers').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-state]');
-    if (!b || mode === 'doctor') return;
-    const h = habits.find((h) => h.id === b.dataset.state),
-      v = Number(b.dataset.stateValue);
-    h.values[13] = h.values[13] === v ? null : v;
-    h.logs[13] = h.values[13] == null ? [] : [h.values[13]];
+  // Всё на вкладке «Сегодня» сохраняется сразу по нажатию: без окон, «Сохранить» и лишних подтверждений.
+  const setToday = (h, v) => {
+    h.values[13] = v;
+    h.logs[13] = v == null ? [] : [v];
     selected = h.id;
+  };
+  const refocus = (selector) => root.querySelector(selector)?.focus();
+  // «− / +» можно нажать несколько раз подряд: запись уходит одна, через полсекунды после последнего нажатия.
+  let stepTimer;
+  function stepLater() {
+    clearTimeout(stepTimer);
+    stepTimer = setTimeout(persist, 500);
+  }
+  async function markMedication(index, status) {
+    const row = medicationRows(13)[index];
+    if (!row || row.legacy) return;
+    const before = row.status || 'unknown',
+      next = before === status ? 'unknown' : status;
+    row.status = next;
+    render();
+    refocus(`[data-med-index="${index}"][data-med-status="${status}"]`);
+    saveStatus('saving', t('msg.diary.workspace.saving'));
+    try {
+      await request('/api/v1/me/med-marks', 'POST', {
+        target: row.target,
+        day: dateAt(13),
+        slot: row.slot,
+        status: next,
+      });
+      saveStatus('saved', t('msg.diary.workspace.saved'));
+    } catch (error) {
+      row.status = before;
+      render();
+      saveStatus('error', error.message);
+    }
+  }
+  $('.diary-col').addEventListener('click', (e) => {
+    if (mode === 'doctor') return;
+    const state = e.target.closest('[data-state]'),
+      sleepStep = e.target.closest('[data-sleep-step]'),
+      med = e.target.closest('[data-med-status]'),
+      quickStep = e.target.closest('[data-quick-step]'),
+      quick = e.target.closest('[data-quick-value]');
+    if (state) {
+      const h = habits.find((h) => h.id === state.dataset.state),
+        v = Number(state.dataset.stateValue);
+      setToday(h, h.values[13] === v ? null : v);
+      persist();
+      render();
+      refocus(`[data-state="${h.id}"][data-state-value="${v}"]`);
+    } else if (sleepStep) {
+      const h = habits.find((h) => h.id === 'sleep'),
+        v = h.values[13];
+      setToday(h, v == null ? 7 : Math.min(24, Math.max(0, v + Number(sleepStep.dataset.sleepStep) * 0.5)));
+      render();
+      refocus(`[data-sleep-step="${sleepStep.dataset.sleepStep}"]`);
+      stepLater();
+    } else if (med) markMedication(Number(med.dataset.medIndex), med.dataset.medStatus);
+    else if (quickStep) {
+      const h = habits.find((h) => h.id === quickStep.dataset.quick),
+        v = (h.values[13] ?? 0) + Number(quickStep.dataset.quickStep);
+      setToday(h, v <= 0 ? null : Math.min(h.maximum, v));
+      render();
+      refocus(`[data-quick="${h.id}"][data-quick-step="${quickStep.dataset.quickStep}"]`);
+      stepLater();
+    } else if (quick) {
+      const h = habits.find((h) => h.id === quick.dataset.quick),
+        v = Number(quick.dataset.quickValue);
+      setToday(h, h.values[13] === v ? null : v);
+      persist();
+      render();
+      refocus(`[data-quick="${h.id}"][data-quick-value="${v}"]`);
+    }
+  });
+  $('.diary-col').addEventListener('change', (e) => {
+    const input = e.target.closest('[data-quick-input]');
+    if (!input || mode === 'doctor') return;
+    const h = habits.find((h) => h.id === input.dataset.quickInput),
+      raw = input.value.trim();
+    if (raw && !input.checkValidity()) {
+      input.reportValidity();
+      return;
+    }
+    const v = !raw ? null : h.type === 'time' ? parseClock(raw) : Number(raw);
+    if (v != null && !Number.isFinite(v)) return;
+    setToday(h, v);
     persist();
     render();
-    toast(h.values[13] == null ? t('msg.diary.workspace.dynamic.208') : t('msg.diary.workspace.dynamic.209'));
   });
   $('#show-unscheduled').addEventListener('click', () => {
     showUnscheduled = !showUnscheduled;
     render();
-  });
-  $('#history-mode').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-history-mode]');
-    if (b) {
-      historyMode = b.dataset.historyMode;
-      render();
-    }
   });
   $('#note-form').addEventListener('submit', (e) => {
     e.preventDefault();
@@ -1577,12 +1753,17 @@
       return;
     }
     $('#note-form').reset();
+    if (draftKey) {
+      localStorage.removeItem(draftKey);
+      draftKey = null;
+      root.querySelector('[data-testid="msg.composer.draft_restored"]')?.remove();
+    }
     toast(t('msg.diary.workspace.dynamic.210'));
   });
   $('#day-note').addEventListener('input', () => $('#day-note').setCustomValidity(''));
   $('#all-notes').addEventListener('click', () => {
     renderAllNotes();
-    $('#notes-dialog').showModal();
+    openSide('#notes-dialog');
   });
   ['#note-search', '#note-source', '#note-from'].forEach((id) => $(id).addEventListener('input', renderAllNotes));
   $('#previous-day').addEventListener('click', () => {
@@ -1597,7 +1778,17 @@
     renderMonth();
     $('#day-drawer').scrollTop = 0;
   });
-  $('#day-drawer').addEventListener('close', renderMonth);
+  document.querySelectorAll('dialog.day-drawer').forEach((dialog) =>
+    dialog.addEventListener('close', () => {
+      // «close» приходит позже, чем открыто соседнее окно: класс снимаем, только если панель действительно пуста
+      if (!document.querySelector('dialog.day-drawer[open]')) document.body.classList.remove('diary-day-open');
+      renderMonth();
+    }),
+  );
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || document.querySelector('dialog[open]:not(.day-drawer)')) return;
+    document.querySelectorAll('dialog.day-drawer[open]').forEach((dialog) => dialog.close());
+  });
   $('#drawer-content').addEventListener('change', (e) => {
     if (e.target.matches('[data-note-share]')) {
       const n = journalNotes.find((n) => n.id === e.target.dataset.noteShare);
@@ -1622,17 +1813,17 @@
   $('#drawer-content').addEventListener('input', (e) => {
     if (e.target.id === 'drawer-note-text') e.target.setCustomValidity('');
   });
-  $('#drawer-content').addEventListener('click', (e) => {
+  $('#detail-records').addEventListener('click', (e) => {
     const deleteHabit = e.target.closest('#delete-diary-habit');
     if (deleteHabit) {
       delete state.entries[deleteHabit.dataset.id];
       habits = habits.filter((h) => h.id !== deleteHabit.dataset.id);
-      drawerHabit = null;
-      $('#day-drawer').close();
       persist();
       render();
       toast(t('msg.diary.workspace.dynamic.213'));
     }
+  });
+  $('#drawer-content').addEventListener('click', (e) => {
     if (e.target.closest('#discuss-day')) {
       const items = visible()
           .filter((h) => h.values[drawerDay] != null)
@@ -1656,39 +1847,8 @@
     }
   });
 
-  // вкладки страницы: Сегодня / История / Динамика / Заметки (панели переключаются, ничего не перезагружается)
-  const tabNames = ['today', 'history', 'dynamics', 'notes'];
-  function setTab(name, focus) {
-    if (!tabNames.includes(name)) name = 'today';
-    for (const b of document.querySelectorAll('.diary-workspace [role="tab"][data-tab]')) {
-      const on = b.dataset.tab === name;
-      b.setAttribute('aria-selected', String(on));
-      b.tabIndex = on ? 0 : -1;
-      if (on && focus) b.focus();
-    }
-    for (const p of document.querySelectorAll('[data-panel]')) p.hidden = p.dataset.panel !== name;
-    if (name === 'dynamics') renderChart();
-    try {
-      history.replaceState(null, '', '#' + name);
-    } catch {
-      /* адресная строка не обязательна */
-    }
-  }
-  document.querySelector('[role="tablist"]').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-tab]');
-    if (b) setTab(b.dataset.tab);
-  });
-  document.querySelector('[role="tablist"]').addEventListener('keydown', (e) => {
-    const k = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
-    if (!k) return;
-    const current = tabNames.indexOf(
-      document.querySelector('.diary-workspace [role="tab"][data-tab][aria-selected="true"]').dataset.tab,
-    );
-    e.preventDefault();
-    setTab(tabNames[(current + k + tabNames.length) % tabNames.length], true);
-  });
   // радиогруппы «Как вы сегодня?» и «Тревога»: стрелки переносят выбор, как у обычной радиогруппы
-  $('#state-pickers').addEventListener('keydown', (e) => {
+  $('#today').addEventListener('keydown', (e) => {
     const k = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
     const current = e.target.closest('[role="radio"]');
     if (!k || !current || mode === 'doctor') return;
@@ -1715,16 +1875,31 @@
   updateBuilder(true);
   renderReminder();
   render();
-  setTab(location.hash.slice(1));
+  const hashHabit = habits.find((h) => h.id === location.hash.slice(1));
+  if (hashHabit) openHabitDetail(hashHabit.id);
   let chartTimer;
   window.addEventListener('resize', () => {
     clearTimeout(chartTimer);
-    chartTimer = setTimeout(() => {
-      if (!$('#dynamics').hidden) renderChart();
-    }, 150);
+    chartTimer = setTimeout(renderChart, 150);
   });
-  window.addEventListener('hashchange', () => setTab(location.hash.slice(1)));
   root.setAttribute('aria-busy', 'false');
   $('[data-diary-content]').inert = false;
   saveStatus('saved', t('msg.diary.workspace.saved'));
+  // Черновик заметки, сохранённый при истёкшей сессии (F-03), возвращается только тому же пользователю.
+  try {
+    const me = await (await fetch('/api/v1/me')).json();
+    const email = me?.user?.email;
+    const draft = email && localStorage.getItem(`cc_diary_draft:${email}`);
+    if (draft) {
+      draftKey = `cc_diary_draft:${email}`;
+      $('#day-note').value = draft;
+      const note = document.createElement('p');
+      note.className = 'p-hint';
+      note.dataset.testid = 'msg.composer.draft_restored';
+      note.textContent = t('msg.composer.draft_restored').split(' · ')[0];
+      $('#day-note').before(note);
+    }
+  } catch (_) {
+    /* черновик необязателен */
+  }
 })();

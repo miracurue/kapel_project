@@ -208,8 +208,8 @@ test('мои статьи: генерация идёт по промпту ау�
   const doc = await ctx.as('psy1');
   const thoughts = 'Дыхание помогает при тревоге. Практиковать пару минут в день.';
   for (const [audience, key] of [
-    ['patient', 'article_draft.patient'],
-    ['specialist', 'article_draft.specialist'],
+    ['patient', 'task.article_patient'],
+    ['specialist', 'task.article_specialist'],
   ]) {
     ctx.app.ai.reset();
     const r = await doc.post('/work/api/library/ai', { thoughts, audience }, { idem: false });
@@ -222,7 +222,7 @@ test('мои статьи: генерация идёт по промпту ау�
     assert.equal(call.messages.at(-1).content, thoughts, 'в сообщении только мысли автора');
   }
   assert.match(
-    expectOk(await (await ctx.as('admin1')).get('/api/v1/admin/ai/prompts/article_draft.patient/versions')).items[0]
+    expectOk(await (await ctx.as('admin1')).get('/api/v1/admin/ai/prompts/task.article_patient/versions')).items[0]
       .text,
     /3–4 коротких абзаца/,
   );
@@ -233,7 +233,7 @@ test('мои статьи: генерация идёт по промпту ау�
   );
 });
 
-test('мои статьи: правка выделенного — права, валидация, промпт article_rewrite, поля отдельно от инструкции', async () => {
+test('мои статьи: правка выделенного — права, валидация, задача task.article_rewrite, поля отдельно от инструкции', async () => {
   const doc = await ctx.as('psy1');
   const url = '/work/api/library/ai/rewrite';
   expectError(await (await ctx.as('patA')).post(url, { fragment: 'x' }, { idem: false }), 403, 'E-ACCESS');
@@ -256,13 +256,13 @@ test('мои статьи: правка выделенного — права, �
   expectOk(r);
   assert.ok(r.body.text && r.body.ai_assisted === true);
   const call = ctx.app.ai.calls().at(-1);
-  assert.equal(call.prompt_key, 'article_rewrite');
+  assert.equal(call.prompt_key, 'task.article_rewrite');
   const msg = call.messages.at(-1).content;
   assert.match(msg, /АУДИТОРИЯ: пациенты/);
   assert.match(msg, /ЗАДАНИЕ: Объясни проще/);
   assert.match(msg, /ПЕРЕД ФРАГМЕНТОМ: Начало статьи\./);
   assert.match(msg, /ФРАГМЕНТ: Селективные ингибиторы/);
-  assert.ok(!msg.includes(call.system.slice(0, 80)), 'инструкция не смешана с данными автора');
+  assert.ok(!msg.includes(call.system.slice(-80)), 'инструкция не смешана с данными автора');
 });
 
 test('мои статьи: названия препаратов допустимы в черновике и правке обеих аудиторий', async () => {

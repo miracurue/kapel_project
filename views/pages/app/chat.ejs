@@ -1,7 +1,9 @@
 <%#
   P-13 · Чат пациента (F-27, F-28, F-30, F-31). Разметка — из утверждённого прототипа v5
   (.agents/web-developer/files/07-structure/prototype/patient.html, вкладка chat):
-  история «Сегодня/Ранее» слева, «Чем помочь?» с 4 примерами, композер с подсказками.
+  история «Сегодня/Ранее» слева, «Чем помочь?» с 4 примерами, поле ввода без подсказок
+  прикрепления (решение владелицы 2026-10-25): ряд «Прикрепить:» убран, чипы остаются —
+  объект прикрепляет «✦ Спросить ИИ» на записи в другой вкладке (F-12, F-29).
   Тексты — только ключами locales/ru.json (t()). Локалы: t, aiOff, today, earlier.
   Если ИИ-согласие выключено — поле заменяет строка msg.chat.ai_off (T-415), 112 остаётся в оболочке.
 %>
@@ -12,7 +14,7 @@
 <% } else { %>
 <section class="chat-tab">
   <aside class="side" aria-label="<%= t('msg.chat.history') %>">
-    <div class="side-head"><a class="new" href="/app?tab=chat" data-testid="msg.chat.history.new"><%= t('msg.chat.history.new') %></a></div>
+    <div class="side-head"><a class="new" href="/app?tab=chat&amp;new=1" data-testid="msg.chat.history.new"><%= t('msg.chat.history.new') %></a></div>
     <% if (!today.length && !earlier.length) { %>
       <p data-testid="msg.chat.history.empty"><%= t('msg.chat.history.empty') %></p>
     <% } %>
@@ -37,6 +39,59 @@
         <div class="hello" id="v2-chat-hello">
           <h1 data-testid="msg.chat.empty.title"><%= t('msg.chat.empty.title') %></h1>
           <p data-testid="msg.chat.empty.lead"><%= t('msg.chat.empty.lead') %></p>
+          <% if (reminders.length) { %>
+          <section class="callout reminders" aria-labelledby="reminders-title" data-testid="msg.reminder.title">
+            <b id="reminders-title"><%= t('msg.reminder.title') %></b>
+            <% reminders.forEach(function (r, i) {
+              var key = r.kind === 'medication' ? 'med:' + r.slotKey + ':' + r.day : r.kind === 'diary' ? 'diary:' + r.day : r.kind === 'visit' ? 'visit:' + r.id : r.kind;
+              var attrs = 'data-key="' + key + '"' + (i > 0 ? ' hidden' : ''); %>
+              <% if (r.kind === 'medication') { %>
+                <div class="reminder" <%- attrs %> data-reminder="medication" data-day="<%= r.day %>" data-slot="<%= r.slot %>" data-targets="<%= JSON.stringify(r.targets) %>">
+                  <p><span data-testid="msg.reminder.med.<%= r.slotKey %>"><%= t('msg.reminder.med.' + r.slotKey, t('msg.reminder.med.any')) %></span>: <%= r.names.join(', ') %></p>
+                  <span class="reply-actions">
+                    <button type="button" class="btn sm primary" data-testid="msg.reminder.med.taken" data-mark="taken"><%= t('msg.reminder.med.taken') %></button>
+                    <button type="button" class="btn sm" data-testid="msg.reminder.med.skipped" data-mark="skipped"><%= t('msg.reminder.med.skipped') %></button>
+                    <button type="button" class="btn sm" data-testid="msg.reminder.med.later" data-mark="remind_later"><%= t('msg.reminder.med.later') %></button>
+                  </span>
+                </div>
+              <% } else if (r.kind === 'visit') { %>
+                <div class="reminder" <%- attrs %> data-reminder="visit" data-visit="<%= r.id %>">
+                  <p><span data-testid="msg.reminder.visit"><%= t('msg.reminder.visit') %></span> <%= r.when %>, <%= t('msg.reminder.visit.' + r.format) %>.</p>
+                  <span class="reply-actions">
+                    <button type="button" class="btn sm primary" data-testid="msg.reminder.visit.prepare" data-idea="<%= t('msg.chat.visit_prep.idea') %>"><%= t('msg.reminder.visit.prepare') %></button>
+                    <a class="btn sm" href="/app?tab=visits" data-testid="msg.reminder.visit.open"><%= t('msg.reminder.visit.open') %></a>
+                    <button type="button" class="btn sm" data-testid="msg.reminder.later" data-later><%= t('msg.reminder.later') %></button>
+                  </span>
+                </div>
+              <% } else if (r.kind === 'diary') { %>
+                <div class="reminder" <%- attrs %> data-reminder="diary" data-day="<%= r.day %>">
+                  <p data-testid="msg.reminder.diary"><%= t('msg.reminder.diary') %></p>
+                  <span class="reply-actions">
+                    <button type="button" class="btn sm primary" data-testid="msg.reminder.diary.help" data-idea="<%= t('msg.chat.checkin.idea') %>"><%= t('msg.reminder.diary.help') %></button>
+                    <a class="btn sm" href="/app?tab=diary" data-testid="msg.reminder.diary.open"><%= t('msg.reminder.diary.open') %></a>
+                    <button type="button" class="btn sm" data-testid="msg.reminder.later" data-later><%= t('msg.reminder.later') %></button>
+                  </span>
+                </div>
+              <% } else if (r.kind === 'profile') { %>
+                <div class="reminder" <%- attrs %> data-reminder="profile" data-field="<%= r.field %>">
+                  <p><b data-testid="msg.reminder.profile"><%= t('msg.reminder.profile') %></b> <%= t('msg.reminder.profile.hint') %></p>
+                  <span class="reply-actions">
+                    <button type="button" class="btn sm" data-testid="msg.reminder.profile.f" data-value="f"><%= t('msg.reminder.profile.f') %></button>
+                    <button type="button" class="btn sm" data-testid="msg.reminder.profile.m" data-value="m"><%= t('msg.reminder.profile.m') %></button>
+                    <button type="button" class="btn sm" data-testid="msg.reminder.profile.n" data-value="n"><%= t('msg.reminder.profile.n') %></button>
+                    <button type="button" class="btn sm" data-testid="msg.reminder.later" data-later><%= t('msg.reminder.later') %></button>
+                  </span>
+                </div>
+              <% } else if (r.kind === 'test') { %>
+                <div class="reminder" <%- attrs %> data-reminder="test">
+                  <p><span data-testid="msg.reminder.test"><%= t('msg.reminder.test') %></span>: <%= r.names.join(', ') %></p>
+                  <a class="btn sm" href="/app?tab=tests" data-testid="msg.reminder.test.open"><%= t('msg.reminder.test.open') %></a>
+                    <button type="button" class="btn sm" data-testid="msg.reminder.later" data-later><%= t('msg.reminder.later') %></button>
+                </div>
+              <% } %>
+            <% }) %>
+          </section>
+          <% } %>
           <section class="callout today" aria-labelledby="daily-title">
             <span class="today-gem" aria-hidden="true"><svg class="drop drop--s"><use href="/icons.svg#drop"/></svg></span>
             <div class="t"><b id="daily-title"><%= t('msg.chat.daily.title') %></b><p><%= t('msg.chat.daily.lead') %></p></div>
@@ -47,6 +102,7 @@
             <button type="button" class="idea" data-testid="msg.chat.example.2" data-idea="<%= t('msg.chat.example.2') %>"><%= t('msg.chat.example.2') %></button>
             <button type="button" class="idea" data-testid="msg.chat.example.3" data-idea="<%= t('msg.chat.example.3') %>"><%= t('msg.chat.example.3') %></button>
             <button type="button" class="idea" data-testid="msg.chat.example.4" data-idea="<%= t('msg.chat.example.4') %>"><%= t('msg.chat.example.4') %></button>
+            <button type="button" class="idea" data-testid="msg.chat.checkin.idea" data-idea="<%= t('msg.chat.checkin.idea') %>"><%= t('msg.chat.checkin.idea') %></button>
           </div>
         </div>
       </div>
@@ -54,18 +110,25 @@
     <div class="dock">
       <div class="col">
         <p data-testid="msg.ai.patient.composer_note"><%= t('msg.ai.patient.composer_note') %></p>
+        <div class="callout chat-paused" data-chat-paused data-until="<%= pausedUntil || '' %>"<%- pausedUntil ? '' : ' hidden' %>>
+          <p data-testid="msg.chat.troll.paused"><%= t('msg.chat.troll.paused') %></p>
+          <p class="small"><a class="btn crisis sm" href="tel:112" data-testid="msg.chat.troll.call"><%= t('msg.chat.troll.call') %></a> <a href="/account/help" data-testid="msg.chat.troll.help"><%= t('msg.chat.troll.help') %></a></p>
+        </div>
         <div data-chips></div>
-        <div class="chat-sugg" data-testid="msg.composer.suggestions"><span class="chat-sugg__label"><%= t('msg.composer.suggestions') %></span> <span id="v2-chat-suggestions"></span></div>
         <div class="chat-input">
-          <textarea data-testid="msg.chat.placeholder" rows="2" placeholder="<%= t('msg.chat.placeholder') %>" aria-label="<%= t('msg.chat.placeholder') %>"></textarea>
-          <button type="button" data-testid="msg.composer.attach"><%= t('msg.composer.attach') %></button>
+          <textarea data-testid="msg.chat.placeholder" rows="2" placeholder="<%= t('msg.chat.placeholder') %>" aria-label="<%= t('msg.chat.placeholder') %>"<%- pausedUntil ? ' disabled' : '' %>></textarea>
+          <button type="button" data-testid="msg.composer.attach"<%- pausedUntil ? ' disabled' : '' %>><%= t('msg.composer.attach') %></button>
           <div id="v3-attach" hidden></div>
-          <button type="button" data-testid="msg.composer.send"><%= t('msg.composer.send') %></button>
+          <button type="button" data-testid="msg.composer.send"<%- pausedUntil ? ' disabled' : '' %>><%= t('msg.composer.send') %></button>
         </div>
       </div>
     </div>
   </div>
 </section>
+<script src="/js/ae_wizard.js" defer></script>
+<script src="/js/work_drug_docs.js" defer></script>
+<script src="/js/patient_crisis.js" defer></script>
+<script src="/js/patient_reminders.js" defer></script>
 <script src="/js/patient_chat.js" defer></script>
 <script src="/js/mic.js" defer></script>
 <% } %>

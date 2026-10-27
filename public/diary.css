@@ -1,26 +1,58 @@
 /* Дневник пациента (P-29): «Галька». Только значения из tokens.css.
-   Раскладка Р2: контейнер 1200, заголовок, сегменты, сетка 2/3 + 1/3 (общие классы .pwork .p-head .p-grid .p-stack .p-card — в css/patient.css).
+   Раскладка Р3 (как у лекарств): панель привычек слева (класс .side), дневник — колонка в .pane (app-раскладка).
    Разметка: src/modules/diary/page.js, поведение: public/diary.js. Инлайн-стилей нет (CSP): цвета графика и клеток — классами. */
 
 .diary-workspace { display: block; min-width: 0; }
 .diary-workspace [data-diary-content][inert] { opacity: .6; }
-.diary-main { display: block; }
 
-/* ---------- шапка страницы ---------- */
+/* ---------- раскладка Р3: панель привычек слева, дневник колонкой ---------- */
+main.app-main > .diary-workspace { flex: 1; display: flex; min-width: 0; min-height: 0; }
+.diary-workspace [data-diary-content] { display: flex; flex: 1; min-width: 0; min-height: 0; }
+.diary-workspace .diary-main { flex: 1; min-width: 0; min-height: 0; }
 .p-sub [data-diary-save-status][data-state="error"] { color: var(--brick); font-weight: 700; }
 .p-sub [data-diary-save-status][data-state="saving"] { color: var(--ink-2); }
-.p-tabs { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-3); margin: var(--s-4) 0 var(--gap-block); }
-.p-panel[hidden] { display: none; }
+.diary-col { display: flex; flex-direction: column; gap: var(--s-4); width: min(var(--w-chat), 100% - 2 * var(--s-5)); margin: 0 auto; padding: var(--s-5) 0 var(--s-6); container-type: inline-size; }
+.diary-head { padding-top: var(--s-2); }
+.diary-head .p-head-act { align-items: center; }
+.side-list { display: flex; flex-direction: column; gap: 2px; }
+.diary-side .side-head .new { background: var(--jade); color: var(--white); box-shadow: none; }
+.diary-side .side-head .new:hover { background: var(--jade-d); color: var(--white); }
+.diary-side h4 { margin-top: var(--s-4); }
+.side .side-list button.th { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); width: 100%; min-height: 40px; padding: var(--s-2) var(--s-3); border: 0; border-radius: var(--r-card); background: none; color: var(--ink); text-align: left; font-size: var(--fs-15); cursor: pointer; }
+.side .side-list button.th:hover { background: var(--sunk); }
+.side .side-list button.th.on { background: var(--white); box-shadow: var(--lift); font-weight: 700; }
+.side .side-list .th-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side .side-list .th-val { flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); font-size: var(--fs-13); font-weight: 600; }
+.side .side-list .side-empty p { margin: 0; padding: var(--s-2) var(--s-3); color: var(--ink-2); font-size: var(--fs-13); line-height: var(--lh-13); }
+.side .diary-side > p.small { padding: var(--s-3) var(--s-3) var(--s-4); }
+
+/* два вида в одной колонке: «Сегодня» или выбранная привычка (переключает левая панель) */
+.view-stack { display: flex; flex-direction: column; gap: var(--s-4); }
+.view-stack[hidden], .chart-panel[hidden] { display: none; }
+.side .side-list button.th > span { display: block; }
+
+/* записи выбранной привычки */
+.detail-records { display: flex; flex-direction: column; gap: var(--s-3); }
+.detail-records-list { display: flex; flex-direction: column; gap: var(--s-2); }
+.detail-record { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); padding: var(--s-2) var(--s-3); border-radius: var(--r-card); background: var(--ground); }
+.detail-record-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.detail-record-main .link { text-align: left; padding: 0; }
+.detail-record strong { font-size: var(--fs-15); }
+.detail-manage { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3); padding: var(--s-3); border-radius: var(--r-card); background: var(--ground); }
+.detail-manage:empty { display: none; }
+.chart-panel .title-with-date { display: flex; flex-direction: column-reverse; gap: 2px; }
+.chart-panel .title-with-date h2 { font-family: var(--text); font-size: var(--fs-13); font-weight: 700; color: var(--ink-2); }
+.chart-panel .title-with-date #chart-habit::before { content: none; }
 
 /* ---------- сводка и «Сегодня» ---------- */
 .callout--sum { display: block; max-width: var(--w-sum); background: var(--jade-t); border-radius: var(--r-card); padding: var(--s-4) var(--s-5); font-size: var(--fs-15); line-height: var(--lh-15); box-shadow: none; }
 .callout--sum h2 { display: inline; margin: 0; font-family: var(--text); font-size: var(--fs-15); font-weight: 800; }
-.callout--sum h2::after { content: "."; }
+.callout--sum h2::after { content: '.'; }
 .callout--sum p { display: inline; margin: 0; color: var(--ink); }
 .title-with-date { display: block; min-width: 0; }
 .title-with-date h2 { display: inline; margin: 0; }
 .title-with-date .date-label { font-family: var(--head); font-weight: 800; font-size: var(--fs-24); line-height: var(--lh-24); }
-.title-with-date .date-label::before { content: ", "; white-space: pre; }
+.title-with-date .date-label::before { content: ', '; white-space: pre; }
 .card-h { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-3); flex-wrap: wrap; }
 .card-h h2 { margin: 0; }
 .card-sub { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-3); flex-wrap: wrap; }
@@ -42,11 +74,46 @@
 .moods button[aria-checked="true"] { background: var(--jade); color: var(--white); }
 .moods button:disabled { cursor: default; }
 .peb { display: block; flex: none; border-radius: 50% 46% 52% 48% / 58% 54% 46% 42%; background: radial-gradient(circle at 35% 30%, var(--peb-hi) 0 8%, var(--peb-mid) 40%, var(--peb-lo) 100%); }
-.peb.p1 { width: var(--peb-1-w); height: var(--peb-1-h); } .peb.p2 { width: var(--peb-2-w); height: var(--peb-2-h); } .peb.p3 { width: var(--peb-3-w); height: var(--peb-3-h); }
-.peb.p4 { width: var(--peb-4-w); height: var(--peb-4-h); } .peb.p5 { width: var(--peb-5-w); height: var(--peb-5-h); }
-[aria-checked="true"] > .peb { background: radial-gradient(circle at 35% 30%, var(--peb-honey-hi) 0 10%, var(--peb-honey-mid) 45%, var(--peb-honey-lo) 100%); }
+.peb.p1 { width: var(--peb-1-w); height: var(--peb-1-h); }
+.peb.p2 { width: var(--peb-2-w); height: var(--peb-2-h); }
+.peb.p3 { width: var(--peb-3-w); height: var(--peb-3-h); }
+.peb.p4 { width: var(--peb-4-w); height: var(--peb-4-h); }
+.peb.p5 { width: var(--peb-5-w); height: var(--peb-5-h); }
+[aria-checked="true"] > .peb { background: radial-gradient( circle at 35% 30%, var(--peb-honey-hi) 0 10%, var(--peb-honey-mid) 45%, var(--peb-honey-lo) 100% ); }
 .seg [role="radio"][aria-checked="true"] { background: var(--white); color: var(--ink); box-shadow: var(--lift); font-weight: 700; }
 .seg [role="radio"]:disabled { cursor: default; }
+
+/* «Сегодня» — одна колонка: самочувствие, сон и лекарства, заметка, привычки. Всё отмечается прямо в строке. */
+.today-stack { max-width: var(--w-read); }
+.today-section .card-h { align-items: center; }
+.quick-rows { display: flex; flex-direction: column; gap: var(--s-2); }
+.quick-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-2) var(--s-4); padding: var(--s-3) var(--s-4); border-radius: var(--r-card); background: var(--ground); }
+.quick-row[hidden] { display: none; }
+.quick-label { display: flex; align-items: center; gap: var(--s-2); margin: 0; font-family: var(--text); font-size: var(--fs-16); font-weight: 700; }
+.quick-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--s-2) var(--s-3); min-width: 0; }
+.quick-controls .seg, .q-act .seg { background: var(--white); }
+.stepper { display: inline-flex; align-items: center; gap: var(--s-2); }
+.stepper .round { background: var(--white); }
+.stepper .round:hover:not(:disabled) { background: var(--sunk); }
+.stepper-value { display: inline-flex; align-items: baseline; justify-content: center; gap: 4px; min-width: 56px; }
+.stepper-value strong { font-family: var(--head); font-size: var(--fs-18); font-weight: 800; }
+.stepper-value span { color: var(--ink-2); font-size: var(--fs-13); }
+.med-list { display: flex; flex-direction: column; gap: var(--s-2); margin: 0; padding: 0; list-style: none; }
+.med-item { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--s-2) var(--s-3); }
+.med-name { font-size: var(--fs-14); font-weight: 600; }
+.note-compose { gap: var(--s-3); }
+.note-compose h2 label { font: inherit; }
+.note-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-3); }
+.quick-input, .diary-workspace label.quick-input { display: inline-flex; flex-direction: row; align-items: center; gap: var(--s-2); margin: 0; }
+.quick-input input, input.quick-input { width: 112px; min-height: var(--h-btn-sm); height: var(--h-btn-sm); background: var(--white); }
+.quick-input span { color: var(--ink-2); font-size: var(--fs-13); }
+.quick-note { max-width: 260px; color: var(--ink-2); font-size: var(--fs-14); overflow-wrap: anywhere; }
+.done-toggle[aria-pressed="true"] { background: var(--jade); color: var(--white); }
+.done-toggle .i { opacity: 0.35; }
+.done-toggle[aria-pressed="true"] .i { opacity: 1; }
+.builder-more { display: flex; flex-direction: column; gap: var(--s-3); }
+.builder-more[open] > summary { margin-bottom: var(--s-3); }
+.builder-more > :not(summary) + :not(summary) { margin-top: var(--s-3); }
 
 /* «Сон» и «Лекарства» */
 .cols-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-3); }
@@ -64,15 +131,15 @@
 
 /* «Мои привычки»: строка = привычка, 7 клеток недели, действия */
 .cards { display: flex; flex-direction: column; gap: var(--s-2); }
-.habit-card { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--s-2) var(--s-4); padding: var(--s-3) var(--s-4); border-radius: var(--r-card); background: var(--ground); }
-.habit-card .q-main { min-width: 0; }
+.habit-card { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-2) var(--s-4); padding: var(--s-3) var(--s-4); border-radius: var(--r-card); background: var(--ground); }
+.habit-card .q-main { flex: 1 1 200px; min-width: 0; }
 .habit-card h3 { margin: 0; font-family: var(--text); font-size: var(--fs-16); font-weight: 700; line-height: var(--lh-16); }
 .habit-card .card-plan { margin: 0; color: var(--ink-2); }
 .habit-card .card-value { display: flex; align-items: baseline; gap: var(--s-2); margin-top: 2px; }
 .habit-card .card-value strong { font-family: var(--head); font-weight: 800; font-size: var(--fs-18); }
 .habit-card .card-value strong.text-value { font-family: var(--text); font-size: var(--fs-15); }
 .habit-card .card-value span { color: var(--ink-2); font-size: var(--fs-13); }
-.habit-card .q-act { display: flex; align-items: center; gap: var(--s-1); }
+.habit-card .q-act { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--s-2); }
 .habit-card .visibility-label { grid-column: 1 / -1; justify-self: start; }
 .mx-strip { display: flex; gap: 4px; }
 
@@ -116,8 +183,11 @@
 .cal-day .n { align-self: flex-start; padding-left: 4px; }
 .cal-day .v { font-family: var(--head); font-size: var(--fs-16); font-weight: 800; }
 .cal-day .v--none { font-family: var(--text); font-weight: 600; }
-.cal-day.m1 { background: var(--seq-1); } .cal-day.m2 { background: var(--seq-2); } .cal-day.m3 { background: var(--seq-3); }
-.cal-day.m4 { background: var(--seq-4); color: var(--white); } .cal-day.m5 { background: var(--seq-5); color: var(--white); }
+.cal-day.m1 { background: var(--seq-1); }
+.cal-day.m2 { background: var(--seq-2); }
+.cal-day.m3 { background: var(--seq-3); }
+.cal-day.m4 { background: var(--seq-4); color: var(--white); }
+.cal-day.m5 { background: var(--seq-5); color: var(--white); }
 .cal-day.m0 { background: repeating-linear-gradient(135deg, var(--ground) 0 6px, var(--white) 6px 8px); color: var(--ink-2); font-weight: 600; }
 .cal-day.is-future { background: none; box-shadow: inset 0 0 0 1px var(--sunk-2); color: var(--ink-2); cursor: default; }
 .cal-day.is-today { box-shadow: 0 0 0 3px var(--jade); }
@@ -128,17 +198,17 @@
 .legend > span { display: inline-flex; align-items: center; gap: 6px; }
 .legend .sw, .legend .swatch { display: inline-block; flex: none; width: 16px; height: 16px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--sunk-2); }
 .legend .sw-0 { background: repeating-linear-gradient(135deg, var(--ground) 0 4px, var(--white) 4px 6px); }
-.legend .sw-1 { background: var(--seq-1); } .legend .sw-3 { background: var(--seq-3); } .legend .sw-5 { background: var(--seq-5); }
+.legend .sw-1 { background: var(--seq-1); }
+.legend .sw-3 { background: var(--seq-3); }
+.legend .sw-5 { background: var(--seq-5); }
 .legend .swatch.done { background: var(--jade); box-shadow: none; }
 .legend .swatch.partial { background: var(--jade-t); box-shadow: inset 0 0 0 1px var(--jade); }
 .legend .swatch.missed { background: var(--ground); box-shadow: none; }
 .legend .swatch.missing { background: none; box-shadow: none; border: 1px dashed var(--edge); }
 .legend .swatch.off { background: none; box-shadow: inset 0 0 0 1px var(--sunk-2); }
 .legend .swatch.recorded { background: var(--white); box-shadow: inset 0 0 0 1px var(--edge); }
-.history-explainer { align-self: start; }
-.history-explainer h3 { margin: 0; }
-.history-explainer p { margin: 0; }
-.history-explainer .btn { align-self: flex-start; }
+#state-history { display: flex; flex-direction: column; gap: var(--s-6); }
+.history-block { display: flex; flex-direction: column; gap: var(--s-3); }
 
 /* матрица привычек по дням */
 .matrix { border-collapse: separate; border-spacing: 4px; width: 100%; font-size: var(--fs-14); }
@@ -165,10 +235,17 @@
 .chart .l2 { stroke: var(--ch-2); stroke-dasharray: 7 4; }
 .chart .l3 { stroke: var(--ch-3); stroke-dasharray: 2 4; stroke-linecap: round; }
 .chart .l4 { stroke: var(--ch-4); stroke-dasharray: 10 3 2 3; }
-.chart .d1, .chart .bar.s1 { fill: var(--ch-1); } .chart .d2, .chart .bar.s2 { fill: var(--ch-2); } .chart .d3, .chart .bar.s3 { fill: var(--ch-3); } .chart .d4, .chart .bar.s4 { fill: var(--ch-4); }
-.chart .bar { opacity: .7; } .chart .bar.now { opacity: 1; }
+.chart .d1, .chart .bar.s1 { fill: var(--ch-1); }
+.chart .d2, .chart .bar.s2 { fill: var(--ch-2); }
+.chart .d3, .chart .bar.s3 { fill: var(--ch-3); }
+.chart .d4, .chart .bar.s4 { fill: var(--ch-4); }
+.chart .bar { opacity: 0.7; }
+.chart .bar.now { opacity: 1; }
 .chart text.lab { font-weight: 800; }
-.chart text.lab.s1 { fill: var(--ch-1); } .chart text.lab.s2 { fill: var(--ch-2); } .chart text.lab.s3 { fill: var(--ch-3); } .chart text.lab.s4 { fill: var(--ch-4); }
+.chart text.lab.s1 { fill: var(--ch-1); }
+.chart text.lab.s2 { fill: var(--ch-2); }
+.chart text.lab.s3 { fill: var(--ch-3); }
+.chart text.lab.s4 { fill: var(--ch-4); }
 .insights { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-3); }
 .insight { display: flex; flex-direction: column; gap: 2px; padding: var(--s-4); border-radius: var(--r-card); background: var(--ground); font-size: var(--fs-14); }
 .insight strong { color: var(--ink); font-size: var(--fs-16); }
@@ -198,9 +275,14 @@ legend { padding: 0; font-weight: 700; font-size: var(--fs-14); }
 .tiny { font-size: var(--fs-13); color: var(--ink-2); margin: 0; }
 .muted { color: var(--ink-2); }
 
-dialog.day-drawer, dialog#creator, dialog#notes-dialog { position: fixed; inset: var(--s-3) var(--s-3) var(--s-3) auto; margin: 0; width: var(--w-panel); max-width: none; height: auto; max-height: none; overflow: auto; padding: var(--s-5); border-radius: var(--r-big); box-shadow: var(--lift); animation: drawer-in var(--t-panel) var(--ease) both; }
-dialog.day-drawer::backdrop, dialog#creator::backdrop, dialog#notes-dialog::backdrop { background: transparent; }
-@keyframes drawer-in { from { opacity: 0; transform: translateX(var(--s-5)); } to { opacity: 1; transform: none; } }
+dialog.day-drawer { position: fixed; inset: var(--fl-top, var(--s-3)) var(--s-3) var(--s-3) auto; margin: 0; width: var(--w-panel); max-width: none; height: auto; max-height: none; overflow: auto; padding: var(--s-5); border: 0; border-radius: var(--r-big); background: var(--white); box-shadow: var(--lift); z-index: 40; }
+/* день открывается справа на месте цветка: цветок прячется, ширина страницы остаётся прежней; без цветка страница уступает место панели */
+body.diary-day-open dialog.flower-panel.is-sidebar { visibility: hidden; }
+body.diary-day-open:not(.flower-sidebar) .app-main { margin-right: calc(var(--w-panel) + var(--s-3)); }
+@keyframes drawer-in {
+  from { opacity: 0; transform: translateX(var(--s-5)); }
+  to { opacity: 1; transform: none; }
+}
 .drawer-nav { display: flex; justify-content: space-between; gap: var(--s-2); }
 .drawer-section { display: flex; flex-direction: column; gap: var(--s-2); }
 .drawer-section h3 { margin: 0; font-size: var(--fs-16); }
@@ -217,7 +299,8 @@ dialog.day-drawer::backdrop, dialog#creator::backdrop, dialog#notes-dialog::back
 .drawer-record { display: flex; justify-content: space-between; gap: var(--s-3); width: 100%; min-height: var(--h-btn); padding: 0 var(--s-4); border: 0; border-radius: var(--r-card); background: var(--ground); color: var(--ink); font-size: var(--fs-14); font-weight: 600; text-align: left; align-items: center; }
 .drawer-record:hover { background: var(--sunk); }
 #drawer-content { display: flex; flex-direction: column; gap: var(--s-4); }
-.note-filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-3); }
+.note-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-3); }
+.note-filters label:first-child { grid-column: 1 / -1; }
 #note-results { display: flex; flex-direction: column; gap: var(--s-3); }
 
 /* напоминание о записи, сохранение, срочное */
@@ -229,27 +312,39 @@ dialog.day-drawer::backdrop, dialog#creator::backdrop, dialog#notes-dialog::back
 
 /* ---------- ≤ 1200: панель уже ---------- */
 @media (max-width: 1200px) {
-  dialog.day-drawer, dialog#creator, dialog#notes-dialog { width: var(--w-panel-md); }
+  dialog.day-drawer { width: var(--w-panel-md); }
 }
 @container (max-width: 800px) {
   .insights { grid-template-columns: minmax(0, 1fr); }
 }
+/* ---------- ≤ 1200: панель привычек у дневника остаётся видимой ---------- */
+@media (max-width: 1200px) {
+  .diary-tab > .side { display: flex; width: var(--w-list-md); }
+}
 /* ---------- ≤ 960: одна колонка, настроение — пять строк, окна на весь экран ---------- */
 @media (max-width: 960px) {
+  body.diary-day-open:not(.flower-sidebar) .app-main { margin-right: 0; }
+  .diary-tab { flex-direction: column; }
+  .diary-tab > .side { width: auto; max-height: 30dvh; overflow: auto; flex: none; padding-bottom: var(--s-3); }
+  .diary-tab > .side .small, .diary-tab > .side .side-foot { display: none; }
+  .side-list { flex-direction: row; flex-wrap: wrap; gap: var(--s-1); }
+  .side .side-list button.th { width: auto; min-width: 120px; }
   .cols-2, .form-grid, .note-filters { grid-template-columns: minmax(0, 1fr); }
   .moods { grid-template-columns: minmax(0, 1fr); gap: var(--s-1); }
   .moods button { display: grid; grid-template-columns: var(--peb-5-w) minmax(0, 1fr); justify-items: start; align-items: center; gap: var(--s-4); min-height: var(--h-choice-lg); padding: 0 20px; font-size: var(--fs-16); text-align: left; }
   .moods button .peb { justify-self: center; }
-  .habit-card { grid-template-columns: minmax(0, 1fr) auto; }
-  .habit-card .mx-strip { grid-column: 1 / -1; order: 3; }
-  .p-head-act, .p-tabs { width: 100%; }
-  .p-tabs .seg { overflow-x: auto; scrollbar-width: none; flex-wrap: nowrap; }
-  .p-tabs .seg > * { flex: none; }
+  .quick-row, .habit-card { align-items: flex-start; }
+  .quick-controls, .habit-card .q-act { justify-content: flex-start; width: 100%; }
+  .med-item { justify-content: space-between; width: 100%; }
+  .quick-controls .seg { flex-wrap: nowrap; max-width: 100%; }
+  .quick-controls .seg button, .q-act .seg button { padding: 0 10px; font-size: var(--fs-14); }
+  .q-act .seg { flex-wrap: wrap; }
+  .p-head-act { width: 100%; }
   .cal { gap: 4px; }
   .cal-day { padding: 4px 2px; }
-  dialog.day-drawer, dialog#creator, dialog#notes-dialog { inset: 92px 0 64px 0; width: auto; border-radius: var(--r-big) var(--r-big) 0 0; animation: none; }
+  dialog.day-drawer { inset: 92px 0 64px 0; width: auto; border-radius: var(--r-big) var(--r-big) 0 0; animation: none; }
   dialog { max-width: calc(100% - 2 * var(--s-4)); max-height: calc(100dvh - 2 * var(--s-4)); overflow: auto; padding: var(--s-5); }
-  dialog.day-drawer, dialog#creator, dialog#notes-dialog { max-width: none; max-height: none; }
+  dialog.day-drawer { max-width: none; max-height: none; }
   .matrix th[scope="row"] { min-width: 96px; }
   .toast { bottom: calc(64px + var(--s-4)); }
 }

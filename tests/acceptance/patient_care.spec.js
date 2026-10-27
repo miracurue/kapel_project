@@ -8,6 +8,7 @@ const assert = require('node:assert/strict');
 const { useBrowserApp } = require('../lib/acceptance');
 const B = require('../lib/browser');
 const F = require('../lib/flows');
+const T = require('../lib/texts');
 
 const ctx = useBrowserApp();
 
@@ -17,6 +18,17 @@ async function tab(who, url, pageId) {
   await B.open(page, ctx.app, url);
   await B.expectPage(page, pageId);
   return page;
+}
+
+// «Дальше» ждёт ответа сервера (проверка кризиса), поэтому следующий шаг — только после перерисовки.
+async function nextQuestion(page) {
+  const progress = B.tid('msg.tests.run.progress');
+  const before = await page.locator(progress).textContent();
+  await page.click(B.tid('msg.tests.run.next'));
+  await page.waitForFunction(
+    ([sel, text]) => document.querySelector(sel)?.textContent !== text,
+    [progress, before],
+  );
 }
 
 // covers: T-420, UC-26, UC-04, F-42, F-121, F-40, F-17
@@ -117,7 +129,7 @@ test('T-425 [W-15] тест диалогом: вопрос пузырём, от�
       const type = await input.getAttribute('type');
       await input.fill(type === 'number' ? '3' : type === 'date' ? '2026-10-01' : 'синтетика');
     }
-    if (await page.locator(B.tid('msg.tests.run.next')).count()) await page.click(B.tid('msg.tests.run.next'));
+    if (await page.locator(B.tid('msg.tests.run.next')).count()) await nextQuestion(page);
   }
   await B.expectVisible(page, 'msg.tests.run.review');
   await page.click(B.tid('msg.tests.run.submit'));
@@ -126,31 +138,50 @@ test('T-425 [W-15] тест диалогом: вопрос пузырём, от�
 
 // covers: T-426, UC-28, UC-32, F-38, F-59
 test('T-426 [W-16] тест без назначения: «Пройти» → результат «видите только вы» → «Показать врачу»; пакет «1 из 3»', async () => {
-  const page = await tab('patH', '/app?tab=tests', 'P-11');
+  // test-change: на «Методиках» появились вкладки «Упражнения / Тесты» (владелица, 2026-10-26): тесты открываем по #tests
+  const page = await tab('patH', '/app?tab=tests#tests', 'P-11');
   await B.expectVisible(page, 'msg.tests.self');
   await page.locator(B.tid('msg.tests.self.take')).first().click();
   while (!(await page.locator(B.tid('msg.tests.run.review')).count())) {
     await page.locator('[data-option]').first().click();
-    if (await page.locator(B.tid('msg.tests.run.next')).count()) await page.click(B.tid('msg.tests.run.next'));
+    if (await page.locator(B.tid('msg.tests.run.next')).count()) await nextQuestion(page);
   }
   await page.click(B.tid('msg.tests.run.submit'));
-  await B.expectVisible(page, 'msg.tests.self.only_you');
+  // Итог после редизайна: «только вы» и «виден врачу» сказаны текстом под итогом (msg.tests.result.self/shared).
+  const note = page.locator(B.tid('msg.tests.result.disclaimer'));
+  await note.waitFor();
+  assert.equal(await note.textContent(), T.text('msg.tests.result.self'));
   await page.click(B.tid('msg.tests.self.show'));
-  await B.expectVisible(page, 'msg.tests.self.shown');
+  await page.waitForFunction(
+    ([sel, text]) => document.querySelector(sel)?.textContent === text,
+    [B.tid('msg.tests.result.disclaimer'), T.text('msg.tests.result.shared')],
+  );
 });
 
 // covers: T-427, UC-04, F-39, F-17, F-56
-test('T-427 [W-21] дневник: «Как вы сегодня?» чипами, сон и тревога, заметка, «Запись сохранена · Отменить»; график 2 недели с таблицей', async () => {
+test('T-427 [W-21] дневник: «Как вы сегодня?» — настроение и тревога, заметка, автосохранение; «Динамика» с графиком', async () => {
+  // После редизайна дневник — рабочее пространство с автосохранением: «Как вы сегодня?» (настроение и тревога
+  // кнопками), заметка «Что хочется запомнить?» → «Сохранить», статус сохранения, вкладка «Динамика» с графиком.
   const page = await tab('patC', '/app?tab=diary', 'P-29');
-  await B.expectVisible(page, 'msg.diary.empty');
-  await page.click(B.tid('msg.diary.mood.4'));
-  await page.click(B.tid('msg.diary.sleep.ok'));
-  await page.click(B.tid('msg.diary.anxiety.some'));
-  await page.fill(B.tid('msg.diary.note'), 'Синтетика: спокойный день');
-  await page.click(B.tid('msg.diary.save'));
-  await B.expectVisible(page, 'msg.undo.diary_saved');
-  await B.expectVisible(page, 'msg.diary.chart');
-  await B.expectVisible(page, 'msg.diary.visibility');
+  await page.waitForFunction(() => document.querySelector('.diary-workspace')?.getAttribute('aria-busy') === 'false');
+  await B.expectVisible(page, 'msg.diary.workspace.static.016');
+  await B.expectVisible(page, 'msg.diary.workspace.static.017');
+  await page.click('[data-state="mood"][data-state-value="4"]');
+  await page.click('[data-state="anxiety"][data-state-value="1"]');
+  await page.fill(B.tid('msg.diary.workspace.static.048'), 'Синтетика: спокойный день');
+  await page.click(B.tid('msg.diary.workspace.static.050'));
+  await page.waitForFunction(() => document.querySelector('[data-diary-save-status]')?.dataset.state === 'saved');
+  const saved = await (await ctx.api('patC')).get('/api/v1/me/diary-workspace');
+  const day = saved.body.state.wellbeings[saved.body.today];
+  assert.equal(day.mood, 4, 'настроение сохранено');
+  assert.equal(day.anxiety, 1, 'тревога сохранена');
+  assert.ok(saved.body.state.dayNotes.some((n) => n.text === 'Синтетика: спокойный день'), 'заметка сохранена');
+  await page.reload();
+  await page.waitForFunction(() => document.querySelector('.diary-workspace')?.getAttribute('aria-busy') === 'false');
+  assert.equal(await page.getAttribute('[data-state="mood"][data-state-value="4"]', 'aria-checked'), 'true');
+  await page.click('[data-side-habit="mood"]');
+  await B.expectVisible(page, 'msg.diary.workspace.static.142');
+  assert.ok(await page.locator('#habit-detail svg, #habit-detail canvas').count(), 'график привычки раскрыт');
 });
 
 // covers: T-428, UC-33, UC-34, F-48, F-49

@@ -96,7 +96,9 @@ main.page-wrap form.adm-filters { flex-direction: row; }
 .more-item b { font-size: var(--fs-18); }
 
 /* ---------- окна и формы администратора ---------- */
-.modal.wide { max-width: 520px; }
+.modal.wide { position: relative; max-width: 520px; }
+.modal-x { position: absolute; top: var(--s-3); right: var(--s-3); }
+.modal.wide > .modal-x + h2, .modal.wide > .modal-x + h3 { padding-right: var(--s-7); }
 .modal-bg .pop-list { display: flex; flex-direction: column; gap: var(--s-1); margin: 0; max-height: 240px; overflow: auto; }
 .modal-bg .pop-list .it { display: flex; gap: var(--s-3); align-items: center; width: 100%; min-height: 48px; padding: var(--s-2) var(--s-3); border-radius: var(--r-card); border: 0; background: none; text-align: left; cursor: pointer; font: inherit; color: var(--ink); }
 .modal-bg .pop-list .it:hover { background: var(--ground); }
@@ -122,6 +124,20 @@ main.page-wrap form.adm-filters { flex-direction: row; }
 .prompt-diff__add { background: var(--ok-bg); }
 .prompt-diff__del { background: var(--err-bg); }
 .prompt-diff__gap { color: var(--ink-2); }
+.prompt-cats { margin: var(--s-2) 0 var(--s-1); }
+.prompt-cat-note { margin: 0 0 var(--s-2); }
+.prompt-items { display: grid; gap: var(--s-2); grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); margin-bottom: var(--s-3); }
+.prompt-item { display: flex; flex-direction: column; gap: 4px; text-align: left; padding: var(--s-2) var(--s-3); border: 1px solid var(--sunk-2); border-radius: var(--r-md); background: var(--white); color: var(--ink); font: inherit; cursor: pointer; }
+.prompt-item:hover { background: var(--sunk); }
+.prompt-item.on { box-shadow: var(--ring); }
+.prompt-item span { color: var(--ink-2); font-size: var(--fs-14); line-height: var(--lh-14); }
+.prompt-item small { color: var(--ink-2); }
+.prompt-item__meta code { font-size: inherit; }
+.prompt-head { margin: var(--s-2) 0; }
+.prompt-head h3 { margin: 0 0 4px; }
+.prompt-head p { margin: 0 0 4px; }
+.prompt-compose { margin-top: var(--s-3); }
+.prompt-compose .prompt-diff { max-height: 420px; overflow: auto; }
 .itt-switch { display: flex; gap: var(--s-2); align-items: center; flex-wrap: wrap; margin: var(--s-2) 0; }
 .itt-switch button[aria-pressed="true"] { font-weight: 700; box-shadow: var(--ring); }
 .stan { display: inline-flex; gap: 2px; vertical-align: middle; }

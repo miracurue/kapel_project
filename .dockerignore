@@ -1,7 +1,9 @@
 .git
+.agents
 .env
 data
 node_modules
+research-tools
 docs
 test
 tests

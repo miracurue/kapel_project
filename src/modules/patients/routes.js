@@ -19,28 +19,35 @@ function install(app, { db, P, config, now, idemCached, saveIdem, auditPatient }
     const state = idemCached(req, req.user.id);
     if (state.mismatch) return P.sendError(req, res, 409, 'E-IDEMPOTENCY-MISMATCH');
     if (state.cached) return res.json(state.cached);
-    const body = req.body || {};
-    const reason = String(body.reason || '').trim();
-    if (!reason || body.confirm !== true) return P.sendError(req, res, 422, 'E-VALIDATION');
-    const episode = db
-      .prepare('SELECT * FROM care_episodes WHERE patient_id=? AND ended_at IS NULL ORDER BY id DESC LIMIT 1')
-      .get(patientId);
-    if (!episode) return P.sendError(req, res, 409, 'E-ARCHIVED');
-    // Закрепление проверяем здесь (мидлвар для episode.close его пропускает:
-    // повторный archive уже без закрепления должен отвечать E-ARCHIVED, T-212).
-    const assigned = db
-      .prepare(
-        "SELECT 1 FROM care_assignments WHERE patient_id=? AND clinician_id=? AND episode_id=? AND ended_at IS NULL AND (end_reason IS NULL OR end_reason<>'signal_only')",
-      )
-      .get(patientId, req.user.id, episode.id);
-    if (!assigned) {
+    const deny = () => {
       try {
         auditPatient(req, patientId, 'deny', 'episode');
       } catch (_) {
         return P.sendError(req, res, 500, 'E-INTERNAL');
       }
       return P.sendError(req, res, 404, 'E-NOT-FOUND');
+    };
+    const episode = db
+      .prepare('SELECT * FROM care_episodes WHERE patient_id=? AND ended_at IS NULL ORDER BY id DESC LIMIT 1')
+      .get(patientId);
+    // Закрепление проверяем здесь (мидлвар для episode.close его пропускает:
+    // повторный archive уже без закрепления должен отвечать E-ARCHIVED, T-212).
+    // Права — раньше проверки тела: чужому пациенту только 404 (T-332).
+    if (!episode) {
+      const wasAssigned = db
+        .prepare("SELECT 1 FROM care_assignments WHERE patient_id=? AND clinician_id=? AND end_reason='archive'")
+        .get(patientId, req.user.id);
+      return wasAssigned ? P.sendError(req, res, 409, 'E-ARCHIVED') : deny();
     }
+    const assigned = db
+      .prepare(
+        "SELECT 1 FROM care_assignments WHERE patient_id=? AND clinician_id=? AND episode_id=? AND ended_at IS NULL AND (end_reason IS NULL OR end_reason<>'signal_only')",
+      )
+      .get(patientId, req.user.id, episode.id);
+    if (!assigned) return deny();
+    const body = req.body || {};
+    const reason = String(body.reason || '').trim();
+    if (!reason || body.confirm !== true) return P.sendError(req, res, 422, 'E-VALIDATION');
     const openCrisis = db
       .prepare("SELECT id FROM crisis_escalations WHERE patient_id=? AND status IN ('new','in_work')")
       .all(patientId);

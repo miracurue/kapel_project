@@ -1,0 +1,44 @@
+/* Регистрация, тексты документов, повторное согласие, заявки специалистов. Только токены. */
+body.auth main.page-wrap:has(.reg), main.page-wrap:has(.legal-doc) { max-width: calc(var(--w-form) + 2 * var(--gutter)); }
+main.page-wrap:has(.legal-doc) { max-width: calc(var(--w-read) + 2 * var(--gutter)); }
+.reg h1 { margin: 0 0 var(--s-4); }
+.reg-seg { display: flex; width: 100%; margin: 0 0 var(--s-4); }
+.reg-seg a { flex: 1; justify-content: center; }
+.reg-lead { margin: 0 0 var(--s-4); font-size: var(--fs-16); }
+.reg-form { display: flex; flex-direction: column; gap: var(--s-4); }
+.reg-form[hidden], .reg [hidden] { display: none; }
+.reg .field small { font-weight: 400; font-size: var(--fs-13); }
+.field-err { color: var(--brick); font-size: var(--fs-14); font-weight: 700; }
+.field-err:empty { display: none; }
+.reg-code { border-radius: var(--r-card); background: var(--ground); padding: var(--s-2) var(--s-4); }
+.reg-code summary { min-height: var(--h-btn-sm); display: flex; align-items: center; cursor: pointer; font-weight: 700; color: var(--jade); }
+.reg-code[open] summary { margin-bottom: var(--s-2); }
+.reg-consents { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--s-3); }
+.reg-consents legend { font-weight: 800; font-size: var(--fs-16); margin-bottom: var(--s-2); padding: 0; }
+.reg-check { align-items: flex-start !important; line-height: var(--lh-16); font-size: var(--fs-15) !important; }
+.reg-check input { margin-top: 2px; }
+.reg-check a { color: var(--jade); text-decoration: underline; text-underline-offset: 2px; }
+.reg-roles { flex-direction: row; }
+.reg-roles legend { font-weight: 700; font-size: var(--fs-14); margin-bottom: var(--s-2); padding: 0; }
+.reg-roles .choice { flex: 1; justify-content: center; background: var(--sunk); }
+.reg-roles .choice:has(input:checked) { background: var(--jade-t); }
+.reg-roles .choice input { position: absolute; opacity: 0; pointer-events: none; }
+.reg-roles .choice:has(input:focus-visible) { outline: 3px solid var(--jade); outline-offset: 2px; }
+.reg-done { text-align: left; }
+.legal-doc h1 { margin-bottom: var(--s-2); }
+.legal-doc h2, .legal-doc h3 { margin: var(--s-5) 0 var(--s-2); }
+.legal-doc p, .legal-doc li { line-height: var(--lh-16); }
+.legal-doc blockquote { margin: var(--s-3) 0; padding: var(--s-3) var(--s-4); background: var(--honey-t); border-radius: var(--r-card); }
+.legal-doc blockquote p { margin: 0; }
+.legal-meta { color: var(--ink-2); font-size: var(--fs-14); margin: 0 0 var(--s-4); }
+.legal-links { margin: 0 0 var(--s-4); padding-left: var(--s-5); display: flex; flex-direction: column; gap: var(--s-2); }
+.renew .card { padding: var(--s-4); border-radius: var(--r-card); background: var(--white); box-shadow: var(--lift); margin: var(--s-3) 0; }
+.renew .acts { display: flex; flex-wrap: wrap; gap: var(--s-3); margin-top: var(--s-4); }
+.staff-apps { margin: 0 0 var(--section); }
+.staff-apps h2 { margin: 0 0 var(--s-3); }
+.staff-app { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: center; justify-content: space-between; padding: var(--s-4); border-radius: var(--r-card); background: var(--white); box-shadow: var(--lift); margin-bottom: var(--s-3); }
+.staff-app__main { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
+.staff-app__main small { color: var(--ink-2); }
+.staff-app__acts { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.staff-app__form { flex-basis: 100%; display: flex; flex-direction: column; gap: var(--s-3); }
+@media (max-width: 560px) { .reg-roles { flex-direction: column; } .staff-app__acts .btn { flex: 1; } }

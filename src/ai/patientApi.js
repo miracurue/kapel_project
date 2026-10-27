@@ -16,6 +16,12 @@ const { createMlClient } = require('../ml/client');
 const { createPii } = require('./pii');
 const { createRegistry } = require('./registry');
 const { createGateway, GatewayError } = require('./gateway');
+const { createCrisisFlow } = require('./crisisFlow');
+const { createChatConduct } = require('../modules/patient/chatConduct');
+const crisisMode = require('./crisisMode');
+const { isFullyAssigned } = require('../access/assignment');
+const { createPatientSelfTools } = require('./patientSelfTools');
+const journalStore = require('../modules/journal/store');
 
 // S-23: срок хранения ИИ-тредов берётся из настройки retention.ai_days
 // (W-41, действует сразу); без настройки — 30 дней.
@@ -45,7 +51,10 @@ function install(app, deps) {
   };
 
   function threadView(row) {
+    const crisisView =
+      row.mode === 'crisis' ? { mode: 'crisis', crisis: crisisMode.statusOf(db, row.crisis_escalation_id) } : {};
     return {
+      ...crisisView,
       id: row.id,
       purpose: row.purpose,
       title: row.title,
@@ -67,10 +76,7 @@ function install(app, deps) {
     if (purpose && row.purpose !== purpose) return null;
     // W-35 (PD-11, T-133): тред специалиста по откреплённому пациенту недоступен — 404.
     if (row.purpose === 'clinician_chat' && row.patient_id) {
-      const own = db
-        .prepare('SELECT 1 FROM care_assignments WHERE patient_id=? AND clinician_id=? AND ended_at IS NULL')
-        .get(row.patient_id, userId);
-      if (!own) return null;
+      if (!isFullyAssigned(db, row.patient_id, userId)) return null;
     }
     return row;
   }
@@ -123,12 +129,12 @@ function install(app, deps) {
     return db.prepare('SELECT * FROM ai_messages WHERE id=?').get(Number(info.lastInsertRowid));
   }
 
-  function historyFor(threadId, excludeMessageId = null) {
+  function historyFor(threadId, excludeMessageId = null, limit = 20) {
     return db
       .prepare("SELECT * FROM ai_messages WHERE thread_id=? AND id<>? AND kind NOT IN ('error','crisis') ORDER BY id")
       .all(threadId, excludeMessageId || -1)
       .filter((m) => m.role === 'user' || m.role === 'assistant')
-      .slice(-20)
+      .slice(-limit)
       .map((m) => ({ role: m.role, text: m.text }));
   }
 
@@ -181,8 +187,65 @@ function install(app, deps) {
     return e instanceof GatewayError;
   }
 
+  // Кризисный разговор в чате пациента; кнопка «Мне нужна помощь» (src/server.js) открывает его через app.locals.
+  const crisisFlow = createCrisisFlow({
+    db,
+    config,
+    now,
+    pii,
+    gateway,
+    createThread,
+    addMessage,
+    historyFor,
+    consentAiGiven,
+    isGatewayError,
+  });
+  app.locals.crisisFlow = crisisFlow;
+  // Метки заигрывания/грубости и пауза чата (статус ТРОЛЛЬ); админка читает и снимает паузу через app.locals.
+  const chatConduct = createChatConduct({ db, nowIso });
+  app.locals.chatConduct = chatConduct;
+
+  // Инструменты чтения данных самого пациента и журнала (src/ai/patientSelfTools.js).
+  const journal = journalStore.create(db, () => now(config).getTime());
+  const timezone = () => (activeSetting('org.timezone_hours').value || {}).timezone || 'Europe/Moscow';
+  const selfTools = ({ user, scope, onCrisis }) =>
+    createPatientSelfTools({
+      db,
+      onCrisis,
+      pii,
+      scope,
+      user,
+      journal,
+      today: () => new Intl.DateTimeFormat('en-CA', { timeZone: timezone() }).format(now(config)),
+      nowIso,
+      timezone,
+      counts: {},
+      mergeCounts: (a, b) => {
+        for (const [k, v] of Object.entries(b || {})) a[k] = (a[k] || 0) + v;
+      },
+      onUse: (name) => {
+        try {
+          db.prepare(
+            "INSERT INTO phi_access_log(actor_id,actor_role,patient_id,section,action,decision,basis,object_type,created_at) VALUES (?,?,?,'ai.tool','view','allow','self',?,?)",
+          ).run(user.id, user.role, user.id, name, nowIso());
+        } catch (_) {
+          /* журнал не ломает ответ */
+        }
+      },
+    });
+  const articleLinks = (ids) =>
+    ids
+      .map((id) => journal.article({ id: 0, role: 'patient' }, id))
+      .filter(Boolean)
+      .map((a) => ({ id: a.id, title: a.title, url: `/journal/${a.id}` }));
+
   // Маршруты — в отдельном файле, чтобы модуль оставался обозримым.
   require('./patientEndpoints')(app, {
+    selfTools,
+    journal,
+    articleLinks,
+    crisisFlow,
+    chatConduct,
     db,
     P,
     config,
@@ -238,6 +301,8 @@ function install(app, deps) {
 
   // Шаблоны текстов врача (раздел «Документы»): личные шаблоны, кнопка «ИИ», подстановка данных пациента.
   require('./workspace/templatesApi').install(app, { db, P, nowIso, pii, gateway, isGatewayError, sendGatewayError });
+  // Документы специалиста по пациенту (извещение о НЯ по бланку): создаются из шаблона, «Готово» неизменяемо.
+  require('./workspace/documentsApi').install(app, { db, P, nowIso, idemCached, saveIdem });
 
   // Вкладка «Лекарства» специалиста: поиск, карточка препарата, ИИ-чат о нём (обычный тред purpose = 'drug_chat').
   require('../modules/drugs/routes').install(app, {
@@ -253,6 +318,7 @@ function install(app, deps) {
     scopeFor,
     warningsOf,
     replyView,
+    threadView,
     isGatewayError,
     sendGatewayError,
   });

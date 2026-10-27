@@ -17,8 +17,8 @@ const give = (pid, action, amount, key, day) =>
 test('a new patient starts with an empty seedling and a readable list of sources', async () => {
   const p = await ctx.as('patC');
   const s = expectOk(await p.get('/api/v1/me/flower'));
-  assert.equal(s.balance, RULES.start.drops, 'знакомство уже пройдено: единственная награда за старт');
-  assert.equal(s.recent.length, 1);
+  assert.equal(s.balance, RULES.start.drops + RULES.login.drops, 'знакомство и сегодняшний вход: награды за старт');
+  assert.equal(s.recent.length, 2);
   assert.equal(s.steps, 0);
   assert.equal(s.stage.key, 'sprout');
   assert.equal(s.stage.index, 1);

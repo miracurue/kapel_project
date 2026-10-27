@@ -8,7 +8,7 @@ const B = require('../lib/browser');
 const { expectOk } = require('../lib/client');
 const ctx = useBrowserApp();
 
-test('flower opens full screen from its image; blue water, pink/lilac blooms, wind, watering and Back', async () => {
+test('flower panel is open on the right in the diary; expand top-left, cross top-right; full screen, watering and Back', async () => {
   const patient = await ctx.api('patA');
   expectOk(await patient.get('/api/v1/me/flower'));
   const db = ctx.app.db();
@@ -30,14 +30,25 @@ test('flower opens full screen from its image; blue water, pink/lilac blooms, wi
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await B.open(page, ctx.app, '/app?tab=diary');
-  const mini = page.locator('[data-fm-plant]');
-  await mini.waitFor();
+  // В дневнике, как и на остальных страницах, цветок открыт справа; рамкой ничего не обведено.
   const screen = page.locator('#flower-panel');
-  await page.locator('[data-flower-counter]').click();
   await page.locator('#flower-panel.is-sidebar').waitFor({ state: 'visible' });
+  assert.equal(await page.locator('[data-fm-plant]').count(), 0);
+  assert.equal(
+    await page.evaluate(() => document.querySelector('#flower-panel').contains(document.activeElement)),
+    false,
+  );
   assert.ok((await screen.boundingBox()).width < 600);
   assert.equal(new URL(page.url()).searchParams.has('flower'), false);
-  await page.locator('[data-flower-enlarge]').click();
+  // «Развернуть» — в левом верхнем углу, крестик — в правом верхнем, слова «Закрыть» на кнопке нет.
+  const head = await screen.locator('.fp-head').boundingBox();
+  const expand = await screen.locator('.fp-expand').boundingBox();
+  const cross = await screen.locator('[data-flower-close]').boundingBox();
+  assert.ok(expand.x - head.x < 40 && expand.x < cross.x);
+  assert.ok(head.x + head.width - (cross.x + cross.width) < 40);
+  assert.equal((await screen.locator('[data-flower-close]').textContent()).trim(), '');
+  assert.equal(await screen.locator('[data-flower-close]').getAttribute('aria-label'), 'Закрыть');
+  await page.locator('.fp-expand').click();
   await page.waitForURL((url) => url.searchParams.get('flower') === '1');
   assert.equal(await screen.evaluate((el) => el.classList.contains('is-sidebar')), false);
   assert.equal(expectOk(await patient.get('/api/v1/me/flower')).steps, 250, 'enlarging never waters');
@@ -46,10 +57,11 @@ test('flower opens full screen from its image; blue water, pink/lilac blooms, wi
   assert.equal(await screen.evaluate((el) => el.classList.contains('is-sidebar')), true);
   await page.keyboard.press('Escape');
   await screen.waitFor({ state: 'hidden' });
-  await mini.click();
-  await screen.waitFor({ state: 'visible' });
+  await page.locator('[data-flower-counter]').click();
+  await page.locator('#flower-panel.is-sidebar').waitFor({ state: 'visible' });
+  await page.locator('[data-fp-plant]').click();
+  await page.waitForURL((url) => url.searchParams.get('flower') === '1');
   assert.equal(await screen.evaluate((el) => el instanceof HTMLDialogElement && el.open), true);
-  assert.equal(new URL(page.url()).searchParams.get('flower'), '1');
   const bounds = await screen.boundingBox();
   assert.ok(bounds.width >= 1438 && bounds.height >= 998);
   assert.ok((await page.locator('[data-fp-plant]').boundingBox()).width > 600);
@@ -77,16 +89,18 @@ test('flower opens full screen from its image; blue water, pink/lilac blooms, wi
   fs.mkdirSync('/tmp/cc-flower-screen', { recursive: true });
   await page.screenshot({ path: '/tmp/cc-flower-screen/desktop.png' });
   await page.goBack();
-  await screen.waitFor({ state: 'hidden' });
-  await page.waitForFunction(() => document.activeElement === document.querySelector('[data-fm-plant]'));
+  await page.locator('#flower-panel.is-sidebar').waitFor({ state: 'visible' });
   await page.goForward();
-  await screen.waitFor({ state: 'visible' });
+  await page.waitForFunction(() => !document.querySelector('#flower-panel').classList.contains('is-sidebar'));
+  await page.keyboard.press('Escape');
+  await page.waitForURL((url) => !url.searchParams.has('flower'));
+  await page.locator('#flower-panel.is-sidebar').waitFor({ state: 'visible' });
   await page.keyboard.press('Escape');
   await screen.waitFor({ state: 'hidden' });
-  await page.waitForURL((url) => !url.searchParams.has('flower'));
   await page.setViewportSize({ width: 390, height: 844 });
-  await mini.click();
-  await screen.waitFor({ state: 'visible' });
+  await page.locator('[data-flower-counter]').click();
+  await page.locator('[data-fp-plant]').click();
+  await page.waitForFunction(() => !document.querySelector('#flower-panel').classList.contains('is-sidebar'));
   assert.ok((await screen.boundingBox()).width >= 388);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false);
   await page.screenshot({ path: '/tmp/cc-flower-screen/mobile.png' });
@@ -94,8 +108,9 @@ test('flower opens full screen from its image; blue water, pink/lilac blooms, wi
   assert.equal(await canopy.evaluate((el) => getComputedStyle(el).animationName), 'none');
   assert.deepEqual(errors, []);
   await page.locator('[data-flower-close]').click();
-  await screen.waitFor({ state: 'hidden' });
   await page.waitForURL((url) => !url.searchParams.has('flower'));
+  await page.keyboard.press('Escape');
+  await screen.waitFor({ state: 'hidden' });
   // Deep-link refresh opens the same full-screen view and Back has an in-page fallback.
   await B.open(page, ctx.app, '/app?tab=diary&flower=1');
   await screen.waitFor({ state: 'visible' });

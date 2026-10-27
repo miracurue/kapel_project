@@ -39,7 +39,17 @@ function preview(db, code) {
     note: meta.note || null,
     sources: meta.sources || [],
     question_count: questions.length,
-    questions: questions.map((q, n) => ({ n: n + 1, text: q.text || '' })),
+    // Полные пункты с вариантами — для очного бланка, который врач заполняет на приёме (та же шкала, что онлайн).
+    questions: questions.map((q, n) => ({
+      n: n + 1,
+      id: q.id,
+      type: q.type || 'single',
+      required: Boolean(q.required),
+      text: q.text || '',
+      options: (q.options || []).map((o) => ({ value: o.value, label: o.label, score: o.score })),
+      ...(q.min !== undefined ? { min: q.min } : {}),
+      ...(q.max !== undefined ? { max: q.max } : {}),
+    })),
     options: ((questions[0] || {}).options || []).map((o) => ({ label: o.label, score: o.score })),
     scales,
     bands: JSON.parse(row.bands_json || '[]'),

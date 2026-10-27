@@ -1,6 +1,7 @@
 'use strict';
 
 const service = require('./service');
+const { isFullyAssigned } = require('../../access/assignment');
 const crisisGate = require('../../ai/crisisGate');
 const analytics = require('../analytics/facts');
 
@@ -172,11 +173,7 @@ function install(
     if (!req.user) return fail(req, res, 401, 'E-SESSION-EXPIRED');
     if (!['psychiatrist', 'psychologist'].includes(req.user.role)) return fail(req, res, 403, 'E-ACCESS');
     const patientId = Number(req.params.patient_id);
-    const assigned = db
-      .prepare(
-        "SELECT 1 FROM care_assignments WHERE clinician_id=? AND patient_id=? AND ended_at IS NULL AND COALESCE(end_reason,'')<>'signal_only'",
-      )
-      .get(req.user.id, patientId);
+    const assigned = isFullyAssigned(db, patientId, req.user.id);
     if (!assigned) {
       auditPatient(req, patientId, 'deny', 'diary');
       return fail(req, res, 404, 'E-NOT-FOUND');

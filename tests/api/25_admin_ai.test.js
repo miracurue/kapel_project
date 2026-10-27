@@ -43,18 +43,18 @@ test('T-271 [W-42] привязка: основная ≠ запасная; дл
 // covers: T-272, UC-44, F-101, S-08, S-09, S-34, L-27
 test('T-272 [W-42] промпты: версии не перезаписываются; без обязательных блоков («Запреты», «Переход к врачу и 112») — E-VALIDATION; сравнение двух версий; откат — включить прежнюю', async () => {
   const admin = await ctx.as('admin1');
-  const vs = expectOk(await admin.get('/api/v1/admin/ai/prompts/patient_assistant/versions'));
+  const vs = expectOk(await admin.get('/api/v1/admin/ai/prompts/task.patient_chat/versions'));
   const active = vs.items.find((v) => v.active);
-  expectError(await admin.post('/api/v1/admin/ai/prompts/patient_assistant/versions', { text: 'Просто отвечай пациенту.', comment: 'без блоков' }), 422, 'E-VALIDATION');
+  expectError(await admin.post('/api/v1/admin/ai/prompts/task.patient_chat/versions', { text: 'Просто отвечай пациенту.', comment: 'без блоков' }), 422, 'E-VALIDATION');
   expectError(await admin.post('/api/v1/admin/ai/prompts/admin_assistant/versions', { text: 'Отвечай как хочешь', comment: 'без блоков' }), 422, 'E-VALIDATION');
-  expectError(await admin.post('/api/v1/admin/ai/prompts/patient_assistant/versions', { text: `${active.text}\n{{user_text}}`, comment: 'место для вставки данных' }), 422, 'E-VALIDATION');
-  const v = expectOk(await admin.post('/api/v1/admin/ai/prompts/patient_assistant/versions', { text: `${active.text}\n# синтетическая правка`, comment: 'тест' }));
-  const diff = expectOk(await admin.get(`/api/v1/admin/ai/prompts/patient_assistant/diff?a=${active.version}&b=${v.version}`));
+  expectError(await admin.post('/api/v1/admin/ai/prompts/task.patient_chat/versions', { text: `${active.text}\n{{user_text}}`, comment: 'место для вставки данных' }), 422, 'E-VALIDATION');
+  const v = expectOk(await admin.post('/api/v1/admin/ai/prompts/task.patient_chat/versions', { text: `${active.text}\n# синтетическая правка`, comment: 'тест' }));
+  const diff = expectOk(await admin.get(`/api/v1/admin/ai/prompts/task.patient_chat/diff?a=${active.version}&b=${v.version}`));
   assert.match(diff.diff, /синтетическая правка/);
-  expectError(await admin.post(`/api/v1/admin/ai/prompts/patient_assistant/versions/${v.version}/activate`, {}), 409, 'E-EVAL-BELOW');
-  expectOk(await admin.post(`/api/v1/admin/ai/prompts/patient_assistant/versions/${v.version}/activate`, { comment: 'без прогона, тест' }));
-  expectOk(await admin.post(`/api/v1/admin/ai/prompts/patient_assistant/versions/${active.version}/activate`, { comment: 'откат' }));
-  const after = expectOk(await admin.get('/api/v1/admin/ai/prompts/patient_assistant/versions'));
+  expectError(await admin.post(`/api/v1/admin/ai/prompts/task.patient_chat/versions/${v.version}/activate`, {}), 409, 'E-EVAL-BELOW');
+  expectOk(await admin.post(`/api/v1/admin/ai/prompts/task.patient_chat/versions/${v.version}/activate`, { comment: 'без прогона, тест' }));
+  expectOk(await admin.post(`/api/v1/admin/ai/prompts/task.patient_chat/versions/${active.version}/activate`, { comment: 'откат' }));
+  const after = expectOk(await admin.get('/api/v1/admin/ai/prompts/task.patient_chat/versions'));
   assert.equal(after.items.find((x) => x.active).version, active.version);
   assert.equal(after.items.find((x) => x.version === active.version).text, active.text);
 });

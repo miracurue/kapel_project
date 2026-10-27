@@ -30,8 +30,8 @@ const SCOPES = {
     facts: 'analytics_program_facts',
     members: 'analytics_program_members',
     filter: '1 = 1',
-    label: 'Участники программы',
-    basis: 'пациенты с действующим согласием на программу поддержки',
+    label: 'Согласившиеся на обезличенную аналитику',
+    basis: 'пациенты с действующим согласием на обезличенные данные для исследований и улучшения сервиса',
   },
 };
 
@@ -174,9 +174,25 @@ function diaryReport(mainDb, p) {
       suppressed: hide,
     };
   });
+  // Уровень 1 (служебные счётчики) для администратора: по всем пациентам, без согласия; малые числа скрыты.
+  let service = null;
+  if (p.scope === 'program') {
+    const total = ro.prepare('SELECT COUNT(*) AS n FROM analytics_service_members').get().n;
+    const writers = ro
+      .prepare(
+        "SELECT COUNT(DISTINCT subject_code) AS n FROM analytics_service_facts WHERE metric = 'diary_entry' AND day BETWEEN ? AND ?",
+      )
+      .get(p.from, p.to).n;
+    service = {
+      level: 1,
+      patients: total < p.minGroup ? null : total,
+      diary_writers: total < p.minGroup || writers < p.minGroup ? null : writers,
+    };
+  }
   return {
     scope: p.scope,
     scope_label: scope.label,
+    service,
     period: { from: p.from, to: p.to },
     min_group: p.minGroup,
     members_suppressed: tooSmall,

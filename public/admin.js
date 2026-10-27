@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Админка (прототип v5, вкладки: Чат · Запросы · Люди · Настройки · Журнал · Ещё → Контент, Программа, Сервис).
+ * Админка (вкладки: Обзор · Запросы · Люди · Настройки · Аудит · Контент · Аналитика · Аналитика сервиса · Сервис).
  * Все данные — из служебных API администратора (пациенты — только номерами, PD-20). Где серверной
  * части ещё нет, экран нарисован и помечен «скоро»; перечень — docs/DEMO_GAPS.md.
  * data-testid совпадают с ключами locales/ru.json.
@@ -89,11 +89,65 @@
     return { ok: r.ok, status: r.status, data: await r.json().catch(() => ({})) };
   }
   const post = (p, b) => send(p, 'POST', b);
+  const put = (p, b) => send(p, 'PUT', b);
+  // Набор для отдельных модулей экранов (public/js/admin_invites.js).
+  window.adminKit = { get, post, dialog: (...a) => dialog(...a), esc, tx, icon, fmtDate, clinicians: () => clinicians() };
+
+  // Роль и отметки сотрудника (F-92): психиатр, психолог или администратор; отметки «клинический
+  // руководитель» (только психиатр), «исследования», «проверяет справочник» (психиатр или админ).
+  const FLAG_LABELS = [
+    ['clinical_lead', 'Клинический руководитель', 'Только для психиатра'],
+    ['research', 'Исследования', 'Раздел исследований'],
+    ['reference_reviewer', 'Проверяет справочник', 'Проверка препаратов в «Контенте»; психиатр или администратор'],
+  ];
+  async function drawAccess(box, person) {
+    const card = await get(`/api/v1/admin/people/${person.id}`);
+    if (!card || !card.flags) return;
+    const roles = [
+      ['psychiatrist', 'Психиатр'],
+      ['psychologist', 'Психолог'],
+      ['admin', 'Администратор'],
+    ];
+    box.innerHTML = `<h3>Роль и отметки</h3><div class="adm-action"><div><b>Роль</b><small>Чтобы сделать специалиста администратором, сначала открепите его пациентов</small></div><select data-person-role aria-label="Роль">${roles.map(([v, l]) => `<option value="${v}"${card.role === v ? ' selected' : ''}>${l}</option>`).join('')}</select></div>${FLAG_LABELS.map(([k, l, hint]) => `<label class="adm-action"><div><b>${l}</b><small>${hint}</small></div><input type="checkbox" data-flag="${k}"${card.flags[k] ? ' checked' : ''}></label>`).join('')}<p class="sub" data-access-out aria-live="polite"></p>`;
+    const out = q('[data-access-out]', box);
+    const reason = (r) =>
+      r.status === 403
+        ? 'Свою роль и отметки менять нельзя.'
+        : r.status === 409
+          ? r.data?.error?.code === 'E-LAST-ADMIN'
+            ? 'Это последний администратор.'
+            : 'Сначала открепите пациентов этого специалиста.'
+          : r.status === 422
+            ? 'Эта отметка не подходит к роли.'
+            : 'Не получилось.';
+    q('[data-person-role]', box).addEventListener('change', async (ev) => {
+      const r = await put(`/api/v1/admin/people/${person.id}/role`, { role: ev.target.value });
+      if (!r.ok) {
+        ev.target.value = card.role;
+        out.textContent = reason(r);
+        return;
+      }
+      card.role = ev.target.value;
+      person.role = ev.target.value;
+      out.textContent = 'Роль изменена.';
+    });
+    for (const input of qa('[data-flag]', box))
+      input.addEventListener('change', async () => {
+        const r = await put(`/api/v1/admin/people/${person.id}/flags`, { [input.dataset.flag]: input.checked });
+        if (!r.ok) {
+          input.checked = !input.checked;
+          out.textContent = reason(r);
+          return;
+        }
+        out.textContent = 'Отметка сохранена.';
+      });
+  }
 
   function dialog(html, onMount) {
     const bg = document.createElement('div');
     bg.className = 'modal-bg';
-    bg.innerHTML = `<div class="modal wide" role="dialog" aria-modal="true">${html}</div>`;
+    // Крестик в правом верхнем углу у каждого окна, как в обычных программах.
+    bg.innerHTML = `<div class="modal wide" role="dialog" aria-modal="true"><button type="button" class="round modal-x" data-x aria-label="${esc(tx('msg.shell.close', 'Закрыть'))}">${icon('x')}</button>${html}</div>`;
     document.body.appendChild(bg);
     const close = () => bg.remove();
     bg.addEventListener('click', (e) => {
@@ -101,117 +155,6 @@
     });
     if (onMount) onMount(bg, close);
     return { bg, close };
-  }
-
-  // ---------- Чат: команды → черновик → кнопка ----------
-  async function findPerson(text) {
-    const needle = text.trim();
-    if (!needle) return null;
-    const data = await get(`/api/v1/admin/people?q=${encodeURIComponent(needle)}`);
-    return ((data && data.items) || []).find((p) => p.role !== 'patient') || null;
-  }
-
-  function chat() {
-    const root = q('#admin-chat');
-    if (!root) return;
-    const feed = q('[data-feed]', root);
-    const hello = q('[data-hello]', root);
-    const field = q('[data-testid="msg.admin.chat.placeholder"]', root);
-    const sendBtn = q('[data-testid="msg.composer.send"]', root);
-    const add = (cls, html) => {
-      if (hello) hello.hidden = true;
-      const el = document.createElement('article');
-      el.className = `chat-msg chat-msg_${cls}`;
-      el.innerHTML = html;
-      feed.appendChild(el);
-      el.scrollIntoView({ block: 'end' });
-      return el;
-    };
-    root.addEventListener('click', (e) => {
-      const idea = e.target.closest('[data-idea]');
-      if (idea) {
-        field.value = idea.dataset.idea;
-        field.focus();
-      }
-      const fill = e.target.closest('[data-fill]');
-      if (fill) {
-        field.value = fill.dataset.fill;
-        field.focus();
-      }
-    });
-
-    async function submit() {
-      const text = field.value.trim();
-      if (!text) return;
-      field.value = '';
-      add('user', `<p class="chat-msg__text">${esc(text)}</p>`);
-      const lower = text.toLowerCase();
-      const block = /^(заблокируй|блокир\w*)\s+(.+)/i.exec(text);
-      const reset = /^(сбрось пароль|сброс пароля)\s+(.+)/i.exec(text);
-      if (block || reset) {
-        const target = (block || reset)[2];
-        const person = await findPerson(target);
-        if (!person) {
-          add(
-            'assistant',
-            `<p class="chat-msg__text">Не нашёл сотрудника «${esc(target)}». Назовите имя или почту, например: <i>заблокируй psy2@cc.example.test</i>.</p>`,
-          );
-          return;
-        }
-        const el = add(
-          'assistant',
-          `<section class="card draft"><div class="tag" data-testid="${block ? 'msg.admin.chat.draft.block' : 'msg.admin.chat.draft.reset'}">${esc(block ? tx('msg.admin.chat.draft.block', 'Черновик: заблокировать пользователя') : tx('msg.admin.chat.draft.reset', 'Черновик: сбросить пароль'))}</div><h3>${esc(person.label || person.name)}</h3><div class="sub">${esc(ROLE[person.role] || person.role)} · ${esc(person.service_no)}${block ? ' · причина: другое' : ''}</div><p class="sub">Чтобы выполнить, нажмите кнопку. Действие попадёт в журнал, блокировку можно отменить.</p><div class="acts"><button type="button" class="btn primary" data-testid="msg.admin.chat.draft.save" data-do>${esc(block ? 'Заблокировать' : 'Сбросить пароль')}</button><button type="button" class="btn ghost" data-testid="msg.admin.chat.draft.discard" data-skip>${esc(tx('msg.admin.chat.draft.discard', 'Не сохранять'))}</button></div><p class="sub" data-out aria-live="polite"></p></section>`,
-        );
-        q('[data-skip]', el).addEventListener('click', () => el.remove());
-        q('[data-do]', el).addEventListener('click', async () => {
-          const out = q('[data-out]', el);
-          if (block) {
-            const r = await post(`/api/v1/admin/people/${person.id}/status`, { action: 'block', reason_key: 'other' });
-            if (!r.ok) {
-              out.textContent =
-                r.status === 403
-                  ? 'Себя блокировать нельзя.'
-                  : r.status === 409
-                    ? 'Последнего администратора блокировать нельзя.'
-                    : 'Не получилось выполнить.';
-              return;
-            }
-            out.innerHTML = `<span data-testid="msg.undo.admin.blocked">Заблокирован · </span><button type="button" class="link" data-testid="msg.undo.action" data-undo>Отменить</button>`;
-            q('[data-undo]', out).addEventListener('click', async () => {
-              const back = await post(`/api/v1/admin/people/${person.id}/status`, { action: 'unblock' });
-              if (back.ok) out.innerHTML = '<span data-testid="msg.undo.done">Отменено</span>';
-            });
-          } else {
-            const r = await post(`/api/v1/admin/people/${person.id}/password-reset`, {});
-            out.innerHTML = r.ok
-              ? `Временный пароль (показывается один раз): <code>${esc(r.data.temporary_password)}</code>`
-              : 'Не получилось выполнить.';
-          }
-          q('[data-do]', el).disabled = true;
-        });
-        return;
-      }
-      if (/запрос|просроч|ждёт|открыт/.test(lower)) {
-        const data = await get('/api/v1/admin/requests?filter=open');
-        const n = data ? data.total : 0;
-        add(
-          'assistant',
-          `<p class="chat-msg__text">Открытых запросов: <b>${n}</b>. <a href="/admin?tab=requests">Открыть очередь</a></p>`,
-        );
-        return;
-      }
-      add(
-        'assistant',
-        `<p class="chat-msg__text">Пока я понимаю короткие команды: <i>заблокируй …</i>, <i>сбрось пароль …</i>, вопросы про открытые запросы. Свободные вопросы о работе сервиса появятся вместе с ассистентом администратора ${soon()}.</p>`,
-      );
-    }
-    sendBtn.addEventListener('click', submit);
-    field.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
-        e.preventDefault();
-        submit();
-      }
-    });
   }
 
   // ---------- Запросы ----------
@@ -484,9 +427,12 @@
                 ROLE[p.role],
                 p.status !== 'active' ? STATUS_TXT[p.status] || lbl('pstatus', p.status) : '',
                 p.must_change_password ? 'временный пароль' : '',
+                p.chat_troll
+                  ? `${tx('msg.admin.people.troll', 'ТРОЛЛЬ')} · ${tx('msg.admin.people.troll.until', 'Пауза чата до {t}', { t: when(p.chat_troll.until) })}`
+                  : '',
                 shown ? shown.email : '',
               ].filter(Boolean);
-              return `<div class="prow${String(selectedId) === String(p.id) ? ' on' : ''}" data-id="${p.id}"><span class="avatar-sm">${esc(initials)}</span><div><b>${esc(name)}</b><small>${esc(sub.join(' · '))}</small></div><div class="p-act">${p.role === 'patient' && !shown ? `<button type="button" class="btn ghost sm" data-reveal="${p.id}">Показать</button>` : ''}${p.status === 'blocked' ? `<button type="button" class="btn sm" data-unblock="${p.id}">Разблокировать</button>` : p.role !== 'patient' && p.role !== 'admin' ? `<button type="button" class="btn ghost sm" data-open="${p.id}">Открыть</button>` : ''}</div></div>`;
+              return `<div class="prow${String(selectedId) === String(p.id) ? ' on' : ''}" data-id="${p.id}"><span class="avatar-sm">${esc(initials)}</span><div><b>${esc(name)}</b><small>${esc(sub.join(' · '))}</small></div><div class="p-act">${p.role === 'patient' && p.chat_troll ? `<button type="button" class="btn sm" data-troll-clear="${p.id}" title="${esc(tx('msg.admin.people.troll.note', ''))}" data-testid="msg.admin.people.troll.clear">${esc(tx('msg.admin.people.troll.clear', 'Снять статус'))}</button>` : ''}${p.role === 'patient' && !shown ? `<button type="button" class="btn ghost sm" data-reveal="${p.id}">Показать</button>` : ''}${p.status === 'blocked' ? `<button type="button" class="btn sm" data-unblock="${p.id}">Разблокировать</button>` : p.role !== 'patient' ? `<button type="button" class="btn ghost sm" data-open="${p.id}">Открыть</button>` : ''}</div></div>`;
             })
             .join('') +
           (rows.length > limit
@@ -495,7 +441,7 @@
         : `<div class="empty">${icon('users', 'i--32')}<h3>${esc(tx('msg.admin.people.empty', 'Пользователей пока нет — создайте первого сотрудника'))}</h3></div>`;
       qa('.people-filters .pill', root).forEach((b) => b.classList.toggle('on', b.dataset.filter === filter));
     };
-    root.innerHTML = `<div class="people-head"><input type="search" class="search-in" placeholder="${esc(tx('msg.admin.people.search', 'Имя, почта сотрудника, #номер или точная почта пациента'))}" aria-label="${esc(tx('msg.admin.people.search_label', 'Поиск'))}" data-search><button type="button" class="btn primary" data-testid="msg.admin.people.new_staff" data-new>${icon('plus')}${esc(tx('msg.admin.people.new_staff', '+ Сотрудник').replace(/^\+\s*/, ''))}</button></div><div class="adm-bar"><div class="filters people-filters">${[
+    root.innerHTML = `<div class="people-head"><input type="search" class="search-in" placeholder="${esc(tx('msg.admin.people.search', 'Имя, почта сотрудника, #номер или точная почта пациента'))}" aria-label="${esc(tx('msg.admin.people.search_label', 'Поиск'))}" data-search><button type="button" class="btn primary" data-testid="msg.admin.people.new_staff" data-new>${icon('plus')}${esc(tx('msg.admin.people.new_staff', '+ Сотрудник').replace(/^\+\s*/, ''))}</button><button type="button" class="btn" data-testid="msg.admin.invites.open" data-invites>${esc(tx('msg.admin.invites.open', 'Приглашения'))}</button></div><div class="adm-bar"><div class="filters people-filters">${[
       'all|msg.admin.people.filter.all|Все',
       'staff|msg.admin.people.filter.staff|Специалисты',
       'admins|msg.admin.people.filter.admins|Админы',
@@ -507,7 +453,9 @@
         const [k, key, fb] = s.split('|');
         return `<button type="button" class="pill${k === 'all' ? ' on' : ''}" data-filter="${k}" data-testid="msg.admin.people.filter.${k}">${esc(tx(key, fb))}</button>`;
       })
-      .join('')}</div></div><div class="adm-people" data-people-grid><div class="adm-people-list" data-people-list></div><div data-people-panel></div></div><p class="sub adm-out" data-out aria-live="polite"></p>`;
+      .join(
+        '',
+      )}</div></div><div class="adm-people" data-people-grid><div class="adm-people-list" data-people-list></div><div data-people-panel></div></div><p class="sub adm-out" data-out aria-live="polite"></p>`;
     draw();
     q('[data-search]', root).addEventListener('input', (e) => {
       needle = e.target.value.trim().toLowerCase();
@@ -534,6 +482,17 @@
         }
         return;
       }
+      const troll = e.target.closest('[data-troll-clear]');
+      if (troll) {
+        const r = await post(`/api/v1/admin/people/${troll.dataset.trollClear}/chat-troll/clear`, {});
+        if (r.ok) {
+          const p = items.find((x) => String(x.id) === troll.dataset.trollClear);
+          if (p) p.chat_troll = null;
+          q('[data-out]', root).textContent = tx('msg.admin.people.troll.cleared', 'Статус снят.');
+          draw();
+        }
+        return;
+      }
       const un = e.target.closest('[data-unblock]');
       if (un) {
         const r = await post(`/api/v1/admin/people/${un.dataset.unblock}/status`, { action: 'unblock' });
@@ -550,8 +509,9 @@
         selectedId = p.id;
         draw();
         const host = q('[data-people-panel]', root);
-        host.innerHTML = `<aside class="panel panel--adm" aria-label="${esc(p.label)}"><div class="panel-head"><h2>${esc(p.label)}</h2><button type="button" class="round" data-pclose aria-label="${esc(tx('msg.admin.people.panel_close', 'Закрыть'))}">${icon('x')}</button></div><div class="panel-body"><dl class="adm-kv"><dt>${esc(tx('msg.admin.people.f_role', 'Роль'))}</dt><dd>${esc(ROLE[p.role])}</dd><dt>${esc(tx('msg.admin.people.f_email', 'Почта'))}</dt><dd>${esc(p.email || '—')}</dd></dl><div><div class="adm-action"><div><b>Сбросить пароль</b><small>Временный пароль показывается один раз</small></div><button type="button" class="btn sm" data-act="reset">Сбросить</button></div><div class="adm-action"><div><b>Заблокировать</b><small>Сеансы закроются сразу; блокировку можно снять</small></div><button type="button" class="btn danger sm" data-act="block">Заблокировать</button></div><div class="adm-action"><div><b>Второй фактор входа</b><small>${esc(tx('msg.admin.people.2fa_off', 'Второй фактор: выключен'))}</small></div>${soon()}</div></div><p class="sub" data-d-out aria-live="polite"></p></div></aside>`;
+        host.innerHTML = `<aside class="panel panel--adm" aria-label="${esc(p.label)}"><div class="panel-head"><h2>${esc(p.label)}</h2><button type="button" class="round" data-pclose aria-label="${esc(tx('msg.admin.people.panel_close', 'Закрыть'))}">${icon('x')}</button></div><div class="panel-body"><dl class="adm-kv"><dt>${esc(tx('msg.admin.people.f_role', 'Роль'))}</dt><dd>${esc(ROLE[p.role])}</dd><dt>${esc(tx('msg.admin.people.f_email', 'Почта'))}</dt><dd>${esc(p.email || '—')}</dd></dl><div><div class="adm-action"><div><b>Сбросить пароль</b><small>Временный пароль показывается один раз</small></div><button type="button" class="btn sm" data-act="reset">Сбросить</button></div><div class="adm-action"><div><b>Заблокировать</b><small>Сеансы закроются сразу; блокировку можно снять</small></div><button type="button" class="btn danger sm" data-act="block">Заблокировать</button></div><div class="adm-action"><div><b>Второй фактор входа</b><small>${esc(tx('msg.admin.people.2fa_off', 'Второй фактор: выключен'))}</small></div>${soon()}</div></div><div data-access></div><p class="sub" data-d-out aria-live="polite"></p></div></aside>`;
         const panel = q('.panel', host);
+        if (p.role !== 'patient') drawAccess(q('[data-access]', panel), p);
         panel.addEventListener('click', async (ev) => {
           if (ev.target.closest('[data-pclose]')) {
             selectedId = null;
@@ -580,6 +540,10 @@
             }
           }
         });
+        return;
+      }
+      if (e.target.closest('[data-invites]')) {
+        if (window.adminInvites) window.adminInvites.open();
         return;
       }
       if (e.target.closest('[data-new]')) {
@@ -681,7 +645,10 @@
     const d = m % 10;
     return m > 10 && m < 20 ? many : d === 1 ? one : d > 1 && d < 5 ? few : many;
   };
-  const minutes = (n) => (n % 60 === 0 && n >= 60 ? `${n / 60} ${plural(n / 60, 'час', 'часа', 'часов')}` : `${n} ${plural(n, 'минута', 'минуты', 'минут')}`);
+  const minutes = (n) =>
+    n % 60 === 0 && n >= 60
+      ? `${n / 60} ${plural(n / 60, 'час', 'часа', 'часов')}`
+      : `${n} ${plural(n, 'минута', 'минуты', 'минут')}`;
   const days = (n) => `${n} ${plural(n, 'день', 'дня', 'дней')}`;
   const SET_FORMAT = {
     'auth.session_timeouts': (v) =>
@@ -693,14 +660,19 @@
     'crisis.sla': (v) => `В рабочее время — ${minutes(v.work_minutes)}, в нерабочее — ${minutes(v.off_minutes)}`,
     'ai.enabled': (v) => (v && v.all === false ? 'ИИ выключен' : 'ИИ включён'),
     'ai.eval.threshold': (v) => `${Math.round(v * 100)} %`,
-    'voice.max_seconds': (v) => `Пациент — ${minutes(Math.round(v.patient / 60))}, специалист — ${minutes(Math.round(v.clinician / 60))}`,
-    'files.limits': (v) => `До ${v.max_mb} МБ, не больше ${v.max_count} ${plural(v.max_count, 'файла', 'файлов', 'файлов')} за раз`,
+    'voice.max_seconds': (v) =>
+      `Пациент — ${minutes(Math.round(v.patient / 60))}, специалист — ${minutes(Math.round(v.clinician / 60))}`,
+    'files.limits': (v) =>
+      `До ${v.max_mb} МБ, не больше ${v.max_count} ${plural(v.max_count, 'файла', 'файлов', 'файлов')} за раз`,
     'messages.channel': (v) => `Ответ в течение ${days(v.reply_days)}${v.line ? ` · «${v.line}»` : ''}`,
-    'previsit.days_before': (v) => `За ${days(v.days)}${v.reminders ? `, напоминаний: ${v.reminders}` : ', без напоминаний'}`,
-    'org.timezone_hours': (v) => `С ${v.work_from} до ${v.work_to}${v.timezone === 'Europe/Moscow' ? ', по Москве' : ''}`,
+    'previsit.days_before': (v) =>
+      `За ${days(v.days)}${v.reminders ? `, напоминаний: ${v.reminders}` : ', без напоминаний'}`,
+    'org.timezone_hours': (v) =>
+      `С ${v.work_from} до ${v.work_to}${v.timezone === 'Europe/Moscow' ? ', по Москве' : ''}`,
     'queue.due': (v) =>
       `Сведения — ${days(v.info_days)}, остановка обработки — ${days(v.stop_days)}, удаление — ${days(v.erasure_days)}`,
-    'reference.search': (v) => `${v.suggestions} ${plural(v.suggestions, 'подсказка', 'подсказки', 'подсказок')}, от ${v.min_chars} букв`,
+    'reference.search': (v) =>
+      `${v.suggestions} ${plural(v.suggestions, 'подсказка', 'подсказки', 'подсказок')}, от ${v.min_chars} букв`,
     'service.maintenance': (v) => (v && v.on ? 'Включены' : 'Выключены'),
   };
   const summary = (value, key = '') => {
@@ -712,31 +684,29 @@
       /* ниже общий запасной вариант */
     }
     if (typeof value === 'number') {
-      const unit = /_days$/.test(key) ? days(value) : /_minutes$/.test(key) ? minutes(value) : /_hours$/.test(key) ? `${value} ч` : String(value);
+      const unit = /_days$/.test(key)
+        ? days(value)
+        : /_minutes$/.test(key)
+          ? minutes(value)
+          : /_hours$/.test(key)
+            ? `${value} ч`
+            : String(value);
       return unit;
     }
     if (typeof value === 'string') return value;
-    if (Array.isArray(value)) return value.length ? `${value.length} ${plural(value.length, 'пункт', 'пункта', 'пунктов')}` : 'Пусто';
+    if (Array.isArray(value))
+      return value.length ? `${value.length} ${plural(value.length, 'пункт', 'пункта', 'пунктов')}` : 'Пусто';
     const n = Object.keys(value).length;
     return n ? `Заданы значения (${n}); подробности — в окне «Изменить»` : 'Пусто';
   };
 
-  // ---------- Каталог промптов ИИ (P-40): версии, сравнение, включение и откат ----------
-  const PROMPT_TITLES = {
-    patient_assistant: ['msg.admin.prompt.key.patient_assistant', 'Помощник пациента'],
-    clinician_chat: ['msg.admin.prompt.key.clinician_chat', 'Чат специалиста'],
-    document_draft: ['msg.admin.prompt.key.document_draft', 'Черновики документов'],
-    'document_draft.template': ['msg.admin.prompt.key.document_draft_template', 'Шаблоны документов (кнопка ИИ)'],
-    'article_draft.patient': ['msg.admin.prompt.key.article_draft_patient', 'Статья для пациентов (генерация)'],
-    'article_draft.specialist': [
-      'msg.admin.prompt.key.article_draft_specialist',
-      'Статья для специалистов (генерация)',
-    ],
-    article_rewrite: ['msg.admin.prompt.key.article_rewrite', 'Статья: правка выделенного'],
-    diagnostic_hints: ['msg.admin.prompt.key.diagnostic_hints', 'Гипотезы с источниками'],
-    ae_extraction: ['msg.admin.prompt.key.ae_extraction', 'Извлечение признаков НЯ'],
-    order_parse: ['msg.admin.prompt.key.order_parse', 'Разбор назначения'],
-  };
+  // ---------- Каталог промптов ИИ (P-40): слои, версии, сравнение, включение и откат ----------
+  const PROMPT_ROLES = [
+    ['', 'msg.admin.prompt.role.none', 'Без роли (администратор)'],
+    ['patient', 'msg.admin.prompt.role.patient', 'Пациент'],
+    ['psychiatrist', 'msg.admin.prompt.role.psychiatrist', 'Психиатр'],
+    ['psychologist', 'msg.admin.prompt.role.psychologist', 'Психолог'],
+  ];
   const PROMPT_STATUS = {
     active: ['msg.admin.prompt.status.active', 'действует'],
     previous: ['msg.admin.prompt.status.previous', 'прежняя'],
@@ -765,24 +735,34 @@
     pane.setAttribute('data-prompt-pane', '');
     pane.className = 'card adm-card';
     root.appendChild(pane);
-    const app = q('#admin-app');
-    const keys = String((app && app.dataset.promptKeys) || '')
-      .split(',')
-      .filter(Boolean);
-    let key = keys.includes('document_draft.template') ? 'document_draft.template' : keys[0];
+    let categories = [];
+    let catId = 'task';
+    let key = '';
     let list = [];
     let diffHtml = '';
+    let composeHtml = '';
     let note = '';
     const url = (suffix = '') => `/api/v1/admin/ai/prompts/${encodeURIComponent(key)}${suffix}`;
-    const label = (k) => {
-      const t = PROMPT_TITLES[k];
-      return t ? tx(t[0], t[1]) : k;
+    const cat = () => categories.find((c) => c.id === catId) || categories[0];
+    const item = () => (cat() ? cat().items.find((e) => e.key === key) : null);
+    const loadCatalog = async () => {
+      const data = await get('/api/v1/admin/ai/prompts');
+      categories = (data && data.categories) || [];
+      if (!cat()) return;
+      catId = cat().id;
+      if (!item()) key = cat().items.length ? cat().items[0].key : '';
     };
-    const load = async () => {
-      const data = await get(url('/versions'));
+    const loadVersions = async () => {
+      const data = key ? await get(url('/versions')) : null;
       list = (data && data.items) || [];
     };
     const draw = () => {
+      const c = cat();
+      if (!c) {
+        pane.innerHTML = `<p class="muted pad">${esc(tx('msg.admin.prompt.empty', 'Версий пока нет.'))}</p>`;
+        return;
+      }
+      const it = item();
       const active = list.find((v) => v.active);
       const rows = list
         .map((v) => {
@@ -797,25 +777,76 @@
           return `<div class="li" data-pver="${v.version}"><div class="grow">v${v.version} · ${esc(tx(st[0], st[1]))}<small>${esc(v.author)} · ${esc(when(v.created_at))}${v.comment ? ` · «${esc(v.comment)}»` : ''}</small></div><button type="button" class="btn ghost" data-pload="${v.version}">${esc(tx('msg.admin.prompt.open', 'В редактор'))}</button>${compare}${act}</div>`;
         })
         .join('');
-      pane.innerHTML = `<p class="lead">${esc(tx('msg.admin.prompt.lead', 'Системная инструкция модели. Текст версии не меняется: правка создаёт новую версию. Включённая версия действует сразу. Данные пользователя шлюз передаёт отдельным сообщением.'))}</p><label class="field"><span>${esc(tx('msg.admin.prompt.key', 'Промпт'))}</span><select data-pkey>${keys.map((k) => `<option value="${esc(k)}"${k === key ? ' selected' : ''}>${esc(label(k))}</option>`).join('')}</select></label><div class="list" data-plist>${rows || `<p class="muted pad">${esc(tx('msg.admin.prompt.empty', 'Версий пока нет.'))}</p>`}</div><div data-pdiff-out>${diffHtml}</div><label class="field prompt-field"><span>${esc(tx('msg.admin.prompt.text', 'Текст новой версии'))}</span><textarea class="prompt-text" rows="14" maxlength="20000" data-ptext>${esc(active ? active.text : '')}</textarea></label><label class="field prompt-field"><span>${esc(tx('msg.admin.prompt.comment', 'Комментарий к версии'))}</span><input type="text" maxlength="300" data-pcomment></label><div class="acts prompt-acts"><button type="button" class="btn primary" data-psave>${esc(tx('msg.admin.prompt.save', 'Сохранить как новую версию'))}</button></div><p class="sub" data-pout aria-live="polite">${esc(note)}</p>`;
+      const tabs = categories
+        .map(
+          (x) =>
+            `<a class="pill${x.id === c.id ? ' on' : ''}" href="#" data-pcat="${esc(x.id)}"${x.id === c.id ? ' aria-current="page"' : ''}>${esc(x.title)}</a>`,
+        )
+        .join('');
+      const items = c.items
+        .map(
+          (e) =>
+            `<button type="button" class="prompt-item${e.key === key ? ' on' : ''}" data-pitem="${esc(e.key)}"><b>${esc(e.title)}</b><span>${esc(e.description)}</span><small>${esc(tx('msg.admin.prompt.where', 'Где применяется'))}: ${esc(e.where)}</small><small class="prompt-item__meta"><code>${esc(e.key)}</code> · ${e.active_version ? `v${e.active_version}` : '—'} · ${esc(tx('msg.admin.prompt.versions', 'Версии'))}: ${e.versions}</small></button>`,
+        )
+        .join('');
+      const compose =
+        it && (c.id === 'task' || c.id === 'skill')
+          ? `<div class="card soft prompt-compose"><b>${esc(tx('msg.admin.prompt.compose', 'Итоговый промпт'))}</b><p class="sub">${esc(c.id === 'skill' ? tx('msg.admin.prompt.compose_skill', 'Навык вызывается отдельным запросом: роль к нему не добавляется.') : tx('msg.admin.prompt.compose_lead', 'Так шлюз соберёт инструкцию для выбранной роли: роль, правила инструментов (если есть), задача.'))}</p>${
+              c.id === 'task'
+                ? `<label class="field"><span>${esc(tx('msg.admin.prompt.compose_role', 'Роль пользователя'))}</span><select data-prole>${PROMPT_ROLES.map(([v, k, fb]) => `<option value="${v}">${esc(tx(k, fb))}</option>`).join('')}</select></label><label class="check"><input type="checkbox" data-ptools> ${esc(tx('msg.admin.prompt.compose_tools', 'С инструментами'))}</label>`
+                : ''
+            }<div class="acts"><button type="button" class="btn" data-pcompose>${esc(tx('msg.admin.prompt.compose_show', 'Показать'))}</button></div><div data-pcompose-out>${composeHtml}</div></div>`
+          : '';
+      pane.innerHTML = `<p class="lead">${esc(tx('msg.admin.prompt.lead2', 'Инструкция для модели собирается из слоёв: роль пользователя → правила инструментов → список навыков → задача. Данные пользователя шлюз передаёт отдельным сообщением. Текст версии не меняется: правка создаёт новую версию, включённая версия действует сразу.'))}</p><div class="filters set-tabs prompt-cats">${tabs}</div><p class="sub prompt-cat-note">${esc(c.description)}</p><div class="prompt-items">${items}</div>${
+        it
+          ? `<div class="card soft prompt-head"><h3>${esc(it.title)}</h3><p>${esc(it.description)}</p><small>${esc(tx('msg.admin.prompt.where', 'Где применяется'))}: ${esc(it.where)}</small></div><div class="list" data-plist>${rows || `<p class="muted pad">${esc(tx('msg.admin.prompt.empty', 'Версий пока нет.'))}</p>`}</div><div data-pdiff-out>${diffHtml}</div><label class="field prompt-field"><span>${esc(tx('msg.admin.prompt.text', 'Текст новой версии'))}</span><textarea class="prompt-text" rows="14" maxlength="20000" data-ptext>${esc(active ? active.text : '')}</textarea></label><label class="field prompt-field"><span>${esc(tx('msg.admin.prompt.comment', 'Комментарий к версии'))}</span><input type="text" maxlength="300" data-pcomment></label><div class="acts prompt-acts"><button type="button" class="btn primary" data-psave>${esc(tx('msg.admin.prompt.save', 'Сохранить как новую версию'))}</button></div><p class="sub" data-pout aria-live="polite">${esc(note)}</p>${compose}`
+          : ''
+      }`;
     };
     const refresh = async (text) => {
-      await load();
+      await loadCatalog();
+      await loadVersions();
       note = text || '';
       draw();
     };
-    pane.addEventListener('change', async (e) => {
-      if (!e.target.matches('[data-pkey]')) return;
-      key = e.target.value;
-      diffHtml = '';
-      await refresh('');
-    });
     pane.addEventListener('click', async (e) => {
+      const tab = e.target.closest('[data-pcat]');
+      if (tab) {
+        e.preventDefault();
+        catId = tab.dataset.pcat;
+        key = '';
+        diffHtml = '';
+        composeHtml = '';
+        await refresh('');
+        return undefined;
+      }
+      const pick = e.target.closest('[data-pitem]');
+      if (pick) {
+        key = pick.dataset.pitem;
+        diffHtml = '';
+        composeHtml = '';
+        await refresh('');
+        return undefined;
+      }
+      const show = e.target.closest('[data-pcompose]');
+      if (show) {
+        const roleSel = q('[data-prole]', pane);
+        const params = new URLSearchParams({ task: key });
+        if (roleSel && roleSel.value) params.set('role', roleSel.value);
+        const toolsBox = q('[data-ptools]', pane);
+        if (toolsBox && toolsBox.checked) params.set('tools', '1');
+        const d = await get(`/api/v1/admin/ai/prompts/compose?${params.toString()}`);
+        composeHtml = d
+          ? `<p class="sub">${esc((d.layers || []).map((l) => `${l.key} v${l.version}`).join(' → '))}</p><pre class="prompt-diff">${esc(d.system)}</pre>`
+          : `<p class="muted">${esc(tx('msg.admin.prompt.error', 'Не получилось: обновите страницу и повторите.'))}</p>`;
+        q('[data-pcompose-out]', pane).innerHTML = composeHtml;
+        return undefined;
+      }
       const open = e.target.closest('[data-pload]');
       if (open) {
         const v = list.find((x) => x.version === Number(open.dataset.pload));
         if (v) q('[data-ptext]', pane).value = v.text;
-        return;
+        return undefined;
       }
       const cmp = e.target.closest('[data-pdiff]');
       if (cmp) {
@@ -833,7 +864,7 @@
               .join('')}</pre></div>`
           : '';
         q('[data-pdiff-out]', pane).innerHTML = diffHtml;
-        return;
+        return undefined;
       }
       const act = e.target.closest('[data-pact]');
       if (act) {
@@ -858,6 +889,7 @@
             ? tx('msg.admin.prompt.same', 'Такой текст уже есть среди версий.')
             : tx('msg.admin.prompt.invalid', 'Текст пустой или длиннее 20 000 знаков.');
       }
+      return undefined;
     });
     refresh('');
   }
@@ -1020,7 +1052,7 @@
                   )
                   .join('')
               : '<p class="muted pad">Изменений пока не было.</p>'
-          }</div><p class="sub" data-d-out></p><div class="acts"><button type="button" class="btn ghost" data-x>Закрыть</button></div>`,
+          }</div><p class="sub" data-d-out></p>`,
           (bg, close) =>
             bg.addEventListener('click', async (ev) => {
               const rv = ev.target.closest('[data-rev]');
@@ -1049,6 +1081,7 @@
     ['consents', 'msg.admin.log.tab.consents', 'Согласия'],
     ['requests', 'msg.admin.log.tab.requests', 'Запросы'],
     ['crisis', 'msg.admin.log.tab.crisis', 'Кризисные события'],
+    ['agent', 'msg.admin.log.tab.agent', 'Шаги ИИ-агента'],
   ];
   // дата для людей: дд.мм.гггг; в запрос уходит ISO
   const isoFromRu = (v) => {
@@ -1067,7 +1100,44 @@
     let page = 1;
     let dateErr = false;
     const filters = { action: '', patient_no: '', from: '', to: '' };
+    let openRun = null;
+    const tabsHtml = () =>
+      `<div class="adm-bar"><div class="filters log-tabs">${LOG_TABS.map(([k, key, fb]) => `<button type="button" class="pill${k === journal ? ' on' : ''}" data-j="${k}" data-testid="msg.admin.log.tab.${k}"${k === journal ? ' aria-current="true"' : ''}>${esc(tx(key, fb))}</button>`).join('')}</div></div>`;
+    // Шаги ИИ-агента (src/modules/admin/agent/routes.js): вызовы модели, инструментов и навыков одного ответа.
+    const AGENT_KIND = { model: 'Модель', tool: 'Инструмент', skill: 'Навык', note: 'Заметка' };
+    const runDetail = (r) => {
+      const step = (s) =>
+        `<tr><td class="nowrap">${s.n}</td><td class="nowrap">${esc(AGENT_KIND[s.kind] || s.kind)}</td><td>${esc(s.name || s.model_ident || '—')}${s.args ? `<small>${esc(JSON.stringify(s.args))}</small>` : ''}${s.reason_text ? `<small>${esc(s.reason_text)}</small>` : ''}${s.result_text ? `<pre class="ws-prev-pre">${esc(s.result_text)}</pre>` : s.result_chars !== null ? `<small>${esc(tx('msg.admin.agent.chars', 'символов: {n}', { n: s.result_chars }))}</small>` : ''}</td><td class="nowrap">${s.tokens_in ?? '—'} / ${s.tokens_out ?? '—'}${s.context_tokens ? `<small>${esc(tx('msg.admin.agent.context', 'контекст {n}', { n: s.context_tokens }))}</small>` : ''}</td><td class="nowrap">${s.duration_ms ?? '—'}</td><td class="nowrap">${esc(s.status)}</td></tr>`;
+      const layers = (r.prompt_layers || []).map((l) => `${l.key || l.layer || ''}${l.version ? ` v${l.version}` : ''}`).join(', ');
+      return `<section class="card adm-table-card" data-testid="msg.admin.agent.detail"><div class="adm-card-h"><h2>${esc(tx('msg.admin.agent.run', 'Ответ № {n}', { n: r.id }))}</h2><a class="btn" href="/admin/api/agent/runs/${r.id}/download" download data-testid="msg.admin.agent.download_one">${icon('download-simple')}${esc(tx('msg.admin.agent.download_one', 'Скачать JSON'))}</a><button type="button" class="btn ghost" data-run-close>${esc(tx('msg.admin.agent.close', 'Закрыть'))}</button></div>
+        <p class="adm-note">${esc(r.prompt_key)} · ${esc(r.model_ident || '—')} · ${esc(r.stop_reason || '—')}${layers ? ` · ${esc(layers)}` : ''}</p>
+        ${r.question_text ? `<h3>${esc(tx('msg.admin.agent.question', 'Вопрос'))}</h3><pre class="ws-prev-pre">${esc(r.question_text)}</pre>` : ''}
+        <div class="tbl-wrap"><table class="tbl tbl--dense"><thead><tr><th>№</th><th>${esc(tx('msg.admin.agent.c_kind', 'Шаг'))}</th><th>${esc(tx('msg.admin.agent.c_what', 'Что и с чем'))}</th><th>${esc(tx('msg.admin.agent.c_tokens', 'Токены вход / выход'))}</th><th>${esc(tx('msg.admin.agent.c_ms', 'мс'))}</th><th>${esc(tx('msg.admin.log.c_result', 'Итог'))}</th></tr></thead><tbody>${(r.steps_list || []).map(step).join('')}</tbody></table></div>
+        ${r.answer_text ? `<h3>${esc(tx('msg.admin.agent.answer', 'Ответ'))}</h3><pre class="ws-prev-pre">${esc(r.answer_text)}</pre>` : ''}
+        ${r.texts_stored ? '' : `<p class="adm-note">${esc(tx('msg.admin.agent.no_texts', 'Тексты не хранятся: боевой режим. Видны только шаги, имена и числа.'))}</p>`}</section>`;
+    };
+    const drawAgent = async () => {
+      const qs = new URLSearchParams({ page: String(page) });
+      if (filters.from) qs.set('from', filters.from);
+      if (filters.to) qs.set('to', filters.to);
+      const data = await get(`/admin/api/agent/runs?${qs}`);
+      const rows = (data && data.items) || [];
+      const pages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1;
+      const detail = openRun ? await get(`/admin/api/agent/runs/${openRun}`) : null;
+      const hint = esc(tx('msg.admin.log.date_hint', 'дд.мм.гггг'));
+      const row = (r) =>
+        `<tr><td class="nowrap">${esc(fmtDate(r.created_at))}</td><td>${esc(r.user_name || '—')}<small>${esc(r.prompt_key)}</small></td><td class="nowrap">${esc(r.patient_no || '—')}</td><td class="nowrap">${r.steps} / ${r.tool_calls}</td><td class="nowrap">${r.tokens_in} / ${r.tokens_out}</td><td class="nowrap">${r.duration_ms ?? '—'}</td><td class="nowrap">${esc(r.status)}</td><td class="act"><button type="button" class="btn ghost sm" data-run="${r.id}">${esc(tx('msg.admin.agent.open', 'Шаги'))}</button></td></tr>`;
+      root.innerHTML = `${tabsHtml()}
+        <section class="card adm-table-card"><div class="adm-card-h"><h2>${esc(tx('msg.admin.agent.title', 'Ответы агента'))}</h2><a class="btn" data-testid="msg.admin.agent.download" href="/admin/api/agent/download?${qs}" download>${icon('download-simple')}${esc(tx('msg.admin.agent.download', 'Скачать JSON за период'))}</a></div>
+        <form class="adm-filters" data-lf novalidate><div class="field${dateErr ? ' is-err' : ''}"><label for="lf-from">${esc(tx('msg.admin.log.f_from', 'С даты'))}</label><input id="lf-from" type="text" inputmode="numeric" name="from" placeholder="${hint}" autocomplete="off" value="${esc(ruFromIso(filters.from))}"></div><div class="field${dateErr ? ' is-err' : ''}"><label for="lf-to">${esc(tx('msg.admin.log.f_to', 'По дату'))}</label><input id="lf-to" type="text" inputmode="numeric" name="to" placeholder="${hint}" autocomplete="off" value="${esc(ruFromIso(filters.to))}"></div><button type="submit" class="btn">${esc(tx('msg.admin.log.find', 'Найти'))}</button></form>
+        ${dateErr ? `<p class="form-error" role="alert">${icon('warning-circle')}${esc(tx('msg.admin.log.date_err', 'Дата — в формате дд.мм.гггг, например 22.10.2026'))}</p>` : ''}
+        ${rows.length ? `<div class="tbl-wrap" tabindex="0" role="region" aria-label="${esc(tx('msg.admin.agent.title', 'Ответы агента'))}"><table class="tbl tbl--dense"><thead><tr><th>${esc(tx('msg.admin.log.c_when', 'Когда'))}</th><th>${esc(tx('msg.admin.log.c_who', 'Кто'))}</th><th>${esc(tx('msg.admin.log.c_whom', 'Над кем'))}</th><th>${esc(tx('msg.admin.agent.c_steps', 'Шагов / вызовов'))}</th><th>${esc(tx('msg.admin.agent.c_tokens', 'Токены вход / выход'))}</th><th>${esc(tx('msg.admin.agent.c_ms', 'мс'))}</th><th>${esc(tx('msg.admin.log.c_result', 'Итог'))}</th><th><span class="sr">${esc(tx('msg.admin.agent.open', 'Шаги'))}</span></th></tr></thead><tbody>${rows.map(row).join('')}</tbody></table></div>` : `<div class="empty">${icon('shield-check', 'i--32')}<h3>${esc(tx('msg.admin.log.none', 'Записей по этим условиям нет'))}</h3></div>`}
+        <div class="adm-pager"><button type="button" class="btn ghost" data-pg="-1" aria-label="${esc(tx('msg.admin.log.prev', 'Назад'))}" ${page <= 1 ? 'disabled' : ''}>${icon('arrow-left')}</button><span class="adm-note">${esc(tx('msg.admin.log.page', 'Страница {p} из {n}', { p: page, n: pages }))}${data ? ` · ${esc(tx('msg.admin.log.total', 'записей: {n}', { n: data.total }))}` : ''}</span><button type="button" class="btn ghost" data-pg="1" aria-label="${esc(tx('msg.admin.log.next', 'Вперёд'))}" ${page >= pages ? 'disabled' : ''}>${icon('caret-right')}</button></div></section>
+        ${detail ? runDetail(detail) : ''}
+        <p class="adm-note">${esc(tx('msg.admin.agent.note', 'Тексты хранятся только в демо-режиме, с метками вместо персональных данных, 30 дней.'))}</p>`;
+    };
     const draw = async () => {
+      if (journal === 'agent') return drawAgent();
       const qs = new URLSearchParams({ page: String(page) });
       for (const [k, v] of Object.entries(filters)) if (v) qs.set(k, v);
       const data = await get(`/api/v1/admin/logs/${journal}?${qs}`);
@@ -1079,7 +1149,7 @@
         return `<tr><td class="nowrap">${esc(fmtDate(r.at))}</td><td>${esc(r.actor || '—')}</td><td>${esc(what)}${obj ? `<small>${esc(obj)}</small>` : ''}</td><td class="nowrap">${esc(r.patient_no || '—')}</td><td class="nowrap">${decisionPill(r.decision)}</td></tr>`;
       };
       const hint = esc(tx('msg.admin.log.date_hint', 'дд.мм.гггг'));
-      root.innerHTML = `<div class="adm-bar"><div class="filters log-tabs">${LOG_TABS.map(([k, key, fb]) => `<button type="button" class="pill${k === journal ? ' on' : ''}" data-j="${k}" data-testid="msg.admin.log.tab.${k}"${k === journal ? ' aria-current="true"' : ''}>${esc(tx(key, fb))}</button>`).join('')}</div></div>
+      root.innerHTML = `${tabsHtml()}
         <section class="card adm-table-card"><div class="adm-card-h"><h2>${esc(tx('msg.admin.log.title', 'Записи'))}</h2><a class="btn" data-testid="msg.admin.log.csv" href="#" data-csv>${icon('download-simple')}${esc(tx('msg.admin.log.csv', 'Скачать CSV'))}</a></div>
         <form class="adm-filters" data-lf novalidate><div class="field"><label for="lf-action">${esc(tx('msg.admin.log.f_action', 'Действие'))}</label><input id="lf-action" type="search" name="action" value="${esc(filters.action)}"></div><div class="field"><label for="lf-patient">${esc(tx('msg.admin.log.f_patient', 'Пациент №'))}</label><input id="lf-patient" type="search" name="patient_no" data-testid="msg.admin.log.filter.patient" value="${esc(filters.patient_no)}"></div><div class="field${dateErr ? ' is-err' : ''}"><label for="lf-from">${esc(tx('msg.admin.log.f_from', 'С даты'))}</label><input id="lf-from" type="text" inputmode="numeric" name="from" placeholder="${hint}" autocomplete="off" value="${esc(ruFromIso(filters.from))}"></div><div class="field${dateErr ? ' is-err' : ''}"><label for="lf-to">${esc(tx('msg.admin.log.f_to', 'По дату'))}</label><input id="lf-to" type="text" inputmode="numeric" name="to" placeholder="${hint}" autocomplete="off" value="${esc(ruFromIso(filters.to))}"></div><button type="submit" class="btn">${esc(tx('msg.admin.log.find', 'Найти'))}</button></form>
         ${dateErr ? `<p class="form-error" role="alert">${icon('warning-circle')}${esc(tx('msg.admin.log.date_err', 'Дата — в формате дд.мм.гггг, например 22.10.2026'))}</p>` : ''}
@@ -1093,6 +1163,16 @@
       if (j) {
         journal = j.dataset.j;
         page = 1;
+        openRun = null;
+        return draw();
+      }
+      const run = e.target.closest('[data-run]');
+      if (run) {
+        openRun = Number(run.dataset.run);
+        return draw();
+      }
+      if (e.target.closest('[data-run-close]')) {
+        openRun = null;
         return draw();
       }
       const pg = e.target.closest('[data-pg]');
@@ -1118,8 +1198,8 @@
       if (!e.target.matches('[data-lf]')) return;
       e.preventDefault();
       const text = (k) => e.target[k].value.trim();
-      filters.action = text('action');
-      filters.patient_no = text('patient_no');
+      if (e.target.elements.namedItem('action')) filters.action = text('action');
+      if (e.target.elements.namedItem('patient_no')) filters.patient_no = text('patient_no');
       dateErr = false;
       for (const k of ['from', 'to']) {
         const raw = text(k);
@@ -1144,8 +1224,13 @@
         'Контент',
         'Библиотека, справочник препаратов, документы сервиса',
       ],
-      ['/admin?tab=analytics', 'msg.nav.admin.more.analytics', 'Аналитика', 'Рассказ по диагнозу: пациенты, специалисты, назначения, исходы'],
-      ['/admin?tab=program', 'msg.nav.admin.more.program', 'Программа', 'Только общие цифры по пациентам с согласием'],
+      [
+        '/admin?tab=analytics',
+        'msg.nav.admin.more.analytics',
+        'Аналитика',
+        'Рассказ по диагнозу: пациенты, специалисты, назначения, исходы',
+      ],
+      ['/admin?tab=program', 'msg.nav.admin.more.program', 'Аналитика сервиса', 'Общие цифры по всем и обезличенные агрегаты по согласившимся'],
       ['/admin?tab=service', 'msg.nav.admin.more.service', 'Сервис', 'Состояние: версия, база, почта, ИИ, задачи'],
     ];
     root.innerHTML = `<section class="more-grid">${items.map(([href, key, fb, hint]) => `<a class="more-item" href="${href}"><b>${esc(tx(key, fb))}</b><span class="muted">${esc(hint)}</span></a>`).join('')}</section>`;
@@ -1166,7 +1251,8 @@
       const tone = code === 'published' ? 'ok' : 'warn';
       return `<span class="st-pill ${tone}">${icon(tone === 'ok' ? 'check-circle' : 'clock')}${esc(STATUS[code] || lbl('cstatus', code))}</span>`;
     };
-    const SM = (attrs, text, cls = 'ghost') => `<button type="button" class="btn ${cls} sm" ${attrs}>${esc(text)}</button>`;
+    const SM = (attrs, text, cls = 'ghost') =>
+      `<button type="button" class="btn ${cls} sm" ${attrs}>${esc(text)}</button>`;
     const empty = (ic, text) => `<div class="empty">${icon(ic, 'i--32')}<h3>${esc(text)}</h3></div>`;
     const table = (cols, body) =>
       `<div class="tbl-wrap"><table class="tbl tbl--dense"><thead><tr>${cols.map((c) => `<th>${c ? esc(c) : `<span class="sr">${esc(tx('msg.admin.settings.col_act', 'Действие'))}</span>`}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>`;
@@ -1283,7 +1369,11 @@
 
   async function program(root) {
     const report = await get('/api/v1/admin/metrics?by=diary');
-    root.innerHTML = `<div class="adm-stack"><section class="card" data-testid="msg.admin.program.not_set"><h2>Программа не настроена</h2><p class="sub">Отчёт по препаратам программы поддержки включится после настройки списка препаратов. Срок зависит от того, когда клиника передаст список. Ниже — общие цифры по дневнику участников.</p></section><section class="card"><h2>Дневник участников программы</h2>${window.CCCohort ? window.CCCohort.html(report) : ''}</section></div>`;
+    const svc = report.service;
+    const svcLine = svc
+      ? `<p class="sub">Всего пациентов: ${svc.patients === null ? 'скрыто (меньше порога)' : svc.patients}${svc.diary_writers === null ? '' : `; вели дневник за период: ${svc.diary_writers}`}. Эти служебные цифры считаются по всем, без согласия.</p>`
+      : '';
+    root.innerHTML = `<div class="adm-stack"><section class="card" data-testid="msg.admin.program.not_set"><h2>Отчёт для внешнего партнёра не настроен</h2><p class="sub">Отчёт по препаратам включится после настройки списка препаратов. Ниже — аналитика сервиса: служебные цифры по всем и обезличенные агрегаты по тем, кто согласился на обезличенную аналитику.</p>${svcLine}</section><section class="card"><h2>Дневник: согласившиеся на обезличенную аналитику</h2>${window.CCCohort ? window.CCCohort.html(report, { url: '/api/v1/analytics/export?section=diary', label: tx('msg.analytics.export.csv_diary', 'Скачать CSV'), testid: 'msg.analytics.export.csv_diary' }) : ''}</section></div>`;
   }
 
   // Аналитика рассказом для заказчика: общий отрисовщик public/js/insights.js, данные без идентификаторов.
@@ -1296,13 +1386,23 @@
     await window.CCInsights.mount(q('#ins-admin', root), { url: '/api/v1/admin/insights', dx: 'F41.2' });
   }
 
+  // Обзор рассказом: рисует public/js/admin_dashboard.js, данные — /api/v1/admin/dashboard.
+  async function dashboard(root) {
+    if (!window.CCDashboard) {
+      root.innerHTML = '<p class="muted">Обзор сейчас недоступен.</p>';
+      return;
+    }
+    await window.CCDashboard.mount(root);
+  }
+
   async function service(root) {
     const s = await get('/api/v1/admin/service/status');
     if (!s) {
       root.innerHTML = `<div class="empty">${icon('warning-circle', 'i--32')}<h3>Состояние сейчас недоступно</h3><p>Обновите страницу чуть позже.</p></div>`;
       return;
     }
-    const pill = (tone, text) => `<span class="st-pill ${tone}">${icon(tone === 'ok' ? 'check-circle' : 'warning-circle')}${esc(text)}</span>`;
+    const pill = (tone, text) =>
+      `<span class="st-pill ${tone}">${icon(tone === 'ok' ? 'check-circle' : 'warning-circle')}${esc(text)}</span>`;
     const dbOk = /^ok/i.test(String(s.db));
     const size = /([\d.,]+)\s*МБ/.exec(String(s.db));
     const jobs = s.jobs || [];
@@ -1311,15 +1411,37 @@
     const mailOff = /не настроена/.test(String(s.mail));
     const aiDemo = !!(s.ai && s.ai.demo_replies);
     const aiOff = !!(s.ai && s.ai.enabled && s.ai.enabled.all === false);
-    const tile = (num, cap, extra = '') => `<div class="adm-tile"><span class="num">${esc(num)}</span><span class="cap">${esc(cap)}</span>${extra}</div>`;
-    const tr = (what, state, detail) => `<tr><td>${esc(what)}</td><td class="nowrap">${state}</td><td>${esc(detail)}</td></tr>`;
+    const tile = (num, cap, extra = '') =>
+      `<div class="adm-tile"><span class="num">${esc(num)}</span><span class="cap">${esc(cap)}</span>${extra}</div>`;
+    const tr = (what, state, detail) =>
+      `<tr><td>${esc(what)}</td><td class="nowrap">${state}</td><td>${esc(detail)}</td></tr>`;
     root.innerHTML = `<div class="adm-stack"><div class="adm-tiles">${tile(s.version, 'Версия сервиса')}${tile(size ? size[1].replace('.', ',') + ' МБ' : '—', 'Размер базы данных')}${tile(String(jobs.length), 'Фоновых задач', `<span class="when">сбоев: ${fails}</span>`)}</div>
       <section class="card adm-table-card"><h2>Состояние</h2><div class="tbl-wrap"><table class="tbl tbl--dense"><thead><tr><th>Что проверяется</th><th>Состояние</th><th>Что это значит</th></tr></thead><tbody>${[
-        tr('Данные', pill(s.demo_mode ? 'warn' : 'ok', lbl('mode', s.data_mode)), s.demo_mode ? 'В сервисе только выдуманные записи' : 'Рабочие данные клиники'),
+        tr(
+          'Данные',
+          pill(s.demo_mode ? 'warn' : 'ok', lbl('mode', s.data_mode)),
+          s.demo_mode ? 'В сервисе только выдуманные записи' : 'Рабочие данные клиники',
+        ),
         tr('База данных', pill(dbOk ? 'ok' : 'err', lbl('state', dbOk ? 'ok' : 'fail')), 'Хранилище записей'),
-        tr('Голос и фото', pill(mlOff ? 'warn' : 'ok', lbl('state', mlOff ? 'off' : 'ok')), mlOff ? 'Голосовой ввод и распознавание фото недоступны' : 'Голос и фото распознаются'),
-        tr('Почта', pill(mailOff ? 'warn' : 'ok', lbl('state', mailOff ? 'off' : 'ok')), mailOff ? 'Письма не отправляются' : 'Письма отправляются'),
-        tr('ИИ', pill(aiOff ? 'err' : aiDemo ? 'warn' : 'ok', lbl('state', aiOff ? 'off' : aiDemo ? 'demo' : 'ok')), aiDemo ? 'Ответы подготовлены заранее, внешняя модель не подключена' : aiOff ? 'ИИ выключен в настройках' : 'Ответы даёт модель'),
+        tr(
+          'Голос и фото',
+          pill(mlOff ? 'warn' : 'ok', lbl('state', mlOff ? 'off' : 'ok')),
+          mlOff ? 'Голосовой ввод и распознавание фото недоступны' : 'Голос и фото распознаются',
+        ),
+        tr(
+          'Почта',
+          pill(mailOff ? 'warn' : 'ok', lbl('state', mailOff ? 'off' : 'ok')),
+          mailOff ? 'Письма не отправляются' : 'Письма отправляются',
+        ),
+        tr(
+          'ИИ',
+          pill(aiOff ? 'err' : aiDemo ? 'warn' : 'ok', lbl('state', aiOff ? 'off' : aiDemo ? 'demo' : 'ok')),
+          aiDemo
+            ? 'Ответы подготовлены заранее, внешняя модель не подключена'
+            : aiOff
+              ? 'ИИ выключен в настройках'
+              : 'Ответы даёт модель',
+        ),
       ].join('')}</tbody></table></div>
       <details class="adm-details"><summary>${esc(tx('msg.admin.service.dev', 'Для разработчика'))}</summary><dl class="adm-kv"><dt>Обновления базы</dt><dd>${esc(s.migrations || '—')}</dd><dt>Режим данных</dt><dd>${esc(s.data_mode)}</dd><dt>База</dt><dd>${esc(s.db)}</dd><dt>Почтовый сервер</dt><dd>${esc(s.mail)}</dd><dt>Голосовой сервис</dt><dd>${esc(s.ml_worker)}</dd></dl></details></section>
       <section class="card adm-table-card"><div class="adm-card-h"><h2>Фоновые задачи</h2><span class="adm-note">${soon()}</span></div>${
@@ -1336,11 +1458,10 @@
     } catch (_) {
       TX = {};
     }
-    chat();
     const root = q('#admin-app');
     if (!root) return;
     const tab = root.dataset.tab;
-    const run = { requests, people, settings, log: logs, more: moreHub, content, program, service, analytics }[tab];
+    const run = { dashboard, requests, people, settings, log: logs, more: moreHub, content, program, service, analytics }[tab];
     if (!run) return;
     root.textContent = '';
     try {

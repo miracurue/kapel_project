@@ -33,6 +33,10 @@ async function migrate() {
       if (applied.checksum !== checksum) throw new Error(`checksum mismatch for ${file}`);
       continue;
     }
+    // Миграция может потребовать пересоздать таблицу, на которую ссылаются другие (SQLite не меняет CHECK иначе):
+    // для этого внешние ключи выключаются на время миграции (внутри транзакции это невозможно) и проверяются до COMMIT.
+    const fkOff = file.endsWith('.js') && require(path.join(migrationDir, file)).foreignKeysOff === true;
+    if (fkOff) db.pragma('foreign_keys = OFF');
     db.exec('BEGIN IMMEDIATE');
     try {
       if (fs.existsSync(dbPath) && fs.statSync(dbPath).size > 0 && version > 1) {
@@ -60,10 +64,13 @@ async function migrate() {
         file,
         checksum,
       );
+      if (fkOff && db.pragma('foreign_key_check').length) throw new Error(`foreign_key_check failed after ${file}`);
       db.exec('COMMIT');
     } catch (error) {
       db.exec('ROLLBACK');
       throw error;
+    } finally {
+      if (fkOff) db.pragma('foreign_keys = ON');
     }
   }
   const integrity = db.pragma('integrity_check', { simple: true });

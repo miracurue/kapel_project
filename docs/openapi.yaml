@@ -81,6 +81,7 @@ paths:
       x-functions: [F-71, F-74]
       x-roles: ['R-02 пациент: С — только своё']
       x-permission: diary.write
+      x-idempotency-key: not_used
       x-patient-access: self
       security: [{cookieSession: []}]
       parameters:
@@ -100,6 +101,7 @@ paths:
       x-functions: [F-71, F-74]
       x-roles: ['R-03 психиатр: З — закреплённые', 'R-04 психолог: З — закреплённые']
       x-permission: patient.view
+      x-idempotency-key: not_used
       x-patient-access: diary
       security: [{cookieSession: []}]
       parameters:
@@ -121,6 +123,7 @@ paths:
       x-functions: [F-71, F-74]
       x-roles: ['R-03 психиатр: А — только агрегаты', 'R-04 психолог: А — только агрегаты', 'R-05 администратор: А — только агрегаты программы']
       x-permission: analytics.own
+      x-idempotency-key: not_used
       security: [{cookieSession: []}]
       parameters:
       - {name: scope, in: query, schema: {type: string, enum: [current, historical, program]}}
@@ -140,6 +143,7 @@ paths:
       x-functions: [F-71, F-74]
       x-roles: ['R-05 администратор: А — только агрегаты']
       x-permission: admin.metrics
+      x-idempotency-key: not_used
       security: [{cookieSession: []}]
       parameters:
       - {name: from, in: query, schema: {type: string, format: date}}
@@ -150,6 +154,25 @@ paths:
         '403': {description: E-ACCESS}
         '422': {description: E-VALIDATION — период максимум 731 включённый день}
 
+  /api/v1/admin/dashboard:
+    get:
+      operationId: get_admin_dashboard
+      summary: Обзор администратора рассказом — главы с выводами, плитками и графиками
+      description: 'Главы: люди, диагноз-врачи-лекарства-результат (по выбранному диагнозу, расчёт как у admin/insights), активность, самочувствие, тесты, лечение, побочные эффекты, забота и безопасность, ИИ, материалы и цветок, сервис и доступ. Данные пациентов — только участники программы (базовое согласие и согласие на программу) из представлений без идентификаторов через соединение «только чтение»; ячейки с числом людей меньше analytics.min_group (не меньше 10) приходят как null. Служебные цифры (аккаунты, очередь, ИИ, журналы входа и доступа) агрегируются без идентификаторов пациентов. Определения и пороги предварительные (review-required).'
+      tags: [analytics]
+      x-functions: [F-71, F-74]
+      x-roles: ['R-05 администратор: А — только агрегаты']
+      x-permission: admin.metrics
+      x-idempotency-key: not_used
+      security: [{cookieSession: []}]
+      parameters:
+      - {name: days, in: query, schema: {type: integer, enum: [30, 90, 180, 365]}, description: 'Длина периода в днях, по умолчанию 90; сравнение идёт с предыдущим таким же периодом'}
+      - {name: dx, in: query, schema: {type: string}, description: 'Диагноз для главы «Для программы»: all, unknown или код из diagnosis_catalog'}
+      responses:
+        '200': {description: 'scope=program, period, previous, min_group, lead, kpis[] (value, prev, delta, hint), chapters[] (key, title, headline, blocks[] типов tiles, series, bars, stack, funnel, note), disclaimer'}
+        '401': {description: E-SESSION-EXPIRED}
+        '403': {description: E-ACCESS}
+        '422': {description: E-VALIDATION — недопустимая длина периода}
   /api/v1/admin/insights:
     get:
       operationId: get_admin_insights
@@ -159,6 +182,7 @@ paths:
       x-functions: [F-71, F-74]
       x-roles: ['R-05 администратор: А — только агрегаты']
       x-permission: admin.metrics
+      x-idempotency-key: not_used
       security: [{cookieSession: []}]
       parameters:
       - {name: dx, in: query, schema: {type: string}, description: 'all, unknown или код из diagnosis_catalog'}
@@ -178,15 +202,37 @@ paths:
       x-functions: [F-71, F-74]
       x-roles: ['R-05 администратор: А — только агрегаты']
       x-permission: admin.metrics
+      x-idempotency-key: not_used
       security: [{cookieSession: []}]
       parameters:
       - {name: dx, in: query, schema: {type: string}}
       - {name: from, in: query, schema: {type: string, format: date}}
       - {name: to, in: query, schema: {type: string, format: date}}
       responses:
-        '200': {description: text/csv с BOM}
+        '200': {description: 'text/csv; charset=utf-8 с BOM, разделитель «;», как у GET /api/v1/analytics/export (section=insights)'}
         '403': {description: E-ACCESS}
         '422': {description: E-VALIDATION}
+  /api/v1/analytics/export:
+    get:
+      operationId: get_analytics_export
+      summary: Выгрузка аналитики вкладки «Аналитика» в CSV (специалист, администратор)
+      description: 'Те же цифры, что роль видит на вкладке «Аналитика», без идентификаторов пациентов и специалистов: читаются представления без идентификаторов через соединение «только чтение». Специалист (R-03, R-04) получает своих пациентов, администратор — участников программы (согласие program). section=diary — дневник когорты (как analytics/my-patients и admin/metrics?by=diary), section=insights — отчёт по диагнозу (как analytics/my-insights и admin/insights), без section — оба. Группы меньше analytics.min_group (не меньше 10) скрыты так же, как на экране: ячейка пуста, в примечании «скрыто». Период и диагноз берутся из запроса, как на вкладке. Формат: UTF-8 с BOM, разделитель «;», десятичная запятая, CRLF; ячейки, начинающиеся с = + - @ табуляции или возврата каретки, экранируются апострофом. Имя файла clinical-compass-analytics-ГГГГ-ММ-ДД.csv (Content-Disposition: attachment). Выгрузка пишется в action_log (analytics.export: раздел, период, число строк — без содержимого); у администратора ещё и в export_log (kind program).'
+      tags: [analytics]
+      x-functions: [F-71, F-74]
+      x-roles: ['R-03 психиатр: А — только агрегаты', 'R-04 психолог: А — только агрегаты', 'R-05 администратор: А — только агрегаты']
+      x-permission: analytics.export
+      x-idempotency-key: not_used
+      security: [{cookieSession: []}]
+      parameters:
+      - {name: section, in: query, schema: {type: string, enum: [diary, insights, all]}, description: 'по умолчанию all'}
+      - {name: dx, in: query, schema: {type: string}, description: 'all, unknown или код из diagnosis_catalog (только для section=insights|all)'}
+      - {name: from, in: query, schema: {type: string, format: date}}
+      - {name: to, in: query, schema: {type: string, format: date}}
+      responses:
+        '200': {description: 'text/csv; charset=utf-8 с BOM; колонки: Раздел; Показатель; Значение; Единица; Число людей; Примечание'}
+        '401': {description: E-SESSION-EXPIRED}
+        '403': {description: E-ACCESS — роль без права (пациент, чужая роль)}
+        '422': {description: E-VALIDATION — неверный section, dx или период больше 730 дней}
   /api/v1/analytics/my-insights:
     get:
       operationId: get_analytics_my_insights
@@ -196,6 +242,7 @@ paths:
       x-functions: [F-71, F-74]
       x-roles: ['R-03 психиатр: З', 'R-04 психолог: З (без лекарств и побочных)']
       x-permission: analytics.own
+      x-idempotency-key: not_used
       security: [{cookieSession: []}]
       parameters:
       - {name: dx, in: query, schema: {type: string}}
@@ -214,6 +261,7 @@ paths:
       x-functions: [F-71]
       x-roles: ['R-03 психиатр: С', 'R-04 психолог: С']
       x-permission: analytics.own
+      x-idempotency-key: not_used
       security: [{cookieSession: []}]
       responses:
         '200': {description: 'specialty, organization, analytics_consent, journals, conferences, options'}
@@ -226,6 +274,7 @@ paths:
       x-functions: [F-71]
       x-roles: ['R-03 психиатр: С', 'R-04 психолог: С']
       x-permission: analytics.own
+      x-idempotency-key: required
       security: [{cookieSession: []}]
       responses:
         '200': {description: профиль}
@@ -240,6 +289,8 @@ paths:
       x-functions: [F-71, F-74]
       x-roles: ['R-03 психиатр: З', 'R-04 психолог: З']
       x-permission: patient.view
+      x-idempotency-key: not_used
+      x-patient-access: diagnosis
       security: [{cookieSession: []}]
       parameters:
       - {name: patient_id, in: path, required: true, schema: {type: integer}}
@@ -254,6 +305,8 @@ paths:
       x-functions: [F-71, F-74]
       x-roles: ['R-03 психиатр: З']
       x-permission: diagnosis.record
+      x-idempotency-key: required
+      x-patient-access: diagnosis
       security: [{cookieSession: []}]
       parameters:
       - {name: patient_id, in: path, required: true, schema: {type: integer}}
@@ -898,7 +951,7 @@ paths:
   /api/v1/auth/register:
     post:
       operationId: post_auth_register
-      summary: Регистрация пациента по коду приглашения
+      summary: Регистрация пациента, согласия отмечаются галочками на той же форме (код врача необязателен)
       tags:
       - auth
       x-functions:
@@ -910,8 +963,11 @@ paths:
       x-idempotency-key: not_used
       x-undo: false
       x-crisis-gate: false
-      description: занятая почта возвращает тот же E-INVITE-INVALID (без раскрытия, 08 F-04); пациент, закрепление и согласия — одной транзакцией
-        DB-07
+      description: 'Один запрос: проверка обязательных согласий (base — всегда; ai — если включена настройка AI_CONSENT_REQUIRED), затем
+        в одной транзакции учётная запись и записи consent_events (версия и хэш текста, который открывается по ссылке /legal/consent/{kind};
+        base фиксирует и принятие соглашения, вид agreement). Без invite_code создаётся пациент без врача, код можно ввести позже
+        (POST /me/care-link). Занятая почта вместе с кодом возвращает тот же E-INVITE-INVALID (без раскрытия), без кода — E-EMAIL-TAKEN.
+        После успеха сессия открыта, next=app. Журнал согласий только дописывается.'
       requestBody:
         required: true
         content:
@@ -922,6 +978,7 @@ paths:
                 invite_code:
                   type: string
                   maxLength: 32
+                  description: необязателен; неверный или чужой код — E-INVITE-INVALID
                 email:
                   type: string
                   maxLength: 254
@@ -933,8 +990,16 @@ paths:
                 display_name:
                   type: string
                   maxLength: 80
+                consents:
+                  type: array
+                  description: отмеченные галочки; пустой список — E-CONSENT-REQUIRED
+                  items:
+                    type: string
+                    enum:
+                    - base
+                    - ai
+                    - research
               required:
-              - invite_code
               - email
               - password
       security: []
@@ -951,11 +1016,22 @@ paths:
                   next:
                     type: string
                     enum:
-                    - consent
+                    - app
+                  csrf:
+                    type: string
         '403':
-          description: E-CSRF
+          description: E-CSRF, E-CONSENT-REQUIRED
           x-error-codes:
           - E-CSRF
+          - E-CONSENT-REQUIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: E-EMAIL-TAKEN
+          x-error-codes:
+          - E-EMAIL-TAKEN
           content:
             application/json:
               schema:
@@ -981,6 +1057,764 @@ paths:
           description: E-INTERNAL
           x-error-codes:
           - E-INTERNAL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/auth/register-specialist:
+    post:
+      operationId: post_auth_register_specialist
+      summary: Заявка специалиста (психолог или психиатр) на подключение
+      tags:
+      - auth
+      x-functions:
+      - F-04
+      - F-89
+      x-roles:
+      - 'R-01 гость: В — да, без данных пациентов'
+      x-permission: public
+      x-idempotency-key: not_used
+      x-undo: false
+      x-crisis-gate: false
+      description: 'Новое состояние «ожидает подтверждения» хранится в staff_applications; строки в users нет, поэтому до решения администратора
+        ни одной операции с данными, сессии тоже нет. Согласия staff_pd и agreement обязательны и пишутся в журнал при подтверждении
+        с исходным временем подачи (версия и хэш — из заявки). Вход по почте и паролю заявки отвечает 403 E-AUTH-PENDING.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                full_name:
+                  type: string
+                  maxLength: 120
+                email:
+                  type: string
+                  maxLength: 254
+                  format: email
+                password:
+                  type: string
+                  minLength: 10
+                  maxLength: 128
+                role:
+                  type: string
+                  enum:
+                  - psychologist
+                  - psychiatrist
+                specialty:
+                  type: string
+                  enum:
+                  - psychiatrist
+                  - psychotherapist
+                  - clinical_psychologist
+                  - neurologist
+                  - somatic
+                  - other
+                workplace:
+                  type: string
+                  maxLength: 160
+                qualification:
+                  type: string
+                  maxLength: 200
+                  description: необязательно, свободный текст (документ, номер)
+                consents:
+                  type: array
+                  items:
+                    type: string
+                    enum:
+                    - staff_pd
+                    - agreement
+              required:
+              - full_name
+              - email
+              - password
+              - role
+              - consents
+      security: []
+      responses:
+        '201':
+          description: заявка принята
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  application:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      status:
+                        type: string
+                        enum:
+                        - pending
+        '403':
+          description: E-CSRF, E-CONSENT-REQUIRED
+          x-error-codes:
+          - E-CSRF
+          - E-CONSENT-REQUIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: E-EMAIL-TAKEN
+          x-error-codes:
+          - E-EMAIL-TAKEN
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: E-VALIDATION
+          x-error-codes:
+          - E-VALIDATION
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: E-INTERNAL
+          x-error-codes:
+          - E-INTERNAL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/me/care-link:
+    post:
+      operationId: post_me_care_link
+      summary: Привязаться к врачу по коду, который он выдал (после регистрации)
+      tags:
+      - patient
+      x-functions:
+      - F-04
+      - F-73
+      x-roles:
+      - 'R-02 пациент: С — только своё'
+      x-permission: patient.self
+      x-idempotency-key: not_used
+      x-undo: false
+      x-crisis-gate: false
+      description: 'Код одноразовый, действует 7 дней; не более 10 неверных попыток за 15 минут на пациента (E-RATE-LIMIT); неверный, использованный,
+        отозванный и просроченный код дают один и тот же E-INVITE-INVALID. E-CONFLICT — только если пациент уже закреплён за этим же специалистом; код второго специалиста принимается, ответ содержит choose=true, если пациенту надо выбрать, с кем из прежних специалистов его соединить (см. /me/care-links). Успех
+        открывает период наблюдения и закрепление, событие пишется в журнал действий. Основание передачи данных врачу — базовое согласие.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                invite_code:
+                  type: string
+                  maxLength: 32
+              required:
+              - invite_code
+      security:
+      - cookieSession: []
+        csrfHeader: []
+      responses:
+        '200':
+          description: привязка выполнена
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  linked:
+                    type: boolean
+                  clinician:
+                    type: string
+                    description: имя специалиста для подтверждающей строки
+        '401':
+          description: E-SESSION-EXPIRED
+          x-error-codes:
+          - E-SESSION-EXPIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: E-CSRF, E-ACCESS, E-CONSENT-REQUIRED
+          x-error-codes:
+          - E-CSRF
+          - E-ACCESS
+          - E-CONSENT-REQUIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: E-CONFLICT
+          x-error-codes:
+          - E-CONFLICT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: E-INVITE-INVALID
+          x-error-codes:
+          - E-INVITE-INVALID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: E-RATE-LIMIT
+          x-error-codes:
+          - E-RATE-LIMIT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/me/care-links:
+    get:
+      operationId: get_me_care_links
+      summary: 'Связи специалистов пациента и вопрос «с кем соединить нового»'
+      tags:
+      - patient
+      x-functions:
+      - F-04
+      x-roles:
+      - 'R-02 пациент: С — только своё'
+      x-permission: patient.self
+      x-idempotency-key: not_used
+      x-undo: false
+      x-crisis-gate: false
+      description: 'Ответ: specialists[], prompts[{id,new_specialist,options[]}], links[{id,a,b,created_at}]. Вопрос появляется после подключения нового специалиста по коду, если у пациента уже есть другие.'
+      security:
+      - cookieSession: []
+      responses:
+        '200':
+          description: specialists, prompts, links
+        '401':
+          description: E-SESSION-EXPIRED
+          x-error-codes:
+          - E-SESSION-EXPIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: E-ACCESS
+          x-error-codes:
+          - E-ACCESS
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/me/care-links/answer:
+    post:
+      operationId: post_me_care_links_answer
+      summary: Ответ пациента — соединить нового специалиста с выбранными (пустой список — ни с кем)
+      tags:
+      - patient
+      x-functions:
+      - F-04
+      x-roles:
+      - 'R-02 пациент: С — только своё'
+      x-permission: patient.self
+      x-idempotency-key: required
+      x-undo: false
+      x-crisis-gate: false
+      description: 'Тело {prompt_id, clinician_ids[]}. Выбранные должны быть полностью закреплены за пациентом. Каждому из пары уходит нейтральное уведомление без имени пациента; закрепления не меняются.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                prompt_id:
+                  type: integer
+                clinician_ids:
+                  type: array
+                  items:
+                    type: integer
+              required:
+              - prompt_id
+              - clinician_ids
+      security:
+      - cookieSession: []
+        csrfHeader: []
+      responses:
+        '200':
+          description: linked, specialists, prompts, links
+        '401':
+          description: E-SESSION-EXPIRED
+          x-error-codes:
+          - E-SESSION-EXPIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: E-CSRF / E-ACCESS
+          x-error-codes:
+          - E-CSRF
+          - E-ACCESS
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: E-NOT-FOUND
+          x-error-codes:
+          - E-NOT-FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: E-VALIDATION
+          x-error-codes:
+          - E-VALIDATION
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/me/care-links/{id}/end:
+    post:
+      operationId: post_me_care_links_end
+      summary: Пациент разрывает связь специалистов
+      tags:
+      - patient
+      x-functions:
+      - F-04
+      x-roles:
+      - 'R-02 пациент: С — только своё'
+      x-permission: patient.self
+      x-idempotency-key: required
+      x-undo: false
+      x-crisis-gate: false
+      description: 'После разрыва чужой срез в карточке и канал сообщений для этой пары недоступны.'
+      security:
+      - cookieSession: []
+        csrfHeader: []
+      responses:
+        '200':
+          description: ended
+        '401':
+          description: E-SESSION-EXPIRED
+          x-error-codes:
+          - E-SESSION-EXPIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: E-CSRF / E-ACCESS
+          x-error-codes:
+          - E-CSRF
+          - E-ACCESS
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: E-NOT-FOUND
+          x-error-codes:
+          - E-NOT-FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/patients/{patientId}/colleagues:
+    get:
+      operationId: get_patient_colleagues
+      summary: 'Блок «данные другого специалиста» и сообщения связанных специалистов'
+      tags:
+      - clinical
+      x-functions:
+      - F-04
+      x-roles:
+      - 'R-03 психиатр: С — только свои закреплённые'
+      - 'R-04 психолог: С — только свои закреплённые'
+      x-permission: patient.colleagues
+      x-idempotency-key: not_used
+      x-undo: false
+      x-crisis-gate: false
+      description: 'Только чтение. Психиатру — результаты тестов, которые внёс или назначил связанный психолог; психологу — опубликованные назначения связанного психиатра. 404, если связи нет, закрепление завершено или signal_only, нет базового согласия. Чтение пишется в журнал доступа.'
+      security:
+      - cookieSession: []
+      responses:
+        '200':
+          description: items[{id,colleague,shared{tests|meds},messages[]}]
+        '401':
+          description: E-SESSION-EXPIRED
+          x-error-codes:
+          - E-SESSION-EXPIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: E-ACCESS
+          x-error-codes:
+          - E-ACCESS
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: E-NOT-FOUND
+          x-error-codes:
+          - E-NOT-FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/patients/{patientId}/colleagues/{linkId}/messages:
+    post:
+      operationId: post_patient_colleague_message
+      summary: Сообщение связанному специалисту по пациенту
+      tags:
+      - clinical
+      x-functions:
+      - F-04
+      x-roles:
+      - 'R-03 психиатр: С — только свои закреплённые'
+      - 'R-04 психолог: С — только свои закреплённые'
+      x-permission: patient.colleagues
+      x-idempotency-key: required
+      x-undo: false
+      x-crisis-gate: false
+      description: 'Текст до 2000 знаков. Получателю уходит нейтральное уведомление. Пациент и администратор сообщения не читают.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text:
+                  type: string
+                  maxLength: 2000
+              required:
+              - text
+      security:
+      - cookieSession: []
+        csrfHeader: []
+      responses:
+        '201':
+          description: id
+        '401':
+          description: E-SESSION-EXPIRED
+          x-error-codes:
+          - E-SESSION-EXPIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: E-CSRF / E-ACCESS
+          x-error-codes:
+          - E-CSRF
+          - E-ACCESS
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: E-NOT-FOUND
+          x-error-codes:
+          - E-NOT-FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: E-VALIDATION
+          x-error-codes:
+          - E-VALIDATION
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/me/terms:
+    get:
+      operationId: get_me_terms
+      summary: Соглашение и согласие на обработку ПДн для специалиста и администратора (версия, принято ли)
+      tags:
+      - consents
+      x-functions:
+      - F-05
+      - F-06
+      x-roles:
+      - 'R-03 психиатр: С — только своё'
+      - 'R-04 психолог: С — только своё'
+      - 'R-05 администратор: В — да, без данных пациентов'
+      - 'R-06 первый администратор: В — да, без данных пациентов'
+      x-permission: staff.terms
+      x-idempotency-key: not_used
+      x-undo: false
+      x-crisis-gate: false
+      security:
+      - cookieSession: []
+      responses:
+        '200':
+          description: 'items[{kind agreement или staff_pd, version, state, stale, accepted_version, accepted_at, document_url}], required'
+        '401':
+          description: E-SESSION-EXPIRED
+          x-error-codes:
+          - E-SESSION-EXPIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: E-ACCESS
+          x-error-codes:
+          - E-ACCESS
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/me/terms/accept:
+    post:
+      operationId: post_me_terms_accept
+      summary: Принять соглашение и согласие на обработку ПДн (первый вход, смена редакции)
+      tags:
+      - consents
+      x-functions:
+      - F-05
+      - F-06
+      x-roles:
+      - 'R-03 психиатр: С — только своё'
+      - 'R-04 психолог: С — только своё'
+      - 'R-05 администратор: В — да, без данных пациентов'
+      - 'R-06 первый администратор: В — да, без данных пациентов'
+      x-permission: staff.terms
+      x-idempotency-key: not_used
+      x-undo: false
+      x-crisis-gate: false
+      description: пишет события agreement и staff_pd с текущей версией и хэшем; без checkbox=true — E-CONSENT-REQUIRED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                checkbox:
+                  type: boolean
+              required:
+              - checkbox
+      security:
+      - cookieSession: []
+        csrfHeader: []
+      responses:
+        '200':
+          description: принято
+        '401':
+          description: E-SESSION-EXPIRED
+          x-error-codes:
+          - E-SESSION-EXPIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: E-CSRF, E-ACCESS, E-CONSENT-REQUIRED
+          x-error-codes:
+          - E-CSRF
+          - E-ACCESS
+          - E-CONSENT-REQUIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/admin/staff-applications:
+    get:
+      operationId: get_admin_staff_applications
+      summary: Очередь «Заявки специалистов»
+      tags:
+      - admin-people
+      x-functions:
+      - F-89
+      x-roles:
+      - 'R-05 администратор: В — да, без данных пациентов'
+      - 'R-06 первый администратор: В — да, без данных пациентов'
+      x-permission: admin.users
+      x-idempotency-key: not_used
+      x-undo: false
+      x-crisis-gate: false
+      description: 'ФИО, почта, роль, специальность, место работы, квалификация, дата, статус; ?status=pending|approved|rejected|all (по умолчанию
+        pending)'
+      security:
+      - cookieSession: []
+      responses:
+        '200':
+          description: items[], page, page_size, total
+        '401':
+          description: E-SESSION-EXPIRED
+          x-error-codes:
+          - E-SESSION-EXPIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: E-ACCESS
+          x-error-codes:
+          - E-ACCESS
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/admin/staff-applications/{id}/approve:
+    post:
+      operationId: post_admin_staff_applications_id_approve
+      summary: Подтвердить заявку и назначить роль психолог или психиатр
+      tags:
+      - admin-people
+      x-functions:
+      - F-89
+      x-roles:
+      - 'R-05 администратор: В — да, без данных пациентов'
+      - 'R-06 первый администратор: В — да, без данных пациентов'
+      x-permission: admin.users
+      x-idempotency-key: not_used
+      x-undo: false
+      x-crisis-gate: false
+      description: 'Роль подтверждается явно (psychologist|psychiatrist). Одна транзакция: users, профиль, события agreement и staff_pd (с временем
+        подачи), статус заявки, запись в action_log. Повторное решение — E-CONFLICT.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role:
+                  type: string
+                  enum:
+                  - psychologist
+                  - psychiatrist
+              required:
+              - role
+      security:
+      - cookieSession: []
+        csrfHeader: []
+      responses:
+        '200':
+          description: подтверждено
+        '401':
+          description: E-SESSION-EXPIRED
+          x-error-codes:
+          - E-SESSION-EXPIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: E-CSRF, E-ACCESS
+          x-error-codes:
+          - E-CSRF
+          - E-ACCESS
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: E-NOT-FOUND
+          x-error-codes:
+          - E-NOT-FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: E-CONFLICT, E-EMAIL-TAKEN
+          x-error-codes:
+          - E-CONFLICT
+          - E-EMAIL-TAKEN
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: E-VALIDATION
+          x-error-codes:
+          - E-VALIDATION
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/admin/staff-applications/{id}/reject:
+    post:
+      operationId: post_admin_staff_applications_id_reject
+      summary: Отклонить заявку с причиной
+      tags:
+      - admin-people
+      x-functions:
+      - F-89
+      x-roles:
+      - 'R-05 администратор: В — да, без данных пациентов'
+      - 'R-06 первый администратор: В — да, без данных пациентов'
+      x-permission: admin.users
+      x-idempotency-key: not_used
+      x-undo: false
+      x-crisis-gate: false
+      description: причина обязательна (до 300 символов), видна заявителю при попытке входа; запись в action_log
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  maxLength: 300
+              required:
+              - reason
+      security:
+      - cookieSession: []
+        csrfHeader: []
+      responses:
+        '200':
+          description: отклонено
+        '401':
+          description: E-SESSION-EXPIRED
+          x-error-codes:
+          - E-SESSION-EXPIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: E-CSRF, E-ACCESS
+          x-error-codes:
+          - E-CSRF
+          - E-ACCESS
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: E-NOT-FOUND
+          x-error-codes:
+          - E-NOT-FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: E-CONFLICT
+          x-error-codes:
+          - E-CONFLICT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: E-VALIDATION
+          x-error-codes:
+          - E-VALIDATION
           content:
             application/json:
               schema:
@@ -1197,6 +2031,7 @@ paths:
     patch:
       operationId: patch_me_profile
       summary: Изменить имя или почту
+      description: 'display_name: 1–80 знаков после обрезки пробелов, без < и >, иначе 422 E-VALIDATION (поле display_name); в журнал действий пишется событие без значения имени'
       tags:
       - auth
       x-functions:
@@ -1396,6 +2231,52 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
   /api/v1/me/prefs:
+    get:
+      operationId: get_me_prefs
+      summary: Настройки пользователя — видимость заметок, поддержка курса, подсказки, часовой пояс
+      tags:
+      - auth
+      x-functions:
+      - F-09
+      - F-34
+      - F-44
+      - F-51
+      x-roles:
+      - 'R-02 пациент: С — только своё'
+      - 'R-03 психиатр: С — только своё'
+      - 'R-04 психолог: С — только своё'
+      - 'R-05 администратор: С — только своё'
+      - 'R-06 первый администратор: С — только своё'
+      x-permission: session
+      x-idempotency-key: not_used
+      x-undo: false
+      x-crisis-gate: false
+      security:
+      - cookieSession: []
+      - bearerToken: []
+      responses:
+        '200':
+          description: успех
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: E-SESSION-EXPIRED
+          x-error-codes:
+          - E-SESSION-EXPIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: E-ACCESS
+          x-error-codes:
+          - E-ACCESS
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
     patch:
       operationId: patch_me_prefs
       summary: 'Личные настройки: знакомство пройдено, часовой пояс, поддержка курса, видимость заметок дневника, выключатель гипотез'
@@ -1436,11 +2317,23 @@ paths:
                 diary_notes_visible:
                   type: boolean
                   description: 'только пациент: открыть заметки дневника специалисту'
+                address_form:
+                  type: string
+                  enum: [f, m, n]
+                  description: 'только пациент: форма обращения в тёплых фразах цветка (женская, мужская, нейтральная); не медицинский пол'
+                praise_mode:
+                  type: string
+                  enum: [normal, quiet, off]
+                  description: 'только пациент: тёплые фразы цветка — как обычно, потише (без фраз) или выключить'
                 hints_enabled:
                   type: boolean
                   description: только психиатр (F-34)
                 ai_intro_seen:
                   type: boolean
+                push_subscription:
+                  type: object
+                  nullable: true
+                  description: 'только пациент: подписка этого устройства на пуши о напоминаниях (объект PushSubscription.toJSON() браузера: endpoint и keys.p256dh/auth); null — отписать все устройства. Адрес принимается только от служб доставки браузеров'
       security:
       - cookieSession: []
         csrfHeader: []
@@ -3135,7 +4028,7 @@ paths:
       x-warnings:
       - E-PSEUDO-NER-DOWN
       description: 'порядок: ACL и согласие на ИИ → allowlist чипов (F-13) → кризисная проверка (F-16; при срабатывании модель не вызывается)
-        → псевдонимизация (F-80) → шлюз (F-26) → пост-фильтр → обратная подстановка; E-NOT-FOUND — чужой или стёртый тред (кризисная фраза всё
+        → пауза чата (статус ТРОЛЛЬ: E-CHAT-PAUSED со сроком details.blocked_until; кризисные сообщения не блокируются) → псевдонимизация (F-80) → шлюз (F-26) → пост-фильтр → обратная подстановка; E-NOT-FOUND — чужой или стёртый тред (кризисная фраза всё
         равно уходит в новый тред)'
       parameters:
       - $ref: '#/components/parameters/IdempotencyKey'
@@ -3146,6 +4039,10 @@ paths:
             schema:
               type: object
               properties:
+                progress_id:
+                  type: string
+                  maxLength: 64
+                  description: 'идентификатор хода ответа, который клиент потом опрашивает через GET /api/v1/ai/threads?progress_id='
                 thread_id:
                   type: integer
                   description: пусто — новый тред
@@ -3222,10 +4119,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '429':
-          description: E-AI-LIMIT, E-RATE-LIMIT
+          description: E-AI-LIMIT, E-RATE-LIMIT, E-CHAT-PAUSED
           x-error-codes:
           - E-AI-LIMIT
           - E-RATE-LIMIT
+          - E-CHAT-PAUSED
           content:
             application/json:
               schema:
@@ -3292,6 +4190,13 @@ paths:
           - patient_assistant
           - clinician_chat
           - admin_assistant
+      - name: progress_id
+        in: query
+        required: false
+        description: 'ход ответа ИИ: подписи этапов для progress_id из POST /api/v1/ai/patient/messages (только свои); вместо списка возвращает {progress: {stages, done}}'
+        schema:
+          type: string
+          maxLength: 64
       - name: page
         in: query
         required: false
@@ -3702,10 +4607,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '429':
-          description: E-AI-LIMIT, E-RATE-LIMIT
+          description: E-AI-LIMIT, E-RATE-LIMIT, E-CHAT-PAUSED
           x-error-codes:
           - E-AI-LIMIT
           - E-RATE-LIMIT
+          - E-CHAT-PAUSED
           content:
             application/json:
               schema:
@@ -5197,6 +6103,7 @@ paths:
       x-functions: [F-39, F-56]
       x-roles: ['R-02 пациент: С — только своё']
       x-permission: diary.write
+      x-idempotency-key: not_used
       x-patient-access: self
       security: [{cookieSession: []}]
       parameters:
@@ -5277,11 +6184,12 @@ paths:
       x-functions: [F-39]
       x-roles: ['R-02 пациент: С — только своё']
       x-permission: flower.view
+      x-idempotency-key: not_used
       x-patient-access: self
       security: [{cookieSession: []}]
       responses:
         '200':
-          description: day, balance, earned_total, steps, max_steps, stage {index, key, count}, next {key, steps_to_go, drops_to_go} или null, price, can_water, water_steps, full, today_drops, daily_max, recent [{id, action, amount, created_at}], sources [{action, drops, daily_cap, once}]
+          description: day, balance, earned_total, steps, max_steps, stage {index, key, count}, next {key, steps_to_go, drops_to_go} или null, price, can_water, water_steps, full, today_drops, daily_max, recent [{id, action, amount, created_at}], left (по каждому действию, сколько ещё можно получить сегодня), today_keys, sources [{action, drops, daily_cap, once}], fresh {gained, items}, greeting (key, kind, tone, text) или null
         '401': {description: E-SESSION-EXPIRED}
         '403': {description: E-ACCESS}
   /api/v1/me/flower/water:
@@ -5315,6 +6223,67 @@ paths:
         '403': {description: E-ACCESS или E-CSRF}
         '409': {description: 'E-STATUS (reason: no_drops — нечем поливать, full — цветок уже вырос) или E-IDEMPOTENCY-MISMATCH'}
         '422': {description: E-VALIDATION}
+  /api/v1/me/flower/technique:
+    post:
+      operationId: post_me_flower_technique
+      summary: Отметить выполненную методику самопомощи
+      description: >
+        Пациент нажал «Я выполнил(а)» на странице методики. Капельки начисляются не чаще раза в день за каждую методику
+        (таблица technique_runs, уникальность пациент + методика + день); повтор в тот же день ничего не добавляет.
+      tags: [flower]
+      x-functions: [F-39]
+      x-roles: ['R-02 пациент: С — только своё']
+      x-permission: flower.water
+      x-patient-access: self
+      x-idempotency-key: not_used
+      security: [{cookieSession: []}]
+      parameters:
+      - {name: X-CSRF-Token, in: header, required: true, schema: {type: string}}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [slug]
+              properties:
+                slug: {type: string}
+      responses:
+        '200': {description: 'gained — сколько капелек начислено сейчас (0, если сегодня уже было), дальше состояние, как у GET /me/flower'}
+        '401': {description: E-SESSION-EXPIRED}
+        '403': {description: E-ACCESS или E-CSRF}
+        '422': {description: E-VALIDATION}
+  /api/v1/me/flower/message:
+    post:
+      operationId: post_me_flower_message
+      summary: Тёплая фраза для окошка под капелькой
+      description: >
+        Возвращает фразу или null. Сервер сам соблюдает пределы: не чаще одного окошка за 10 минут, не больше 4 в день, одно на
+        вид действия в день, фразы не повторяются подряд, «молодец/умница» редко; режимы «потише» и «выключить», кризисная
+        тишина после тревожного результата. Текст зависит от формы обращения пациента.
+      tags: [flower]
+      x-functions: [F-39]
+      x-roles: ['R-02 пациент: С — только своё']
+      x-permission: flower.water
+      x-patient-access: self
+      x-idempotency-key: not_used
+      security: [{cookieSession: []}]
+      parameters:
+      - {name: X-CSRF-Token, in: header, required: true, schema: {type: string}}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [action]
+              properties:
+                action: {type: string, description: 'ключ действия: diary, habit, med, test, technique, note, ai, article, plan, visit, start, login'}
+      responses:
+        '200': {description: 'message {key, kind, tone, text} или null'}
+        '401': {description: E-SESSION-EXPIRED}
+        '403': {description: E-ACCESS или E-CSRF}
+        '422': {description: E-VALIDATION}
   /api/v1/patients/{patient_id}/diary-workspace:
     get:
       operationId: get_patient_diary_workspace
@@ -5323,6 +6292,7 @@ paths:
       x-functions: [F-39, F-56]
       x-roles: ['R-03 психиатр: З — закреплённые', 'R-04 психолог: З — закреплённые']
       x-permission: patient.view
+      x-idempotency-key: not_used
       x-patient-access: diary
       security: [{cookieSession: []}]
       parameters:
@@ -6876,6 +7846,8 @@ paths:
                   type: array
                   items:
                     type: string
+                    pattern: "^[a-z][a-z0-9_]{0,31}$"
+                    description: код подсказки (nausea, dizzy); другие строки отбрасываются, не массив - E-VALIDATION
                   maxItems: 10
                 text:
                   type: string
@@ -6920,13 +7892,58 @@ paths:
                 discard:
                   type: boolean
                   description: true вместе с draft_id — мягко отменить свой черновик
+                source:
+                  type: string
+                  enum:
+                  - form
+                  - ai_chat
+                  description: откуда запись; ai_chat — из карточки-опроса в чате (по умолчанию form)
+                thread_id:
+                  type: integer
+                  description: свой тред patient_assistant, из которого пришла запись; чужой — 404 E-NOT-FOUND. При отправке сервер пишет в тред сводку (kind ae_summary)
+                med:
+                  type: object
+                  description: препарат из опроса. kind none («ничего не принимаю») запись не создаёт, ответ 200 {not_adverse:true}
+                  required:
+                  - kind
+                  properties:
+                    kind:
+                      type: string
+                      enum:
+                      - plan_item
+                      - other
+                      - none
+                    item_key:
+                      type: string
+                      description: для plan_item — действующий пункт плана
+                    patient_med_id:
+                      type: integer
+                    inn_id:
+                      type: integer
+                    name:
+                      type: string
+                      maxLength: 200
+                      description: свободное название препарата (если не из плана), хранится в med_text_enc
       security:
       - cookieSession: []
         csrfHeader: []
       - bearerToken: []
       responses:
+        '200':
+          description: med.kind=none — запись не создана; либо кризисная карточка без сохранения
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  not_adverse:
+                    type: boolean
+                  saved:
+                    type: boolean
+                  crisis:
+                    $ref: '#/components/schemas/CrisisCard'
         '201':
-          description: успех
+          description: успех. Нет психиатра (в том числе только психолог) — ae.attached=false, status saved_private; запись личная, службе и врачам не уходит
           content:
             application/json:
               schema:
@@ -6934,6 +7951,8 @@ paths:
                 properties:
                   ae:
                     $ref: '#/components/schemas/AdverseEvent'
+                  summary:
+                    $ref: '#/components/schemas/AESummary'
                   undo:
                     $ref: '#/components/schemas/Undo'
                   crisis:
@@ -6952,6 +7971,14 @@ paths:
           - E-CSRF
           - E-CONSENT-REQUIRED
           - E-ACCESS
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: E-NOT-FOUND (чужой тред или черновик)
+          x-error-codes:
+          - E-NOT-FOUND
           content:
             application/json:
               schema:
@@ -8773,6 +9800,231 @@ paths:
           description: E-MAINTENANCE
           x-error-codes:
           - E-MAINTENANCE
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/patients/{patient_id}/adverse-events:
+    post:
+      operationId: post_patients_patient_id_adverse_events
+      summary: Записать нежелательное явление по закреплённому пациенту (психиатр — сразу с решением, психолог — ожидающей записью для психиатра)
+      tags:
+      - ae
+      x-functions:
+      - F-45
+      - F-65
+      x-roles:
+      - 'R-03 психиатр: З — закреплённый пациент'
+      - 'R-04 психолог: З — закреплённый пациент; плана и чужих записей не видит'
+      x-permission: ae.report_clinician
+      x-patient-access: ae_intake
+      x-idempotency-key: required
+      x-undo: false
+      x-crisis-gate: false
+      description: |
+        Психиатр: text, severity, decision (probable|unrelated|insufficient), serious, comment?, med (plan_item+item_key | other); запись сразу с итоговым статусом related_likely|not_related|insufficient. Психолог: text, severity, started_on?, med.name (текст); запись awaiting_doctor для психиатра пациента; без психиатра — 409 E-NO-PSYCHIATRIST. thread_id — свой тред clinician_chat по этому пациенту (сводка пишется в тред).
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - name: patient_id
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - text
+              - severity
+              properties:
+                text:
+                  type: string
+                  maxLength: 1000
+                started_on:
+                  type: string
+                  format: date
+                symptoms:
+                  type: array
+                  items:
+                    type: string
+                    pattern: "^[a-z][a-z0-9_]{0,31}$"
+                    description: код подсказки (nausea, dizzy); другие строки отбрасываются, не массив - E-VALIDATION
+                  maxItems: 10
+                severity:
+                  type: string
+                  enum:
+                  - mild
+                  - noticeable
+                  - severe
+                source:
+                  type: string
+                  enum:
+                  - form
+                  - ai_chat
+                thread_id:
+                  type: integer
+                med:
+                  type: object
+                  properties:
+                    kind:
+                      type: string
+                      enum:
+                      - plan_item
+                      - other
+                    item_key:
+                      type: string
+                    patient_med_id:
+                      type: integer
+                    inn_id:
+                      type: integer
+                    name:
+                      type: string
+                      maxLength: 200
+                decision:
+                  type: string
+                  enum:
+                  - probable
+                  - unrelated
+                  - insufficient
+                  description: только психиатр, обязательно
+                serious:
+                  type: boolean
+                  description: только психиатр
+                comment:
+                  type: string
+                  maxLength: 1000
+                  description: только психиатр
+      security:
+      - cookieSession: []
+        csrfHeader: []
+      - bearerToken: []
+      responses:
+        '201':
+          description: успех
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ae:
+                    $ref: '#/components/schemas/AdverseEvent'
+                  notice_available:
+                    type: boolean
+                    description: true — психиатр, decision probable; доступен GET /adverse-events/{ae_id}/notice
+                  summary:
+                    $ref: '#/components/schemas/AESummary'
+        '401':
+          description: E-SESSION-EXPIRED
+          x-error-codes:
+          - E-SESSION-EXPIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: E-CSRF, E-ACCESS, E-CONSENT-REQUIRED
+          x-error-codes:
+          - E-CSRF
+          - E-ACCESS
+          - E-CONSENT-REQUIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: E-NOT-FOUND (чужой пациент или чужой тред)
+          x-error-codes:
+          - E-NOT-FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: E-NO-PSYCHIATRIST (психолог, у пациента нет психиатра), E-STATUS (идёт стирание данных), E-IDEMPOTENCY-MISMATCH
+          x-error-codes:
+          - E-NO-PSYCHIATRIST
+          - E-STATUS
+          - E-IDEMPOTENCY-MISMATCH
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: E-VALIDATION
+          x-error-codes:
+          - E-VALIDATION
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/patients/{patient_id}/adverse-events/offer:
+    get:
+      operationId: get_patients_patient_id_adverse_events_offer
+      summary: Можно ли предлагать карточку опроса о побочном эффекте в чате о пациенте (только флаги, без состава плана)
+      tags:
+      - ae
+      x-functions:
+      - F-45
+      - F-65
+      x-roles:
+      - 'R-03 психиатр: З — закреплённый пациент'
+      - 'R-04 психолог: З — закреплённый пациент'
+      x-permission: ae.report_clinician
+      x-patient-access: ae_intake
+      x-idempotency-key: not_used
+      x-undo: false
+      x-crisis-gate: false
+      description: |
+        offer — предлагать ли в чате (психиатр: в плане есть действующий препарат; психолог: есть закреплённый психиатр И действующий препарат). can_report — можно ли записать вручную (психиатр всегда; психолог при закреплённом психиатре).
+      parameters:
+      - name: patient_id
+        in: path
+        required: true
+        schema:
+          type: integer
+      security:
+      - cookieSession: []
+      - bearerToken: []
+      responses:
+        '200':
+          description: успех
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  offer:
+                    type: boolean
+                  can_report:
+                    type: boolean
+                  mode:
+                    type: string
+                    enum:
+                    - decision
+                    - to_psychiatrist
+        '401':
+          description: E-SESSION-EXPIRED
+          x-error-codes:
+          - E-SESSION-EXPIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: E-ACCESS
+          x-error-codes:
+          - E-ACCESS
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: E-NOT-FOUND
+          x-error-codes:
+          - E-NOT-FOUND
           content:
             application/json:
               schema:
@@ -11814,6 +13066,10 @@ paths:
                 scores:
                   type: object
                   properties: {}
+                answers:
+                  type: object
+                  description: очный бланк — ответы по пунктам той же методики, что онлайн ({id пункта → значение варианта}); баллы считает сервер, результат сохраняется сразу
+                  properties: {}
                 upload_id:
                   type: integer
                 transcript:
@@ -11844,6 +13100,13 @@ paths:
                     properties: {}
                   source_ref:
                     $ref: '#/components/schemas/ChipRef'
+                  total_score:
+                    type: integer
+                    description: только для очного бланка с ответами
+                  band:
+                    type: string
+                  risk_flag:
+                    type: boolean
         '401':
           description: E-SESSION-EXPIRED
           x-error-codes:
@@ -12588,7 +13851,7 @@ paths:
       x-idempotency-key: required
       x-undo: false
       x-crisis-gate: false
-      description: в базе — только хеш кода (DB-06); открытый код виден один раз в ответе
+      description: 'в базе — только хеш кода (DB-06); открытый код виден один раз в ответе вместе со ссылкой /register?code=… (link) и QR этой ссылки (qr_svg, SVG, null при сбое)'
       parameters:
       - $ref: '#/components/parameters/IdempotencyKey'
       security:
@@ -15309,6 +16572,46 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
   /api/v1/admin/substitutions:
+    get:
+      operationId: get_admin_substitutions
+      summary: Список замещений для администратора
+      tags:
+      - admin-queue
+      x-functions:
+      - F-87
+      x-roles:
+      - 'R-05 администратор: В — да, без данных пациентов'
+      - 'R-06 первый администратор: В — да, без данных пациентов'
+      x-permission: admin.assignments
+      x-idempotency-key: not_used
+      x-undo: false
+      x-crisis-gate: false
+      security:
+      - cookieSession: []
+      - bearerToken: []
+      responses:
+        '200':
+          description: успех
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: E-SESSION-EXPIRED
+          x-error-codes:
+          - E-SESSION-EXPIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: E-ACCESS
+          x-error-codes:
+          - E-ACCESS
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
     post:
       operationId: post_admin_substitutions
       summary: Создать замещение от имени администратора
@@ -16192,6 +17495,73 @@ paths:
           description: E-VALIDATION
           x-error-codes:
           - E-VALIDATION
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: E-INTERNAL
+          x-error-codes:
+          - E-INTERNAL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/admin/people/{user_id}/chat-troll/clear:
+    post:
+      operationId: post_admin_people_user_id_chat_troll_clear
+      summary: Снять статус ТРОЛЛЬ (мягкую паузу чата пациента)
+      tags:
+      - admin-people
+      x-functions:
+      - F-88
+      x-roles:
+      - 'R-05 администратор: В — да, без данных пациентов'
+      - 'R-06 первый администратор: В — да, без данных пациентов'
+      x-permission: admin.users
+      x-idempotency-key: not_used
+      x-undo: false
+      x-crisis-gate: false
+      description: 'статус виден в списке и карточке пациента (поле chat_troll, значение {until}); содержимого чатов у администратора нет. Без
+        вмешательства пауза заканчивается сама через час. Действие пишется в журнал администратора.'
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: integer
+      security:
+      - cookieSession: []
+        csrfHeader: []
+      - bearerToken: []
+      responses:
+        '200':
+          description: успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+        '401':
+          description: E-SESSION-EXPIRED
+          x-error-codes:
+          - E-SESSION-EXPIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: E-CSRF, E-ACCESS
+          x-error-codes:
+          - E-CSRF
+          - E-ACCESS
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: E-NOT-FOUND
+          x-error-codes:
+          - E-NOT-FOUND
           content:
             application/json:
               schema:
@@ -18353,6 +19723,234 @@ paths:
           description: E-MODEL-MODE
           x-error-codes:
           - E-MODEL-MODE
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/admin/ai/prompts:
+    get:
+      operationId: get_admin_ai_prompts
+      summary: Каталог промптов по слоям (роли, инструменты, навыки, задачи) с описаниями
+      tags:
+      - admin-ai
+      x-functions:
+      - F-101
+      x-roles:
+      - 'R-05 администратор: В — да, без данных пациентов'
+      - 'R-06 первый администратор: В — да, без данных пациентов'
+      x-permission: admin.ai
+      x-idempotency-key: not_used
+      x-undo: false
+      x-crisis-gate: false
+      security:
+      - cookieSession: []
+      - bearerToken: []
+      responses:
+        '200':
+          description: успех
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  categories:
+                    type: array
+                    items:
+                      type: object
+        '401':
+          description: E-SESSION-EXPIRED
+          x-error-codes:
+          - E-SESSION-EXPIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: E-ACCESS
+          x-error-codes:
+          - E-ACCESS
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: E-INTERNAL
+          x-error-codes:
+          - E-INTERNAL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/admin/ai/prompts/compose:
+    get:
+      operationId: get_admin_ai_prompts_compose
+      summary: Итоговая инструкция, как её соберёт шлюз для роли и задачи
+      tags:
+      - admin-ai
+      x-functions:
+      - F-101
+      x-roles:
+      - 'R-05 администратор: В — да, без данных пациентов'
+      - 'R-06 первый администратор: В — да, без данных пациентов'
+      x-permission: admin.ai
+      x-idempotency-key: not_used
+      x-undo: false
+      x-crisis-gate: false
+      parameters:
+      - name: task
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: role
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - patient
+          - psychiatrist
+          - psychologist
+      - name: tools
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: skills
+        in: query
+        required: false
+        schema:
+          type: string
+      security:
+      - cookieSession: []
+      - bearerToken: []
+      responses:
+        '200':
+          description: успех
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  system:
+                    type: string
+                  layers:
+                    type: array
+                    items:
+                      type: object
+        '401':
+          description: E-SESSION-EXPIRED
+          x-error-codes:
+          - E-SESSION-EXPIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: E-ACCESS
+          x-error-codes:
+          - E-ACCESS
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: E-NOT-FOUND
+          x-error-codes:
+          - E-NOT-FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: E-INTERNAL
+          x-error-codes:
+          - E-INTERNAL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/me/onboarding:
+    post:
+      operationId: post_me_onboarding
+      summary: Знакомство с сервисом пройдено или пропущено
+      tags:
+      - auth
+      x-functions:
+      - F-09
+      x-roles:
+      - 'R-02 пациент: С — только своё'
+      - 'R-03 психиатр: С — только своё'
+      - 'R-04 психолог: С — только своё'
+      - 'R-05 администратор: С — только своё'
+      - 'R-06 первый администратор: С — только своё'
+      x-permission: session
+      x-idempotency-key: not_used
+      x-undo: false
+      x-crisis-gate: false
+      security:
+      - cookieSession: []
+      - bearerToken: []
+      responses:
+        '200':
+          description: успех
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: E-SESSION-EXPIRED
+          x-error-codes:
+          - E-SESSION-EXPIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: E-ACCESS
+          x-error-codes:
+          - E-ACCESS
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/me/substitutions/candidates:
+    get:
+      operationId: get_me_substitutions_candidates
+      summary: Коллеги той же роли, которых можно предложить замещающими
+      tags:
+      - patients
+      x-functions:
+      - F-70
+      x-roles:
+      - 'R-03 психиатр: З — свои пациенты'
+      - 'R-04 психолог: З — свои пациенты'
+      x-permission: substitution.propose
+      x-idempotency-key: not_used
+      x-undo: false
+      x-crisis-gate: false
+      security:
+      - cookieSession: []
+      - bearerToken: []
+      responses:
+        '200':
+          description: успех
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: E-SESSION-EXPIRED
+          x-error-codes:
+          - E-SESSION-EXPIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: E-ACCESS
+          x-error-codes:
+          - E-ACCESS
           content:
             application/json:
               schema:
@@ -23999,6 +25597,510 @@ paths:
           description: P-28 «Что-то пошло не так» с номером запроса
           x-error-codes:
           - E-INTERNAL
+  /work/api/drugs/{inn_id}/instructions:
+    get:
+      operationId: get_work_drug_instructions
+      summary: Инструкции по применению по МНН (хранилище знаний)
+      tags:
+      - drugs
+      x-permission: psychiatrist, psychologist
+      x-idempotency-key: not_used
+      description: Документы через med.drug_map по нормализованному МНН; пустой список, если инструкций нет или знания не настроены. Вне замороженного /api/v1.
+      parameters:
+      - {name: inn_id, in: path, required: true, schema: {type: integer}}
+      responses:
+        '200':
+          description: успех
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  inn: {type: object, properties: {id: {type: integer}, name: {type: string}}}
+                  documents:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: {type: string}
+                        label: {type: string}
+                        trade_name: {type: string, nullable: true}
+                        manufacturer_hint: {type: string, nullable: true}
+                        sections: {type: integer}
+                        chunks: {type: integer}
+        '403':
+          description: не специалист
+          x-error-codes: [E-ACCESS]
+        '404':
+          description: препарата нет в каталоге
+          x-error-codes: [E-NOT-FOUND]
+  /work/api/drugs/{inn_id}/instructions/{doc_id}/toc:
+    get:
+      operationId: get_work_drug_instruction_toc
+      summary: Оглавление инструкции
+      tags:
+      - drugs
+      x-permission: psychiatrist, psychologist
+      x-idempotency-key: not_used
+      parameters:
+      - {name: inn_id, in: path, required: true, schema: {type: integer}}
+      - {name: doc_id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: успех
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  document: {type: object, properties: {id: {type: string}, label: {type: string}}}
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: {type: string}
+                        level: {type: integer}
+                        title: {type: string}
+                        path: {type: string}
+                        page: {type: integer, nullable: true}
+        '404':
+          description: документ не принадлежит этому МНН или знания не настроены
+          x-error-codes: [E-NOT-FOUND]
+        '503':
+          description: хранилище знаний недоступно
+          x-error-codes: [E-AI-UNAVAILABLE]
+  /work/api/drugs/{inn_id}/instructions/{doc_id}/sections/{section_id}:
+    get:
+      operationId: get_work_drug_instruction_section
+      summary: Раздел инструкции с подразделами, постранично без усечения
+      tags:
+      - drugs
+      x-permission: psychiatrist, psychologist
+      x-idempotency-key: not_used
+      parameters:
+      - {name: inn_id, in: path, required: true, schema: {type: integer}}
+      - {name: doc_id, in: path, required: true, schema: {type: string}}
+      - {name: section_id, in: path, required: true, schema: {type: string}}
+      - {name: cursor, in: query, required: false, schema: {type: integer, minimum: 0}}
+      responses:
+        '200':
+          description: успех; следующую страницу берут по nextCursor, пока hasMore
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  title: {type: string}
+                  path: {type: string}
+                  text: {type: string}
+                  nextCursor: {type: integer, nullable: true}
+                  hasMore: {type: boolean}
+        '404':
+          description: нет документа у этого МНН или раздела
+          x-error-codes: [E-NOT-FOUND]
+        '422':
+          description: некорректный cursor
+          x-error-codes: [E-VALIDATION]
+        '503':
+          description: хранилище знаний недоступно
+          x-error-codes: [E-AI-UNAVAILABLE]
+  /work/api/drugs/{inn_id}/search:
+    get:
+      operationId: get_work_drug_instruction_search
+      summary: Hybrid-поиск только по инструкциям этого препарата
+      tags:
+      - drugs
+      x-permission: psychiatrist, psychologist
+      x-idempotency-key: not_used
+      description: q 2..200 символов, limit ≤ 20, offset ≤ 200; 40 запросов в минуту на пользователя. fallback = lexical (эмбеддинги недоступны) или unavailable (знания недоступны, results пуст).
+      parameters:
+      - {name: inn_id, in: path, required: true, schema: {type: integer}}
+      - {name: q, in: query, required: true, schema: {type: string, minLength: 2, maxLength: 200}}
+      - {name: limit, in: query, required: false, schema: {type: integer, minimum: 1, maximum: 20}}
+      - {name: offset, in: query, required: false, schema: {type: integer, minimum: 0, maximum: 200}}
+      responses:
+        '200':
+          description: успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DrugKnowledgeSearch'
+        '422':
+          description: q, limit или offset вне границ
+          x-error-codes: [E-VALIDATION]
+        '429':
+          description: частота запросов
+          x-error-codes: [E-RATE-LIMIT]
+  /work/api/drugs/knowledge/search:
+    get:
+      operationId: get_work_drug_knowledge_search
+      summary: Hybrid-поиск по инструкциям всех препаратов корпуса
+      tags:
+      - drugs
+      x-permission: psychiatrist, psychologist
+      x-idempotency-key: not_used
+      description: Как поиск по препарату, в каждом результате добавлено inn.
+      parameters:
+      - {name: q, in: query, required: true, schema: {type: string, minLength: 2, maxLength: 200}}
+      - {name: limit, in: query, required: false, schema: {type: integer, minimum: 1, maximum: 20}}
+      - {name: offset, in: query, required: false, schema: {type: integer, minimum: 0, maximum: 200}}
+      responses:
+        '200':
+          description: успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DrugKnowledgeSearch'
+        '422':
+          description: q, limit или offset вне границ
+          x-error-codes: [E-VALIDATION]
+        '429':
+          description: частота запросов
+          x-error-codes: [E-RATE-LIMIT]
+  /work/api/drugs/documents/{doc_id}:
+    get:
+      operationId: get_work_drug_document
+      summary: Оглавление инструкции по коду документа (источник ответа ИИ)
+      tags:
+      - drugs
+      x-permission: psychiatrist, psychologist
+      x-idempotency-key: not_used
+      description: Документ открывает источник ответа ИИ; МНН не нужен. В items есть parent_id (по нему находят главу раздела-источника). Вне замороженного /api/v1.
+      parameters:
+      - {name: doc_id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: успех
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  document: {type: object, properties: {id: {type: string}, label: {type: string}, trade_name: {type: string, nullable: true}}}
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: {type: string}
+                        parent_id: {type: string, nullable: true}
+                        level: {type: integer}
+                        title: {type: string}
+                        path: {type: string}
+                        page: {type: integer, nullable: true}
+        '403':
+          description: не специалист
+          x-error-codes: [E-ACCESS]
+        '404':
+          description: нет такого документа или знания не настроены
+          x-error-codes: [E-NOT-FOUND]
+        '503':
+          description: хранилище знаний недоступно
+          x-error-codes: [E-AI-UNAVAILABLE]
+  /work/api/drugs/documents/{doc_id}/sections/{section_id}:
+    get:
+      operationId: get_work_drug_document_section
+      summary: Раздел инструкции по коду документа, постранично; с chunk — подсветка найденного фрагмента
+      tags:
+      - drugs
+      x-permission: psychiatrist, psychologist
+      x-idempotency-key: not_used
+      description: chunk — код фрагмента, который нашёл поиск. Если он лежит в разделе, в ответе mark {start, end} (знаки от начала раздела), а первая страница доходит до конца фрагмента (не больше 60 тыс. знаков). offset — позиция начала text в разделе.
+      parameters:
+      - {name: doc_id, in: path, required: true, schema: {type: string}}
+      - {name: section_id, in: path, required: true, schema: {type: string}}
+      - {name: cursor, in: query, required: false, schema: {type: integer, minimum: 0}}
+      - {name: chunk, in: query, required: false, schema: {type: string}}
+      responses:
+        '200':
+          description: успех
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  title: {type: string}
+                  path: {type: string}
+                  text: {type: string}
+                  offset: {type: integer}
+                  total: {type: integer}
+                  nextCursor: {type: integer, nullable: true}
+                  hasMore: {type: boolean}
+                  mark: {type: object, properties: {start: {type: integer}, end: {type: integer}}}
+        '404':
+          description: нет документа или раздела
+          x-error-codes: [E-NOT-FOUND]
+        '422':
+          description: некорректный cursor
+          x-error-codes: [E-VALIDATION]
+        '503':
+          description: хранилище знаний недоступно
+          x-error-codes: [E-AI-UNAVAILABLE]
+  /work/api/documents:
+    get:
+      operationId: get_work_documents
+      summary: Документы специалиста по закреплённым пациентам, со статусом
+      tags:
+      - documents
+      x-permission: psychiatrist
+      x-idempotency-key: not_used
+      description: Только свои документы и только по пациентам с действующим закреплением. Вне замороженного /api/v1.
+      parameters:
+      - {name: patient_id, in: query, required: false, schema: {type: integer}}
+      responses:
+        '200':
+          description: успех
+          content:
+            application/json:
+              schema: {type: object, properties: {patients: {type: array, items: {type: object, properties: {id: {type: integer}, service_no: {type: string}, name: {type: string}, documents: {type: array, items: {type: object, properties: {id: {type: integer}, template_key: {type: string, example: b-roszdravnadzor}, kind: {type: string, enum: [form]}, title: {type: string}, patient: {type: object, properties: {id: {type: integer}, service_no: {type: string}, name: {type: string}}}, ae_id: {type: integer, nullable: true}, status: {type: string, enum: [draft, ready]}, version: {type: integer}, supersedes_id: {type: integer, nullable: true}, superseded_by: {type: integer, nullable: true}, created_at: {type: string}, updated_at: {type: string}}}}}}}}}
+        '401':
+          description: нет сессии
+          x-error-codes: [E-SESSION-EXPIRED]
+        '403':
+          description: не психиатр
+          x-error-codes: [E-ACCESS]
+    post:
+      operationId: post_work_documents
+      summary: Создать документ из шаблона для своего закреплённого пациента (с автозаполнением)
+      tags:
+      - documents
+      x-permission: psychiatrist
+      x-idempotency-key: required
+      description: Единственный шаблон-форма — b-roszdravnadzor. Автозаполнение берёт только то, что есть в системе (код пациента, пол и возрастная группа, действующий план, запись о НЯ, данные врача); остальное пусто. ae_id — запись о НЯ этого пациента в статусе «связь вероятна».
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [template_key, patient_id]
+              properties:
+                template_key: {type: string, enum: [b-roszdravnadzor]}
+                patient_id: {type: integer}
+                ae_id: {type: integer, nullable: true}
+      responses:
+        '201':
+          description: создан черновик
+          content:
+            application/json:
+              schema: {type: object, properties: {document: {allOf: [{type: object, properties: {id: {type: integer}, template_key: {type: string, example: b-roszdravnadzor}, kind: {type: string, enum: [form]}, title: {type: string}, patient: {type: object, properties: {id: {type: integer}, service_no: {type: string}, name: {type: string}}}, ae_id: {type: integer, nullable: true}, status: {type: string, enum: [draft, ready]}, version: {type: integer}, supersedes_id: {type: integer, nullable: true}, superseded_by: {type: integer, nullable: true}, created_at: {type: string}, updated_at: {type: string}}}, {type: object, properties: {fields: {type: object, description: 'Поля извещения v1 (см. .agents/tasks/2026-10-26-templates-and-documents.md)'}, missing: {type: array, items: {type: string}}, complete: {type: boolean}}}]}}}
+        '403':
+          description: не психиатр / нет CSRF
+          x-error-codes: [E-ACCESS, E-CSRF]
+        '404':
+          description: пациент не закреплён или записи о НЯ нет
+          x-error-codes: [E-NOT-FOUND]
+        '409':
+          description: запись о НЯ не «связь вероятна» или другое тело при том же ключе
+          x-error-codes: [E-STATUS, E-IDEMPOTENCY-MISMATCH]
+        '422':
+          description: неизвестный шаблон или patient_id
+          x-error-codes: [E-VALIDATION]
+  /work/api/documents/blank:
+    get:
+      operationId: get_work_documents_blank
+      summary: Пустой бланк извещения (docx)
+      tags:
+      - documents
+      x-permission: psychiatrist
+      x-idempotency-key: not_used
+      description: Без данных пациента. Выгрузка пишется в export_log (kind ae_notice, без пациента).
+      parameters:
+      - {name: format, in: query, required: false, schema: {type: string, enum: [docx], default: docx}}
+      - {name: template_key, in: query, required: false, schema: {type: string, enum: [b-roszdravnadzor]}}
+      responses:
+        '200':
+          description: файл
+          content:
+            application/octet-stream:
+              schema: {type: string, format: binary}
+        '403':
+          description: не психиатр
+          x-error-codes: [E-ACCESS]
+        '422':
+          description: формат (pdf не поддерживается)
+          x-error-codes: [E-VALIDATION]
+  /work/api/documents/{id}:
+    get:
+      operationId: get_work_document
+      summary: Документ с полями, списком незаполненных обязательных полей и признаком complete
+      tags:
+      - documents
+      x-permission: psychiatrist
+      x-idempotency-key: not_used
+      parameters:
+      - {name: id, in: path, required: true, schema: {type: integer}}
+      responses:
+        '200':
+          description: успех
+          content:
+            application/json:
+              schema: {type: object, properties: {document: {allOf: [{type: object, properties: {id: {type: integer}, template_key: {type: string, example: b-roszdravnadzor}, kind: {type: string, enum: [form]}, title: {type: string}, patient: {type: object, properties: {id: {type: integer}, service_no: {type: string}, name: {type: string}}}, ae_id: {type: integer, nullable: true}, status: {type: string, enum: [draft, ready]}, version: {type: integer}, supersedes_id: {type: integer, nullable: true}, superseded_by: {type: integer, nullable: true}, created_at: {type: string}, updated_at: {type: string}}}, {type: object, properties: {fields: {type: object, description: 'Поля извещения v1 (см. .agents/tasks/2026-10-26-templates-and-documents.md)'}, missing: {type: array, items: {type: string}}, complete: {type: boolean}}}]}}}
+        '403':
+          description: не психиатр
+          x-error-codes: [E-ACCESS]
+        '404':
+          description: чужой документ, нет закрепления или нет документа
+          x-error-codes: [E-NOT-FOUND]
+    put:
+      operationId: put_work_document
+      summary: Сохранить черновик (проверка версии)
+      tags:
+      - documents
+      x-permission: psychiatrist
+      x-idempotency-key: not_used
+      description: version — версия, с которой правили; при расхождении 409 E-CONFLICT. Готовый документ не правится (409 E-SIGNED-IMMUTABLE). Поля нормализуются модулем бланка; обязательность проверяется только при «Готово».
+      parameters:
+      - {name: id, in: path, required: true, schema: {type: integer}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version, fields]
+              properties:
+                version: {type: integer}
+                fields: {type: object}
+      responses:
+        '200':
+          description: сохранено, version увеличена
+          content:
+            application/json:
+              schema: {type: object, properties: {document: {allOf: [{type: object, properties: {id: {type: integer}, template_key: {type: string, example: b-roszdravnadzor}, kind: {type: string, enum: [form]}, title: {type: string}, patient: {type: object, properties: {id: {type: integer}, service_no: {type: string}, name: {type: string}}}, ae_id: {type: integer, nullable: true}, status: {type: string, enum: [draft, ready]}, version: {type: integer}, supersedes_id: {type: integer, nullable: true}, superseded_by: {type: integer, nullable: true}, created_at: {type: string}, updated_at: {type: string}}}, {type: object, properties: {fields: {type: object, description: 'Поля извещения v1 (см. .agents/tasks/2026-10-26-templates-and-documents.md)'}, missing: {type: array, items: {type: string}}, complete: {type: boolean}}}]}}}
+        '403':
+          description: не психиатр / нет CSRF
+          x-error-codes: [E-ACCESS, E-CSRF]
+        '404':
+          description: чужой документ, нет закрепления или нет документа
+          x-error-codes: [E-NOT-FOUND]
+        '409':
+          description: версия устарела или документ готов
+          x-error-codes: [E-CONFLICT, E-SIGNED-IMMUTABLE]
+        '422':
+          description: нет fields
+          x-error-codes: [E-VALIDATION]
+    delete:
+      operationId: delete_work_document
+      summary: Удалить черновик
+      tags:
+      - documents
+      x-permission: psychiatrist
+      x-idempotency-key: not_used
+      description: Готовый документ не удаляется (409 E-SIGNED-IMMUTABLE).
+      parameters:
+      - {name: id, in: path, required: true, schema: {type: integer}}
+      responses:
+        '200':
+          description: удалён
+          content:
+            application/json:
+              schema: {type: object, properties: {ok: {type: boolean}}}
+        '403':
+          description: не психиатр / нет CSRF
+          x-error-codes: [E-ACCESS, E-CSRF]
+        '404':
+          description: чужой документ, нет закрепления или нет документа
+          x-error-codes: [E-NOT-FOUND]
+        '409':
+          description: документ готов
+          x-error-codes: [E-SIGNED-IMMUTABLE]
+  /work/api/documents/{id}/ready:
+    post:
+      operationId: post_work_document_ready
+      summary: '«Готово»: зафиксировать документ'
+      tags:
+      - documents
+      x-permission: psychiatrist
+      x-idempotency-key: required
+      description: Нужны все обязательные поля бланка, иначе 422 с перечнем в error.missing и error.fields[].key = msg.doc.field.<поле>. После «Готово» документ неизменяем (в том числе триггером базы).
+      parameters:
+      - {name: id, in: path, required: true, schema: {type: integer}}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                version: {type: integer, description: 'если передана — сверяется (E-CONFLICT)'}
+      responses:
+        '200':
+          description: документ готов
+          content:
+            application/json:
+              schema: {type: object, properties: {document: {allOf: [{type: object, properties: {id: {type: integer}, template_key: {type: string, example: b-roszdravnadzor}, kind: {type: string, enum: [form]}, title: {type: string}, patient: {type: object, properties: {id: {type: integer}, service_no: {type: string}, name: {type: string}}}, ae_id: {type: integer, nullable: true}, status: {type: string, enum: [draft, ready]}, version: {type: integer}, supersedes_id: {type: integer, nullable: true}, superseded_by: {type: integer, nullable: true}, created_at: {type: string}, updated_at: {type: string}}}, {type: object, properties: {fields: {type: object, description: 'Поля извещения v1 (см. .agents/tasks/2026-10-26-templates-and-documents.md)'}, missing: {type: array, items: {type: string}}, complete: {type: boolean}}}]}}}
+        '403':
+          description: не психиатр / нет CSRF
+          x-error-codes: [E-ACCESS, E-CSRF]
+        '404':
+          description: чужой документ, нет закрепления или нет документа
+          x-error-codes: [E-NOT-FOUND]
+        '409':
+          description: версия устарела или уже готов
+          x-error-codes: [E-CONFLICT, E-SIGNED-IMMUTABLE, E-IDEMPOTENCY-MISMATCH]
+        '422':
+          description: не заполнены обязательные поля
+          x-error-codes: [E-VALIDATION]
+  /work/api/documents/{id}/revise:
+    post:
+      operationId: post_work_document_revise
+      summary: Создать исправленную версию готового документа
+      tags:
+      - documents
+      x-permission: psychiatrist
+      x-idempotency-key: required
+      description: Новый черновик на основе готового (supersedes_id, report_type additional, previous_report_date — дата готовности прежнего). Прежний остаётся. Если черновик исправленной версии уже есть, возвращается он (200).
+      parameters:
+      - {name: id, in: path, required: true, schema: {type: integer}}
+      responses:
+        '201':
+          description: создан черновик
+          content:
+            application/json:
+              schema: {type: object, properties: {document: {allOf: [{type: object, properties: {id: {type: integer}, template_key: {type: string, example: b-roszdravnadzor}, kind: {type: string, enum: [form]}, title: {type: string}, patient: {type: object, properties: {id: {type: integer}, service_no: {type: string}, name: {type: string}}}, ae_id: {type: integer, nullable: true}, status: {type: string, enum: [draft, ready]}, version: {type: integer}, supersedes_id: {type: integer, nullable: true}, superseded_by: {type: integer, nullable: true}, created_at: {type: string}, updated_at: {type: string}}}, {type: object, properties: {fields: {type: object, description: 'Поля извещения v1 (см. .agents/tasks/2026-10-26-templates-and-documents.md)'}, missing: {type: array, items: {type: string}}, complete: {type: boolean}}}]}}}
+        '200':
+          description: уже есть черновик исправленной версии
+          content:
+            application/json:
+              schema: {type: object, properties: {document: {allOf: [{type: object, properties: {id: {type: integer}, template_key: {type: string, example: b-roszdravnadzor}, kind: {type: string, enum: [form]}, title: {type: string}, patient: {type: object, properties: {id: {type: integer}, service_no: {type: string}, name: {type: string}}}, ae_id: {type: integer, nullable: true}, status: {type: string, enum: [draft, ready]}, version: {type: integer}, supersedes_id: {type: integer, nullable: true}, superseded_by: {type: integer, nullable: true}, created_at: {type: string}, updated_at: {type: string}}}, {type: object, properties: {fields: {type: object, description: 'Поля извещения v1 (см. .agents/tasks/2026-10-26-templates-and-documents.md)'}, missing: {type: array, items: {type: string}}, complete: {type: boolean}}}]}}}
+        '403':
+          description: не психиатр / нет CSRF
+          x-error-codes: [E-ACCESS, E-CSRF]
+        '404':
+          description: чужой документ, нет закрепления или нет документа
+          x-error-codes: [E-NOT-FOUND]
+        '409':
+          description: документ ещё не готов
+          x-error-codes: [E-STATUS, E-IDEMPOTENCY-MISMATCH]
+  /work/api/documents/{id}/file:
+    get:
+      operationId: get_work_document_file
+      summary: Скачать заполненный бланк (docx)
+      tags:
+      - documents
+      x-permission: psychiatrist
+      x-idempotency-key: not_used
+      description: Имя файла notice-<id>.<формат> без ФИО. Выгрузка пишется в export_log (kind ae_notice). Наружу автоматически ничего не уходит.
+      parameters:
+      - {name: id, in: path, required: true, schema: {type: integer}}
+      - {name: format, in: query, required: false, schema: {type: string, enum: [docx], default: docx}}
+      responses:
+        '200':
+          description: файл
+          content:
+            application/octet-stream:
+              schema: {type: string, format: binary}
+        '403':
+          description: не психиатр
+          x-error-codes: [E-ACCESS]
+        '404':
+          description: чужой документ, нет закрепления или нет документа
+          x-error-codes: [E-NOT-FOUND]
+        '422':
+          description: формат (pdf не поддерживается)
+          x-error-codes: [E-VALIDATION]
 components:
   securitySchemes:
     cookieSession:
@@ -24026,6 +26128,31 @@ components:
         format: uuid
       description: 'F-18: ключ создаётся при открытии формы или композера'
   schemas:
+    DrugKnowledgeSearch:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              document_id: {type: string}
+              label: {type: string}
+              section_id: {type: string}
+              path: {type: string}
+              page: {type: integer, nullable: true}
+              snippet: {type: string}
+              score: {type: number}
+              match_type: {type: string, enum: [hybrid, lexical]}
+              inn:
+                type: object
+                description: только в общем поиске; id — каталожный id приложения или null, если МНН нет в каталоге
+                properties:
+                  id: {type: integer, nullable: true}
+                  name: {type: string}
+        total: {type: integer}
+        hasMore: {type: boolean}
+        fallback: {type: string, nullable: true, enum: [lexical, unavailable]}
     Error:
       type: object
       properties:
@@ -24393,8 +26520,17 @@ components:
           $ref: '#/components/schemas/CrisisCard'
         ae_suggestion:
           $ref: '#/components/schemas/AESuggestion'
+        ae_offer:
+          $ref: '#/components/schemas/AEOffer'
         action_draft:
           $ref: '#/components/schemas/ActionDraft'
+        chat_paused:
+          type: object
+          description: 'есть, если этим ответом включилась пауза чата (статус ТРОЛЛЬ); следующая отправка вернёт E-CHAT-PAUSED'
+          properties:
+            blocked_until:
+              type: string
+              format: date-time
         warnings:
           type: array
           items:
@@ -24402,6 +26538,23 @@ components:
       required:
       - thread
       - user_message
+    AEOffer:
+      description: >-
+        Предложение оформить побочное действие из чата (чаты пациента и специалиста). Поле есть, только если сервер
+        разрешил предложение (специалисту - закреплённый пациент с действующим препаратом в плане; психологу ещё и
+        закреплённый психиатр), за последние 12 часов предложения не было, и сработало слово из словаря
+        (специалист) либо модель вызвала навык ae_offer. Запись само не создаётся; текст пациента клиент подставляет сам.
+      type: object
+      properties:
+        prefill:
+          type: object
+          description: Предзаполнение (в предложении модели пусто).
+        mode:
+          type: string
+          enum: [decision, to_psychiatrist]
+          description: Только в чате специалиста - psychiatrist - decision, psychologist - to_psychiatrist.
+      required:
+      - prefill
     AESuggestion:
       type: object
       properties:
@@ -24833,14 +26986,48 @@ components:
           - awaiting_visibility
           - awaiting_doctor
           - service_queue
+          - saved_private
+          - related_likely
+          - not_related
           - probable
           - unrelated
           - insufficient
           - cancelled
+          - reviewed
+          - submitted
+        attached:
+          type: boolean
+          description: false — личная запись пациента без врача («Сохранено у вас»), статус saved_private
+        decision:
+          type: string
+          enum:
+          - probable
+          - unrelated
+          - insufficient
+          description: только в ответе врачебного POST
         decision_by:
           type: string
         version:
           type: integer
+    AESummary:
+      type: object
+      description: сводка, записанная в тред чата (ai_messages, role assistant, kind ae_summary); входит в историю модели; текст без описания жалобы
+      properties:
+        id:
+          type: integer
+        role:
+          type: string
+          enum:
+          - assistant
+        kind:
+          type: string
+          enum:
+          - ae_summary
+        text:
+          type: string
+        created_at:
+          type: string
+          format: date-time
     AENotice:
       type: object
       properties:
@@ -24909,6 +27096,29 @@ components:
           type: boolean
         outcome:
           type: string
+        notice_document:
+          type: object
+          description: только kind=ae у психиатра; переход к извещению во вкладке «Шаблоны и документы» (POST /work/api/documents с template_key, patient_id, ae_id или открыть document_id)
+          properties:
+            available:
+              type: boolean
+              description: true при статусе «связь вероятна»
+            template_key:
+              type: string
+            patient_id:
+              type: integer
+            ae_id:
+              type: integer
+            document_id:
+              type: integer
+              nullable: true
+              description: актуальный (не заменённый исправленной версией) документ по этой записи
+            document_status:
+              type: string
+              nullable: true
+              enum:
+              - draft
+              - ready
     Message:
       type: object
       properties:
@@ -25348,6 +27558,14 @@ components:
         flags:
           type: object
           properties: {}
+        chat_troll:
+          type: object
+          nullable: true
+          description: 'у пациента с действующей паузой чата — объект с полем until; иначе null'
+          properties:
+            until:
+              type: string
+              format: date-time
     SecretMeta:
       type: object
       properties:

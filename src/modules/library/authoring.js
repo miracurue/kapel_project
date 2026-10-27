@@ -22,8 +22,8 @@ const FRAGMENT_MAX = 3000;
 const INSTRUCTION_MAX = 500;
 const CONTEXT_MAX = 1000;
 const AUDIENCES = ['patient', 'specialist'];
-// Журнал для пациентов и журнал для специалистов пишутся по разным промптам каталога (админка → Настройки → Промпт).
-const DRAFT_PROMPT = { patient: 'article_draft.patient', specialist: 'article_draft.specialist' };
+// Журнал для пациентов и журнал для специалистов пишутся по разным задачам каталога (админка → Настройки → Промпт → Задачи).
+const DRAFT_PROMPT = { patient: 'task.article_patient', specialist: 'task.article_specialist' };
 const AUDIENCE_LABEL = { patient: 'пациенты', specialist: 'специалисты' };
 const SOURCE = 'Авторский материал специалиста';
 const ROLE_TITLE = { psychiatrist: 'психиатр', psychologist: 'психолог' };
@@ -494,9 +494,15 @@ function install(app, h) {
         user,
         history,
         text: message,
+        question: thoughts,
         piiCounts: pseudo.counts || {},
         piiMode: pseudo.mode,
       });
+      // Нецелевой запрос (слой guard.scope_clinician): сообщение в чате, статья и её версии не меняются, попытка не сохраняется.
+      if (out.offTopic) {
+        if (attemptId) db.prepare('DELETE FROM library_chat WHERE id=?').run(attemptId);
+        return res.json({ off_topic: true, message: out.text });
+      }
       if (out.status === 'filtered') {
         finish('error');
         return P.sendError(req, res, 502, 'E-AI-UNAVAILABLE');
@@ -555,12 +561,13 @@ function install(app, h) {
       const pseudo = pii.pseudonymize(message, scope, { nerEntities: ner.entities, nerOk: ner.ok });
       const out = await gateway.run({
         purpose: 'document_draft',
-        promptKey: 'article_rewrite',
+        promptKey: 'task.article_rewrite',
         user,
         text: pseudo.text,
         piiCounts: pseudo.counts || {},
         piiMode: pseudo.mode,
       });
+      if (out.offTopic) return res.json({ off_topic: true, message: out.text });
       if (out.status === 'filtered') return P.sendError(req, res, 502, 'E-AI-UNAVAILABLE');
       const text = pii
         .reveal(out.text, scope)

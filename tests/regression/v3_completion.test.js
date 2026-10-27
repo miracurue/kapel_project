@@ -241,7 +241,9 @@ test('F-45: discard own draft works without consent, draft save still requires i
     expectError(
       await patient.post('/api/v1/me/adverse-events', { submit: false, text: 'Синтетика: нельзя' }),
       403,
-      'E-ACCESS', // отзыв базового согласия = запрос на стирание (W-50): сохранение закрыто ограничением обработки
+      // Отзыв базового согласия = запрос на стирание (W-50): сохранение закрыто ограничением обработки,
+      // пациенту объясняется причина — «нужно согласие» (решение владельца 2026-10-25).
+      'E-CONSENT-REQUIRED',
     );
     assert.equal(
       ctx.app.query("SELECT count(*) n FROM adverse_events WHERE description_enc='Синтетика: нельзя'")[0].n,

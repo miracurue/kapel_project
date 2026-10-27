@@ -1,0 +1,100 @@
+/* Методики самопомощи на странице приложения (P-11 / P-21): дыхание, мышечная релаксация, заземление, активация.
+   Только значения из tokens.css; инлайн-стилей нет (CSP), размеры и цвета меняются классами и CSSOM.
+   Разметка и поведение: public/techniques.js. Всё помещается на экран без внутренней прокрутки. */
+
+.tech-page > .pt-back { margin: 0 0 var(--s-2); }
+.tech-page > h1 { margin: 0; }
+.tech-page > .sub { margin: var(--s-1) 0 var(--s-4); }
+.tech-reward-hint { display: inline-flex; align-items: center; gap: var(--s-2); margin: 0 0 var(--s-3); color: var(--ink-2); font-size: var(--fs-13); }
+
+.tx { display: block; padding: var(--s-5); border-radius: var(--r-big); background: var(--white); box-shadow: var(--lift); }
+.tx--cols { display: grid; grid-template-columns: minmax(0, 280px) minmax(0, 1fr); gap: var(--s-6); align-items: center; }
+.tx-side { display: flex; flex-direction: column; gap: var(--s-3); min-width: 0; }
+
+/* сцена дыхания */
+.tx-stage { position: relative; width: 100%; max-width: 280px; aspect-ratio: 1; margin: 0 auto; }
+.tx-stage svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.tx-track { fill: none; stroke: var(--sunk-2); stroke-width: 3; }
+.tx-ring { fill: none; stroke: var(--jade); stroke-width: 4; stroke-linecap: round; transform: rotate(-90deg); transform-origin: 50% 50%; }
+.tx-orb-a { stop-color: var(--water-light); }
+.tx-orb-b { stop-color: var(--water); }
+.tx-orb-c { stop-color: var(--jade); }
+.tx-dot { fill: var(--honey); stroke: var(--white); stroke-width: 3; }
+.tx-orb-label { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; pointer-events: none; text-align: center; }
+.tx-orb-name { font-family: var(--head); font-size: var(--fs-18); font-weight: 800; color: var(--ink); text-shadow: 0 0 10px var(--white); }
+.tx-orb-count { font-family: var(--head); font-size: var(--fs-44); line-height: 1; font-weight: 800; color: var(--ink); text-shadow: 0 0 10px var(--white); }
+
+/* текст и ход упражнения */
+.tx-phase { display: inline-flex; align-items: center; gap: var(--s-2); align-self: flex-start; min-height: var(--h-pill); margin: 0; padding: 0 var(--s-3); border-radius: var(--r-pill); background: var(--jade-t); color: var(--jade); font-size: var(--fs-14); font-weight: 800; }
+.tx-phase.is-tense { background: var(--honey-t); color: var(--honey-d); }
+.tx-cue { min-height: calc(3 * var(--lh-16) * 1em); margin: 0; font-size: var(--fs-16); line-height: var(--lh-16); }
+.tx-cycles { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
+.tx-cycles i { width: 12px; height: 12px; border-radius: 50%; background: var(--sunk-2); }
+.tx-cycles i.is-done { background: var(--jade); }
+.tx-cycles i.is-now { background: var(--jade-t); box-shadow: inset 0 0 0 2px var(--jade); }
+.tx-cycles span { margin-left: var(--s-2); color: var(--ink-2); font-size: var(--fs-13); }
+.tx-progress { height: 8px; border-radius: var(--r-pill); background: var(--sunk); overflow: hidden; }
+.tx-progress > div { width: 0; height: 100%; border-radius: var(--r-pill); background: var(--jade); }
+.tx-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
+.tx-tips { display: flex; flex-direction: column; gap: var(--s-1); margin: 0; padding: var(--s-3) var(--s-4); border-radius: var(--r-card); background: var(--ground); color: var(--ink-2); font-size: var(--fs-13); line-height: var(--lh-13); list-style: none; }
+.tx-note { margin: 0; color: var(--ink-2); font-size: var(--fs-13); line-height: var(--lh-13); }
+.tx-done { display: flex; flex-direction: column; gap: var(--s-2); padding: var(--s-3) var(--s-4); border-radius: var(--r-card); background: var(--jade-t); font-size: var(--fs-15); }
+.tx-done[hidden] { display: none; }
+.tx-done strong { font-family: var(--head); font-size: var(--fs-18); }
+.tx-done p { margin: 0; }
+.tx-reward { min-height: 1.4em; margin: 0; color: var(--jade); font-weight: 700; font-size: var(--fs-14); }
+
+/* мышечная релаксация: фигура человека */
+.tx-figure svg { display: block; width: 100%; max-width: 240px; height: auto; margin: 0 auto; }
+.tx-part { fill: var(--sunk); transition: fill var(--t-state); }
+.tx-part.is-tense { fill: var(--honey); }
+.tx-part.is-relax { fill: var(--seq-2); }
+.tx-halo { fill: var(--jade-t); opacity: 0; transition: opacity var(--t-grow); }
+.tx-halo.is-on { opacity: 1; }
+.tx-groups { display: flex; flex-wrap: wrap; gap: var(--s-1); margin: 0; padding: 0; list-style: none; }
+.tx-groups li { min-height: var(--h-pill); padding: 0 var(--s-3); display: inline-flex; align-items: center; border-radius: var(--r-pill); background: var(--sunk); color: var(--ink-2); font-size: var(--fs-13); font-weight: 700; }
+.tx-groups li.is-done { background: var(--jade-t); color: var(--jade); }
+.tx-groups li.is-now { background: var(--jade); color: var(--white); }
+
+/* пошаговые упражнения: заземление и активация поведения */
+.tx-wiz { display: flex; flex-direction: column; gap: var(--s-4); }
+.tx-steps { display: flex; gap: var(--s-2); }
+.tx-steps i { flex: 1; height: 6px; border-radius: var(--r-pill); background: var(--sunk-2); }
+.tx-steps i.is-done { background: var(--jade); }
+.tx-steps i.is-now { background: var(--jade-t); box-shadow: inset 0 0 0 2px var(--jade); }
+.tx-title { display: flex; align-items: center; gap: var(--s-3); margin: 0; font-size: var(--fs-24); line-height: var(--lh-24); }
+.tx-num { display: inline-grid; place-items: center; flex: none; width: 44px; height: 44px; border-radius: 50%; background: var(--jade); color: var(--white); font-family: var(--head); font-size: var(--fs-24); font-weight: 800; }
+.tx-lead { margin: 0; font-size: var(--fs-16); line-height: var(--lh-16); }
+.tx-example { margin: 0; padding: var(--s-3) var(--s-4); border-radius: var(--r-card); background: var(--ground); color: var(--ink-2); font-size: var(--fs-14); line-height: var(--lh-14); }
+.tx-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-2) var(--s-3); }
+.tx-fields--one { grid-template-columns: minmax(0, 1fr); }
+.tx-fields input.is-filled, .tx-field input.is-filled { box-shadow: inset 0 0 0 2px var(--jade); }
+.tx-field { display: flex; flex-direction: column; gap: var(--s-1); font-weight: 700; font-size: var(--fs-14); }
+.tx-field input, .tx-field select { font-weight: 400; }
+.tx-count { margin: 0; color: var(--ink-2); font-size: var(--fs-14); }
+.tx-count.is-complete { color: var(--jade); font-weight: 700; }
+.tx-add { display: flex; gap: var(--s-2); }
+.tx-add input { flex: 1; min-width: 0; }
+.tx-chips { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.tx-chip { display: inline-flex; align-items: center; gap: var(--s-2); min-height: var(--h-chip); padding: 0 var(--s-3); border: 0; border-radius: var(--r-pill); background: var(--jade-t); color: var(--ink); font-size: var(--fs-14); font-weight: 700; }
+.tx-chip button { display: inline-grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--ink-2); font-size: var(--fs-16); line-height: 1; cursor: pointer; }
+.tx-chip button:hover { background: var(--sunk-2); color: var(--ink); }
+button.tx-chip { cursor: pointer; background: var(--sunk); transition: background-color var(--t-hover); }
+button.tx-chip:hover { background: var(--sunk-2); }
+button.tx-chip[aria-pressed="true"] { background: var(--jade); color: var(--white); }
+.tx-summary { display: flex; flex-direction: column; gap: var(--s-2); }
+.tx-summary-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s-2); }
+.tx-summary-row b { font-size: var(--fs-14); }
+.tx-plan { display: flex; flex-direction: column; gap: var(--s-2); padding: var(--s-3) var(--s-4); border-radius: var(--r-card); background: var(--ground); font-size: var(--fs-15); }
+.tx-plan p { margin: 0; }
+
+@media (max-width: 760px) {
+  .tx { padding: var(--s-4); }
+  .tx--cols { grid-template-columns: minmax(0, 1fr); gap: var(--s-4); }
+  .tx-stage { max-width: 240px; }
+  .tx-fields { grid-template-columns: minmax(0, 1fr); }
+  .tx-cue { min-height: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tx-part, .tx-halo { transition: none; }
+}

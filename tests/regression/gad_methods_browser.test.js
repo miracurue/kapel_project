@@ -35,9 +35,10 @@ test('catalogue: deep links, read-only reference/placeholder and assignable scal
       await page.screenshot({ path: `${output}/${code}-${width}.png`, fullPage: false });
     }
   }
-  const picker = page.locator('[data-tool-picker]');
-  assert.ok(await picker.isVisible());
-  await picker.selectOption('ins:usk');
+  // Боковой панели и выпадающего списка больше нет: на телефоне тест выбирают карточкой (или из «Скоро появятся»).
+  const pick = page.locator('[data-toolcard="ins:usk"]').first();
+  if (!(await pick.isVisible())) await page.locator('.soon-list summary').click();
+  await pick.click();
   await page.locator('[data-tool="usk"]').waitFor();
   assert.match(page.url(), /tool=usk/);
   assert.deepEqual(errors, []);
@@ -65,7 +66,7 @@ test('patient: submit failure keeps retry, success praises and identifies psycho
   await page.locator('[data-testid="msg.tests.run.submit"]').click();
   const done = page.locator('[data-testid="msg.tests.result.done"]');
   await done.waitFor();
-  assert.equal(await done.textContent(), 'Тест пройден, молодец!');
+  assert.equal(await done.textContent(), 'Тест пройден. Спасибо, что уделили время себе');
   assert.match(await page.locator('[data-testid="msg.tests.result.disclaimer"]').textContent(), /психологу.*На приёме/);
   assert.equal(await page.locator('[data-testid="msg.tests.self.show"]').count(), 0);
   for (const width of [1440, 390]) {
@@ -73,9 +74,13 @@ test('patient: submit failure keeps retry, success praises and identifies psycho
     await page.screenshot({ path: `${output}/completed-${width}.png` });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
   }
-  await B.open(page, ctx.app, '/app?tab=tests');
+  // test-change: тесты на вкладке «Тесты» страницы «Методики» (2026-10-26)
+  await B.open(page, ctx.app, '/app?tab=tests#tests');
   await page.locator('#tests-history').waitFor();
-  await page.locator('#tests-history').getByText('Тест пройден, молодец!', { exact: true }).waitFor();
+  await page
+    .locator('#tests-history')
+    .getByText('Тест пройден. Спасибо, что уделили время себе', { exact: true })
+    .waitFor();
   assert.match(await page.locator('#tests-history').textContent(), /психологу/);
   const r = expectOk(await patient.get('/api/v1/me/results')).series.find((x) => x.instrument === 'bai');
   assert.equal(r.total_score, null);

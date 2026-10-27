@@ -403,6 +403,43 @@ async function meds() {
   });
 }
 
+// Вопросы без списка вариантов: поле ввода по типу; «да/нет» и шкала — кнопками.
+const FIELD_TYPES = { number: 'number', date: 'date', text_short: 'text', text_long: 'textarea' };
+function questionOptions(question) {
+  if (question.options) return question.options;
+  if (question.type === 'yes_no')
+    return [
+      { value: 'yes', label: 'Да' },
+      { value: 'no', label: 'Нет' },
+    ];
+  if (question.type === 'scale') {
+    const min = Number(question.min ?? 0);
+    const max = Number(question.max ?? 10);
+    return Array.from({ length: Math.max(0, max - min + 1) }, (_, i) => ({ value: min + i, label: String(min + i) }));
+  }
+  return null;
+}
+
+const TEXT_LIMIT = { text_short: 300, text_long: 4000 };
+// Проверка поля до отправки: пусто в обязательном, не число, вне диапазона методики, слишком длинно.
+function answerProblem(question, input) {
+  const value = input.value.trim();
+  if (input.validity.badInput || (question.type === 'number' && value && !Number.isFinite(Number(value)))) {
+    return question.min !== undefined && question.max !== undefined
+      ? t('err.e-validation.range').replace('{min}', question.min).replace('{max}', question.max)
+      : t('err.e-validation');
+  }
+  if (!value) return question.required ? t('err.e-validation.required') : null;
+  if (question.type === 'number') {
+    const n = Number(value);
+    if ((question.min !== undefined && n < question.min) || (question.max !== undefined && n > question.max))
+      return t('err.e-validation.range').replace('{min}', question.min).replace('{max}', question.max);
+  }
+  if (TEXT_LIMIT[question.type] && value.length > TEXT_LIMIT[question.type])
+    return t('err.e-validation.too_long').replace('{max}', TEXT_LIMIT[question.type]);
+  return null;
+}
+
 async function tests() {
   const root = q('#v2-tests');
   if (!root) return;
@@ -445,13 +482,21 @@ async function tests() {
     const prior = answers[question.id];
     const picked = (x) => (Array.isArray(prior) ? prior.includes(x.value) : prior !== undefined && prior === x.value);
     const heading = questionTitle;
-    body.innerHTML = `<section class="card test-card"><div class="test-head"><a class="btn sm" href="/app?tab=tests">${t('msg.tests.run.exit')}</a><p class="sub" data-testid="msg.tests.run.progress">Вопрос ${index + 1} из ${total}</p></div><div class="progress"><i class="w-${Math.round(((index + 1) / total) * 10) * 10}"></i></div><p class="sub" data-testid="msg.tests.run.autosave">Ответы сохраняются сами</p>${heading ? `<p class="sub">${esc(heading)}</p>` : ''}<h3 class="q">${esc(question.text) || 'Вопрос'}</h3><div class="choices">${(question.options || ['Да']).map((x, i) => `<button type="button" class="choice choice--lg" data-option="${i}" aria-pressed="${picked(x) ? 'true' : 'false'}">${esc(x.label || x)}</button>`).join('')}</div>${question.type === 'multi' ? `<p class="sub" data-testid="msg.tests.run.multi">Можно выбрать до N</p>${button('msg.tests.run.none', 'Ничего из перечисленного')}` : ''}<p class="sub" data-pick-hint hidden>${t('msg.tests.run.pick')}</p><div class="acts">${index > 0 ? pbutton('msg.tests.run.prev', t('msg.tests.run.prev'), 'btn ghost') : ''}${pbutton('msg.tests.run.next', 'Дальше', 'btn primary')}</div></section>`;
+    const options = questionOptions(question);
+    const field = FIELD_TYPES[question.type];
+    const prefill = prior === undefined || prior === null ? '' : esc(String(prior));
+    const answerHtml = field
+      ? field === 'textarea'
+        ? `<textarea data-answer rows="4" maxlength="4000" placeholder="${esc(t('msg.tests.run.text'))}" aria-label="${esc(question.text) || 'Ответ'}">${prefill}</textarea>`
+        : `<input data-answer type="${field}" value="${prefill}" aria-label="${esc(question.text) || 'Ответ'}"${question.min !== undefined ? ` min="${Number(question.min)}"` : ''}${question.max !== undefined ? ` max="${Number(question.max)}"` : ''}${field === 'number' ? ' step="any" inputmode="decimal"' : ''}${field === 'text' ? ` maxlength="300" placeholder="${esc(t('msg.tests.run.text'))}"` : ''}>`
+      : `<div class="choices">${(options || ['Да']).map((x, i) => `<button type="button" class="choice choice--lg" data-option="${i}" aria-pressed="${picked(x) ? 'true' : 'false'}">${esc(x.label || x)}</button>`).join('')}</div>`;
+    body.innerHTML = `<section class="card test-card"><div class="test-head"><a class="btn sm" href="/app?tab=tests#tests">${t('msg.tests.run.exit')}</a><p class="sub" data-testid="msg.tests.run.progress">Вопрос ${index + 1} из ${total}</p></div><div class="progress"><i class="w-${Math.round(((index + 1) / total) * 10) * 10}"></i></div><p class="sub" data-testid="msg.tests.run.autosave">Ответы сохраняются сами</p>${heading ? `<p class="sub">${esc(heading)}</p>` : ''}<h3 class="q">${esc(question.text) || 'Вопрос'}</h3>${answerHtml}${question.type === 'multi' ? `${question.max_select ? `<p class="sub" data-testid="msg.tests.run.multi">${t('msg.tests.run.multi').replace('{n}', Number(question.max_select))}</p>` : ''}${button('msg.tests.run.none', 'Ничего из перечисленного')}` : ''}<p class="sub" data-pick-hint hidden>${t('msg.tests.run.pick')}</p><div class="acts">${index > 0 ? pbutton('msg.tests.run.prev', t('msg.tests.run.prev'), 'btn ghost') : ''}${pbutton('msg.tests.run.next', 'Дальше', 'btn primary')}</div></section>`;
   }
   if (run) await begin(assignment);
   else {
     const { data } = await get('/api/v1/me/self-tests');
     const TITLES = { phq9: 'Короткий тест на настроение', gad7: 'Короткий тест на тревогу' };
-    body.innerHTML = `<p class="sec-label" data-testid="msg.tests.self">Самостоятельные тесты</p>${data.items.map((x) => `<section class="card soft row2"><div class="grow"><h3>${esc(TITLES[x.code] || x.title)}</h3><div class="sub">Можно пройти без назначения</div></div><button type="button" class="btn sm" data-testid="msg.tests.self.take" data-code="${x.code}">Пройти</button></section>`).join('')}`;
+    body.innerHTML = `<div class="tech-head"><h3 data-testid="msg.tests.self">Можно пройти без врача</h3><p>В любое время, назначение не нужно. Врач увидит результат, только если вы сами покажете.</p></div>${data.items.map((x) => `<section class="card soft row2"><div class="grow"><h3>${esc(TITLES[x.code] || x.title)}</h3><div class="sub">${TITLES[x.code] ? esc(x.title) : 'Без назначения'}</div></div><button type="button" class="btn sm" data-testid="msg.tests.self.take" data-code="${x.code}">Пройти<span class="drop-badge" data-flower-badge="test" data-flower-key="test:${esc(x.code)}:{day}"></span></button></section>`).join('')}`;
   }
   root.addEventListener('click', async (e) => {
     const option = e.target.closest('[data-option]');
@@ -461,7 +506,14 @@ async function tests() {
         qa('[data-option]', root).forEach((x) => x.setAttribute('aria-pressed', x === option ? 'true' : 'false'));
       else option.setAttribute('aria-pressed', option.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
     }
-    if (e.target.closest(tid('msg.tests.run.none'))) q('[data-option]', root)?.setAttribute('aria-pressed', 'true');
+    if (e.target.closest(tid('msg.tests.run.none'))) {
+      // «Ничего из перечисленного» снимает отметки; если в методике есть такой вариант — отмечает его.
+      const exclusive = questions[index]?.exclusive || [];
+      const options = questionOptions(questions[index] || {}) || [];
+      qa('[data-option]', root).forEach((x) =>
+        x.setAttribute('aria-pressed', exclusive.includes(options[Number(x.dataset.option)]?.value) ? 'true' : 'false'),
+      );
+    }
     if (e.target.closest(tid('msg.tests.run.start'))) {
       intro = null;
       draw();
@@ -472,18 +524,36 @@ async function tests() {
     }
     if (e.target.closest(tid('msg.tests.run.next')) && !sending) {
       const question = questions[index];
+      const options = questionOptions(question);
+      const input = q('[data-answer]', root);
       const chosen = qa('[data-option][aria-pressed="true"]', root).map(
-        (x) => (question.options || [])[Number(x.dataset.option)],
+        (x) => (options || [])[Number(x.dataset.option)],
       );
-      if (question.type !== 'multi' && question.options && !chosen.length) {
-        q('[data-pick-hint]', root).hidden = false;
+      const hint = q('[data-pick-hint]', root);
+      const problem = input ? answerProblem(question, input) : null;
+      if (problem) {
+        hint.textContent = problem;
+        hint.hidden = false;
+        input.setAttribute('aria-invalid', 'true');
+        input.focus();
         return;
       }
-      const value = !question.options ? '1' : question.type === 'multi' ? chosen.map((x) => x.value) : chosen[0].value;
+      if (!input && question.type !== 'multi' && options && !chosen.length) {
+        hint.textContent = t('msg.tests.run.pick');
+        hint.hidden = false;
+        return;
+      }
+      const value = input
+        ? input.value.trim()
+        : !options
+          ? '1'
+          : question.type === 'multi'
+            ? chosen.map((x) => x.value)
+            : chosen[0].value;
       sending = true;
       const { response, data } = await put(`/api/v1/me/assignments/${assignment}/answers/${question.id}`, { value });
       sending = false;
-      if (!response.ok) return;
+      if (!response.ok) return errorMessage(q('.test-card', root) || body, data);
       answers[question.id] = value;
       crisisCard(slot, data);
       index += 1;
@@ -506,11 +576,17 @@ async function tests() {
       }
       resultId = data.id;
       const self = data.source === 'self';
-      const flowerGain = Number(response.headers.get('x-flower-gain')) || 0;
+      const flowerGain = data.crisis ? 0 : Number(response.headers.get('x-flower-gain')) || 0;
       body.innerHTML = `<section class="card"><h3 data-testid="msg.tests.result.done">${t('msg.tests.result.done')}</h3><p class="sub" data-testid="msg.tests.result.disclaimer">${t(data.completion_key || 'msg.tests.result.for_doctor')}</p>${flowerGain > 0 ? `<p class="sub flower-gain" data-testid="msg.flower.test_gain">${t('msg.flower.test_gain').replace('{text}', `+${flowerGain} ${flowerGain % 10 === 1 && flowerGain % 100 !== 11 ? 'капелька' : flowerGain % 10 >= 2 && flowerGain % 10 <= 4 && (flowerGain % 100 < 12 || flowerGain % 100 > 14) ? 'капельки' : 'капелек'}`)}</p>` : ''}<div class="acts">${self ? button('msg.tests.self.show', t('msg.tests.self.show')) : ''}<a class="btn ghost" href="/app?tab=tests">${t('msg.tests.run.back')}</a></div></section>`;
     }
     if (e.target.closest(tid('msg.tests.self.take'))) {
-      const { data } = await post('/api/v1/me/self-tests', { instrument_code: e.target.dataset.code });
+      const { response, data } = await post('/api/v1/me/self-tests', { instrument_code: e.target.dataset.code });
+      if (!response.ok) {
+        const where = e.target.closest('section') || body;
+        if (response.status === 429) errorMessage(where, { error: { key: 'msg.tests.self.note' } });
+        else errorMessage(where, data);
+        return;
+      }
       await begin(data.id);
     }
     if (e.target.closest(tid('msg.tests.self.show')) && resultId) {
@@ -576,7 +652,6 @@ async function card() {
       if (!result.data.message) return;
       field.value = '';
       attachments.clear();
-      undoControl(root, result.data, 'msg.undo.message_sent');
       await load();
     });
     root.addEventListener('v3-refresh', load);
@@ -741,7 +816,9 @@ function undoControl(root, data, key) {
     holder.dataset.undoHolder = '1';
     root.append(holder);
   }
-  holder.innerHTML = `<p data-testid="${key}">${t(key)}</p>${data.undo?.id ? `<button type="button" data-testid="msg.undo.action" data-undo="${esc(data.undo.id)}">${t('msg.undo.action')}</button>` : ''}`;
+  // Слово «Отменить» в тексте ключа — подпись кнопки; рядом с самой кнопкой оно не повторяется.
+  const label = t(key).replace(/\s*·\s*Отменить\s*$/, '');
+  holder.innerHTML = `<p data-testid="${key}">${esc(label)}</p>${data.undo?.id ? `<button type="button" data-testid="msg.undo.action" data-undo="${esc(data.undo.id)}">${t('msg.undo.action')}</button>` : ''}`;
   q('[data-undo]', holder)?.addEventListener('click', async (event) => {
     const result = await post(`/api/v1/undo/${encodeURIComponent(event.target.dataset.undo)}`, {});
     if (result.response.ok) {
@@ -755,7 +832,40 @@ function attachmentComposer(root, crisisRoot) {
   let pending = false;
   let box = q('#v3-attach') || document.createElement('section');
   box.classList.add('attach-box');
-  if (!box.parentNode) root.append(box);
+  // В чатах панель уже есть в разметке и скрыта; в формах её создаём здесь — тоже скрытой,
+  // чтобы первый клик по «+» панель открывал, а не закрывал пустую.
+  if (!box.parentNode) {
+    box.hidden = true;
+    root.append(box);
+  }
+  // В чатах панель всплывает над полем ввода (CSS), поэтому её надо уметь закрывать:
+  // повторный клик по «+», Esc или клик вне панели. В формах (НЯ, ответ врача в карточке)
+  // панель остаётся в потоке и сама не закрывается — список файлов не должен пропадать
+  // из виду, когда пользователь трогает другие поля.
+  const inComposer = () => Boolean(box.parentNode && box.parentNode.classList.contains('chat-input'));
+  const onPointerDown = (event) => {
+    if (event.target.closest(tid('msg.composer.attach'))) return; // откроет/закроет обработчик кнопки
+    if (!box.contains(event.target)) close();
+  };
+  const onKeyDown = (event) => {
+    if (event.key === 'Escape') close();
+  };
+  const watch = () => {
+    // слушатели — асинхронно, иначе клик, который панель открыл, её сразу закроет
+    setTimeout(() => {
+      document.addEventListener('pointerdown', onPointerDown, true);
+      document.addEventListener('keydown', onKeyDown);
+    }, 0);
+  };
+  const stopWatch = () => {
+    document.removeEventListener('pointerdown', onPointerDown, true);
+    document.removeEventListener('keydown', onKeyDown);
+  };
+  function close() {
+    if (box.hidden) return;
+    box.hidden = true;
+    stopWatch();
+  }
   const render = () => {
     box.hidden = false;
     box.innerHTML = `<p data-testid="msg.composer.photo.others">${t('msg.composer.photo.others')}</p><input id="v3-photo" type="file" accept="image/jpeg,image/png,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.txt,.docx,.pdf,.jpg,.jpeg,.png" hidden>${pbutton('msg.composer.attach.photo', t('msg.composer.attach.photo'), 'btn sm')}<div data-upload-list>${attached.map((file) => `<p data-testid="msg.composer.file.ocr_done">${esc(file.name)} <button type="button" class="round round--sm" data-testid="msg.composer.file.remove" data-remove="${file.id}" aria-label="${t('msg.composer.file.remove')}"><svg class="i i--16" aria-hidden="true" focusable="false"><use href="/icons.svg#i-x"/></svg></button></p>`).join('')}</div>`;
@@ -801,9 +911,13 @@ function attachmentComposer(root, crisisRoot) {
       render();
     } else box.addEventListener('click', remove, { once: true });
   }
+  const open = () => {
+    render();
+    if (inComposer()) watch();
+  };
   if (!q(tid('msg.composer.attach')))
     root.insertAdjacentHTML('beforeend', button('msg.composer.attach', t('msg.composer.attach')));
-  q(tid('msg.composer.attach'))?.addEventListener('click', render);
+  q(tid('msg.composer.attach'))?.addEventListener('click', () => (box.hidden ? open() : close()));
   return {
     ids: () => attached.map((file) => file.id),
     pending: () => pending,
@@ -811,14 +925,17 @@ function attachmentComposer(root, crisisRoot) {
       attached.length = 0;
       box.innerHTML = '';
       box.hidden = true;
+      stopWatch();
     },
   };
 }
+let chatBusy = false;
 async function chat() {
   const root = q('#v3-chat');
   const field = q(tid('msg.chat.placeholder'));
   if (!root || !field) return;
   const attachments = attachmentComposer(field.parentNode, root);
+  if (window.PatientChat) window.PatientChat.showCrisis = (data) => crisisCard(root, data);
   field.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
@@ -827,29 +944,83 @@ async function chat() {
   });
   q(tid('msg.composer.send'))?.addEventListener('click', async () => {
     if (attachments.pending()) return;
+    // Кризисный режим (public/js/patient_crisis.js): сообщения идут в кризисный тред, а не в обычный чат.
+    if (window.PatientCrisis?.active()) {
+      await window.PatientCrisis.submit(field);
+      return;
+    }
+    if (chatBusy) return;
     const chips = window.PatientChat?.chips ? window.PatientChat.chips() : [];
     const sentText = field.value;
+    const optimistic = sentText.trim().length > 0; // пустое сообщение проверит сервер (ошибка валидации), без показа в ленте
     const chipLabels = [...document.querySelectorAll('[data-chips] > button')].map((chip) =>
       chip.textContent.replace(/×$/, '').trim(),
     );
-    const { response, data } = await post('/api/v1/ai/patient/messages', {
-      text: field.value,
-      chips,
-      upload_ids: attachments.ids(),
-    });
-    if (data.crisis) root.innerHTML = '';
-    crisisCard(root, data);
-    if (!response.ok) {
-      window.PatientChat?.renderSendError(data?.error?.code || 'E-AI-UNAVAILABLE');
-      return;
-    }
-    if (data.crisis || data.saved === false) return;
-    if (data.reply) {
-      field.value = '';
-      attachments.clear();
-      window.PatientChat?.renderUser?.(sentText, chipLabels);
-      window.PatientChat?.renderReply(data);
-      if (data.ae_suggestion) window.PatientChat?.renderAeCard(data.ae_suggestion.prefill || {});
+    // Сразу показываем, что сообщение ушло: сообщение в ленте, этапы ответа, кнопка занята. Ответ ИИ идёт десятки секунд.
+    chatBusy = true;
+    const sendButton = q(tid('msg.composer.send'));
+    sendButton.disabled = true;
+    sendButton.setAttribute('aria-busy', 'true');
+    const progressId = crypto.randomUUID();
+    window.PatientChat?.rememberPending?.(progressId);
+    const userEl = optimistic ? window.PatientChat?.renderUser?.(sentText, chipLabels) : null;
+    if (optimistic) field.value = '';
+    const stopProgress = (optimistic && window.PatientChat?.trackProgress?.(progressId)) || (() => {});
+    let sent = false;
+    try {
+      const { response, data } = await post('/api/v1/ai/patient/messages', {
+        text: sentText,
+        chips,
+        upload_ids: attachments.ids(),
+        progress_id: progressId,
+        // Продолжение того же чата: открытый тред, а не новый на каждое сообщение.
+        ...(window.PatientChat?.threadId?.() ? { thread_id: Number(window.PatientChat.threadId()) } : {}),
+      });
+      stopProgress();
+      // Сервер открыл кризисный разговор: закреплённая карточка с телефонами и сообщения вместо одноразовой карточки.
+      if (data.crisis_thread && window.PatientCrisis && (await window.PatientCrisis.enter(data, sentText))) {
+        attachments.clear();
+        sent = true;
+        return;
+      }
+      if (data.crisis) root.innerHTML = '';
+      crisisCard(root, data);
+      if (!response.ok) {
+        window.PatientChat?.removeUser?.(userEl);
+        field.value = sentText;
+        // Пауза чата (статус ТРОЛЛЬ): подпись вместо ошибки «не получилось ответить».
+        if (data?.error?.code === 'E-CHAT-PAUSED') {
+          window.PatientChat?.showPaused?.(data.error.details?.blocked_until);
+          return;
+        }
+        window.PatientChat?.renderSendError(data?.error?.code || 'E-AI-UNAVAILABLE');
+        return;
+      }
+      if (data.crisis || data.saved === false) {
+        if (!data.crisis) {
+          window.PatientChat?.removeUser?.(userEl);
+          field.value = sentText;
+        }
+        return;
+      }
+      if (data.reply) {
+        sent = true;
+        attachments.clear();
+        const replyEl = window.PatientChat?.renderReply(data);
+        window.PatientChat?.renderAe?.(data, { text: sentText, replyEl });
+        if (data.chat_paused) window.PatientChat?.showPaused?.(data.chat_paused.blocked_until);
+      }
+    } catch (_) {
+      stopProgress();
+      window.PatientChat?.removeUser?.(userEl);
+      field.value = sentText;
+      window.PatientChat?.renderSendError('E-AI-UNAVAILABLE');
+    } finally {
+      stopProgress();
+      if (!sent && !field.value) field.value = sentText;
+      chatBusy = false;
+      sendButton.disabled = Boolean(window.PatientChat?.isPaused?.());
+      sendButton.removeAttribute('aria-busy');
     }
   });
 }
@@ -1025,6 +1196,7 @@ function messageHistory(root, path, readerRole = 'patient') {
     if (next === signature) return;
     signature = next;
     let lastDay = '';
+    const lastMine = items.filter((item) => item.sender_role === mineRole).at(-1);
     history.innerHTML =
       items
         .map((item) => {
@@ -1032,7 +1204,7 @@ function messageHistory(root, path, readerRole = 'patient') {
           const sep = dayLabel !== lastDay ? `<div class="day">${esc(dayLabel)}</div>` : '';
           lastDay = dayLabel;
           const mine = item.sender_role === mineRole;
-          return `${sep}<article class="msg${mine ? ' me' : ''}"><div class="bubble">${esc(item.body)}</div>${(item.upload_ids || []).map((id) => `<p class="small"><a href="/api/v1/files/${Number(id)}">${t('msg.v3.file')} ${Number(id)}</a></p>`).join('')}<div class="meta"><time datetime="${esc(item.created_at)}">${esc(chatTime(item.created_at))}</time>${mine ? `<span>${item.read_at ? t('msg.v3.messages.read') : t('msg.doctor.status.sent')}</span>` : ''}</div></article>`;
+          return `${sep}<article class="msg${mine ? ' me' : ''}"><div class="bubble">${esc(item.body)}</div>${(item.upload_ids || []).map((id) => `<p class="small"><a href="/api/v1/files/${Number(id)}">${t('msg.v3.file')} ${Number(id)}</a></p>`).join('')}<div class="meta"><time datetime="${esc(item.created_at)}">${esc(chatTime(item.created_at))}</time>${mine ? `<span${!item.read_at && item === lastMine ? ' data-testid="msg.doctor.status.sent"' : ''}>${item.read_at ? t('msg.v3.messages.read') : t('msg.doctor.status.sent')}</span>` : ''}</div></article>`;
         })
         .join('') || `<p class="muted">${t('msg.v3.messages.empty')}</p>`;
     const scroller = history.closest('.scroll');
@@ -1099,12 +1271,6 @@ async function doctor() {
     if (result.data.saved === false || !result.data.message) return;
     field.value = '';
     attachments.clear();
-    undoControl(root, result.data, 'msg.undo.message_sent');
-    const status = document.createElement('p');
-    status.dataset.testid = 'msg.doctor.status.sent';
-    status.className = 'small muted';
-    status.textContent = t('msg.doctor.status.sent');
-    root.append(status);
     await load();
   });
 }
@@ -1220,6 +1386,7 @@ async function signals() {
   let kind = 'all',
     status = 'all';
   const signatures = new Map();
+  const signalItems = new Map();
   const me = (await get('/api/v1/me')).data.user;
   root.innerHTML = `<div class="filters sig-filters"><button type="button" class="pill on" data-testid="msg.v3.signals.all">${t('msg.v3.signals.all')}</button>${root.dataset.canAe === '1' ? `<button type="button" class="pill" data-testid="msg.signals.filter.ae">${t('msg.signals.filter.ae')}</button>` : ''}<button type="button" class="pill" data-testid="msg.v3.signals.crisis">${t('msg.v3.signals.crisis')}</button><button type="button" class="pill" data-testid="msg.signals.filter.handled">${t('msg.signals.filter.handled')}</button></div><section data-signal-list></section>`;
   const mark = () => {
@@ -1235,10 +1402,13 @@ async function signals() {
       .querySelectorAll('.sig-filters .pill')
       .forEach((pill) => pill.classList.toggle('on', pill.dataset.testid === on));
   };
+  // «Обработан»: кризис со статусом handled или побочный эффект, по которому врач уже принял решение
+  const isClosed = (x) =>
+    x.kind === 'ae' ? !['submitted', 'awaiting_doctor', 'service_queue'].includes(x.status) : x.status === 'handled';
   const counts = async () => {
     const all = await get('/api/v1/signals?kind=all&status=all');
     if (!all.response.ok) return;
-    const open = (all.data.items || []).filter((x) => x.status !== 'handled');
+    const open = (all.data.items || []).filter((x) => !isClosed(x));
     const n = (fn) => open.filter(fn).length;
     const set = (key, label) => {
       const pill = q(tid(key), root);
@@ -1290,12 +1460,19 @@ async function signals() {
     if (item.kind === 'ae') {
       const open = ['submitted', 'awaiting_doctor', 'service_queue'].includes(item.status);
       const word = known(`msg.overview.ae.status.${item.status}`, 'msg.signals.status.unknown');
-      return `<div class="q-state"><span class="st-pill ${open ? 'warn' : 'ok'}">${ico(open ? 'warning-circle' : 'check-circle')}${open ? t('msg.signals.pill.ae') : word}</span></div><div class="q-main"><b>${name} · ${t('msg.v3.ae.title')}</b><p class="q-quote">${esc(item.text || t('msg.v3.missing'))}</p><p class="q-meta">${t('msg.v3.ae.onset')} ${ruDay(item.started_on)} · ${t('msg.v3.ae.severity')} ${t(`msg.v3.severity.${item.severity || 'unknown'}`)} · ${t('msg.v3.ae.related')} ${t(`msg.ae.link.${item.related || 'unknown'}`)}${open ? '' : ` · ${word}`}</p>${(item.upload_ids || []).map((id) => `<a class="small link" href="/api/v1/files/${Number(id)}">${t('msg.v3.file')} ${Number(id)}</a>`).join(' ')}</div><div class="q-act acts">${open ? `${btn('msg.signals.ae.likely', t('msg.signals.ae.likely'))}${btn('msg.v3.ae.unrelated', t('msg.v3.ae.unrelated'))}${btn('msg.v3.ae.insufficient', t('msg.v3.ae.insufficient'))}` : ''}</div><div class="q-more">${open || item.comment ? `<label>${t('msg.v3.ae.comment')}<textarea data-ae-comment maxlength="1000" ${open ? '' : 'readonly'}>${esc(item.comment || '')}</textarea></label>` : ''}${open ? `<label><input type="checkbox" data-serious>${t('msg.v3.ae.serious')}</label>` : ''}<div class="ae-flow">${item.status === 'related_likely' ? btn('msg.signals.notice.open', t('msg.signals.notice.open')) : ''}</div></div>`;
+      return `<div class="q-state"><span class="st-pill ${open ? 'warn' : 'ok'}">${ico(open ? 'warning-circle' : 'check-circle')}${open ? t('msg.signals.pill.ae') : word}</span></div><div class="q-main"><b>${name} · ${t('msg.v3.ae.title')}</b><p class="q-quote">${esc(item.text || t('msg.v3.missing'))}</p><p class="q-what">Пациент сообщил, что после начала приёма препарата ему стало хуже.</p><p class="q-meta">${t('msg.v3.ae.onset')} ${ruDay(item.started_on)} · ${t('msg.v3.ae.severity')} ${t(`msg.v3.severity.${item.severity || 'unknown'}`)} · ${t('msg.v3.ae.related')} ${t(`msg.ae.link.${item.related || 'unknown'}`)}${open ? '' : ` · ${word}`}</p>${(item.upload_ids || []).map((id) => `<a class="small link" href="/api/v1/files/${Number(id)}">${t('msg.v3.file')} ${Number(id)}</a>`).join(' ')}${open ? `<p class="q-todo"><b>Что сделать:</b> прочитайте жалобу и решите, связана ли она с препаратом. «Связь вероятна» — можно сразу подготовить черновик извещения о побочном действии. «Связь маловероятна» или «Недостаточно данных» — сигнал закрывается с вашей пометкой.</p>` : ''}</div><div class="q-act acts">${open ? `${btn('msg.signals.ae.likely', t('msg.signals.ae.likely'))}${btn('msg.v3.ae.unrelated', t('msg.v3.ae.unrelated'))}${btn('msg.v3.ae.insufficient', t('msg.v3.ae.insufficient'))}` : ''}</div><div class="q-more">${open || item.comment ? `<label>${t('msg.v3.ae.comment')}<textarea data-ae-comment maxlength="1000" ${open ? '' : 'readonly'}>${esc(item.comment || '')}</textarea></label>` : ''}${open ? `<label><input type="checkbox" data-serious>${t('msg.v3.ae.serious')}</label>` : ''}<div class="ae-flow">${item.status === 'related_likely' && item.notice_document?.available ? btn('msg.signals.notice.open', t(item.notice_document.document_id ? 'msg.signals.notice.open' : 'msg.signals.notice.prepare'), 'btn') : ''}</div></div>`;
     }
     const mine = !item.taken_by || item.taken_by.id === me?.id;
     const handled = item.status === 'handled';
+    // Оценка ИИ из кризисного разговора пациента: дополняет сигнал, не отменяет его (src/ai/crisisMode.js).
+    const ai = item.ai_assessment;
+    const yn = { yes: 'да', no: 'нет', unknown: 'неизвестно' };
+    const conf = { low: 'низкая', medium: 'средняя', high: 'высокая' };
+    const aiBlock = ai
+      ? `<div class="q-ai" data-testid="msg.signals.ai"><p class="q-meta"><b>Оценка ИИ в разговоре</b> (дополняет сигнал, решение за вами): ${esc(ai.level_label)}. Безопасно сейчас: ${yn[ai.safe_now] || '—'}; один: ${yn[ai.alone] || '—'}; средства под рукой: ${yn[ai.means] || '—'}; уверенность: ${conf[ai.confidence] || '—'}.</p>${ai.note ? `<p class="q-meta">${esc(ai.note)}</p>` : ''}</div>`
+      : '';
     const src = known(`msg.signals.from.${item.source || 'unknown'}`, 'msg.signals.from.unknown');
-    return `<div class="q-state"><span class="st-pill ${handled ? 'ok' : 'crisis'}">${ico(handled ? 'check-circle' : 'warning')}${handled ? t('msg.signals.pill.handled') : `${t('msg.signals.pill.crisis')} · ${esc(when(item.created_at).replace(' назад', ''))}`}</span></div><div class="q-main"><b>${name} · ${t('msg.signals.crisis.phrase')}</b><p class="quote q-quote" data-testid="msg.signals.quote">${esc(item.quote || t('msg.v3.signals.safety'))}</p><p class="q-meta">${src}${item.due_at ? ` · ${t('msg.signals.reply')} ${ruDue(item.due_at)}` : ''}</p><p class="q-meta" data-testid="msg.signals.shown_112">${t('msg.signals.shown_112')}</p><p class="q-meta" data-testid="msg.signals.status.${esc(item.status)}">${
+    return `<div class="q-state"><span class="st-pill ${handled ? 'ok' : 'crisis'}">${ico(handled ? 'check-circle' : 'warning')}${handled ? t('msg.signals.pill.handled') : `${t('msg.signals.pill.crisis')} · ${esc(when(item.created_at).replace(' назад', ''))}`}</span></div><div class="q-main"><b>${name} · ${t('msg.signals.crisis.phrase')}</b><p class="quote q-quote" data-testid="msg.signals.quote">${esc(item.quote || t('msg.v3.signals.safety'))}</p><p class="q-what">Пациент написал фразу, которая может говорить об опасности для жизни. Пациенту показан номер 112 и открыт разговор: сначала по сценарию, затем с ИИ-собеседником. Весь разговор вы не видите, только эту фразу и оценку ИИ.</p>${aiBlock}<p class="q-meta">${src}${item.due_at ? ` · ${t('msg.signals.reply')} ${ruDue(item.due_at)}` : ''}</p>${handled ? '' : `<p class="q-todo"><b>Что сделать:</b> ${item.status === 'new' ? 'нажмите «Взять в работу», чтобы коллеги видели, что вы занимаетесь, и свяжитесь с пациентом' : 'свяжитесь с пациентом'}${item.due_at ? ` ${ruDue(item.due_at)}` : ''}. После разговора нажмите «Связались» и запишите, чем закончилось.</p>`}<p class="q-meta" data-testid="msg.signals.shown_112">${t('msg.signals.shown_112')}</p><p class="q-meta" data-testid="msg.signals.status.${esc(item.status)}">${
       item.status === 'in_work'
         ? `${t('msg.v3.signals.taken')} ${esc(item.taken_by?.name || '')}`
         : t(`msg.signals.status.${item.status}`)
@@ -1346,12 +1523,15 @@ async function signals() {
     sideBox.querySelectorAll('[data-ssel]').forEach((row) => row.classList.toggle('on', row === link));
   });
   const load = async (force = null) => {
-    const result = await get(`/api/v1/signals?kind=${kind}&status=${status}`);
+    const result = await get(`/api/v1/signals?kind=${kind}&status=all`);
     if (!result.response.ok) return errorMessage(root, result.data);
+    // «Обработанные» — всё уже закрытое (в том числе побочные эффекты с решением врача); в «Все» закрытое не прячем, чтобы рядом остались «Отменить» и «Черновик извещения»
+    if (status === 'handled') result.data.items = (result.data.items || []).filter(isClosed);
     const keys = new Set();
     for (const item of result.data.items || []) {
       const key = `${item.kind}-${item.id}`;
       keys.add(key);
+      signalItems.set(key, item);
       let article = q(`[data-signal="${key}"]`, list);
       const signature = JSON.stringify(item);
       if (article && signatures.get(key) === signature && force !== key) continue;
@@ -1368,7 +1548,6 @@ async function signals() {
       const noteDraft = q('[data-note]', article)?.value;
       const outcomeDraft = q('[data-outcome]', article)?.value;
       const feedback = q('[data-undo-holder]', article);
-      const editor = q('[data-notice]', article);
       article.innerHTML = draw(item);
       if (force !== key && aeCommentDraft !== undefined && q('[data-ae-comment]', article))
         q('[data-ae-comment]', article).value = aeCommentDraft;
@@ -1377,7 +1556,6 @@ async function signals() {
       if (force !== key && outcomeDraft !== undefined && q('[data-outcome]', article))
         q('[data-outcome]', article).value = outcomeDraft;
       if (feedback) article.append(feedback);
-      if (editor) q('.ae-flow', article)?.append(editor);
       signatures.set(key, signature);
     }
     list.querySelectorAll('[data-signal]').forEach((article) => {
@@ -1490,66 +1668,42 @@ async function signals() {
         }
         return;
       }
+    // Извещение редактируется во вкладке «Шаблоны и документы»: здесь только переход (или создание документа).
     if (event.target.closest(tid('msg.signals.notice.open'))) {
-      const result = await get(`/api/v1/adverse-events/${id}/notice`);
-      if (!result.response.ok) return errorMessage(article, result.data);
-      const flow = q('.ae-flow', article);
-      q('[data-notice]', flow)?.remove();
-      flow.insertAdjacentHTML(
-        'beforeend',
-        `<section data-notice data-version="${result.data.version}"><p data-testid="msg.signals.notice.manual">${t('msg.signals.notice.manual')}</p><p class="small" data-testid="msg.v3.notice.send_ways">${t('msg.v3.notice.send_ways')}</p><p class="small" data-testid="msg.v3.notice.deadline">${t('msg.v3.notice.deadline')}</p><p class="small warn" data-notice-missing ${(result.data.missing || []).length ? '' : 'hidden'}>${t('msg.v3.notice.missing').replace('{fields}', esc((result.data.missing || []).map((name) => noticeShortLabel(name)).join(', ')))}</p>${Object.entries(
-          result.data.fields,
-        )
-          .map(
-            ([name, value]) =>
-              `<label>${t(`msg.v3.notice.${name}`)}<textarea data-notice-field="${esc(name)}" rows="${NOTICE_LONG_FIELDS.includes(name) ? 5 : 1}">${esc(typeof value === 'string' ? value : JSON.stringify(value))}</textarea></label>`,
-          )
-          .join(
-            '',
-          )}${button('msg.v3.notice.save', t('msg.v3.notice.save'))}${button('msg.v3.notice.copy', t('msg.v3.notice.copy'))}<a data-testid="msg.signals.notice.download" href="/api/v1/adverse-events/${id}/notice/file?format=pdf">${t('msg.signals.notice.download')} PDF</a> <a href="/api/v1/adverse-events/${id}/notice/file?format=docx">DOCX</a></section>`,
-      );
-    }
-    if (event.target.closest(tid('msg.v3.notice.copy'))) {
-      const editor = q('[data-notice]', article);
-      const text = [...editor.querySelectorAll('[data-notice-field]')]
-        .filter((field) => field.value.trim())
-        .map((field) => `${noticeShortLabel(field.dataset.noticeField)}: ${field.value.trim()}`)
-        .join('\n');
-      try {
-        await navigator.clipboard.writeText(text);
-        errorMessage(editor, { error: { key: 'msg.v3.notice.copied' } });
-      } catch (_) {
-        errorMessage(editor, { error: { key: 'msg.tpl.copy_failed' } });
-      }
-    }
-    if (event.target.closest(tid('msg.v3.notice.save'))) {
-      const editor = q('[data-notice]', article);
-      const fields = Object.fromEntries(
-        [...editor.querySelectorAll('[data-notice-field]')].map((field) => [field.dataset.noticeField, field.value]),
-      );
-      const result = await put(`/api/v1/adverse-events/${id}/notice`, {
-        version: Number(editor.dataset.version),
-        fields,
+      const button = event.target.closest(tid('msg.signals.notice.open'));
+      const notice = signalItems.get(key)?.notice_document;
+      if (!notice) return;
+      const go = (docId) => window.location.assign(`/work?tab=docs&doc=${encodeURIComponent(docId)}`);
+      if (notice.document_id) return go(notice.document_id);
+      button.disabled = true;
+      const result = await post('/work/api/documents', {
+        template_key: notice.template_key,
+        patient_id: notice.patient_id,
+        ae_id: notice.ae_id,
       });
-      if (!result.response.ok) return errorMessage(editor, result.data);
-      editor.dataset.version = result.data.version;
-      errorMessage(editor, { error: { key: 'msg.v3.draft.saved' } });
+      button.disabled = false;
+      if (!result.response.ok) return errorMessage(article, result.data);
+      go(result.data.document.id);
     }
   });
+
+  // Переход из формы «Нежелательное явление» (/work?tab=signals&ae=ID): показать эту запись и открыть черновик извещения.
+  const focusAe = new URLSearchParams(window.location.search).get('ae');
+  if (focusAe && /^\d{1,12}$/.test(focusAe)) {
+    const key = `ae-${focusAe}`;
+    const article = q(`[data-signal="${key}"]`, list);
+    if (article) {
+      selectedKey = key;
+      list.querySelectorAll('[data-signal]').forEach((other) => {
+        other.hidden = other !== article;
+      });
+      sideBox?.querySelectorAll('[data-ssel]').forEach((row) => row.classList.toggle('on', row.dataset.ssel === key));
+      article.scrollIntoView({ block: 'nearest' });
+      q(tid('msg.signals.notice.open'), article)?.click();
+    }
+  }
 }
 
-function offline() {
-  const input = q(tid('msg.composer.attach.photo'));
-  const root = q('#v2-offline');
-  if (!input || !root) return;
-  input.addEventListener(
-    'change',
-    () =>
-      (root.innerHTML =
-        '<p data-testid="msg.offline.source">Исходник</p><p data-testid="msg.offline.recognized">Распознано</p><p data-testid="msg.offline.draft">Черновик</p>' +
-        button('msg.offline.save', 'Сохранить')),
-  );
-}
 document.addEventListener('DOMContentLoaded', async () => {
   try {
     const response = await fetch('/assets/ru.json');
@@ -1561,18 +1715,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   tests();
   diary();
   card();
-  offline();
   chat();
   adverseEvent();
   doctor();
   visits();
   signals();
 });
-
-// Короткая подпись поля извещения для сообщений и копирования: без «*» и перечня вариантов в скобках.
-function noticeShortLabel(name) {
-  return t(`msg.v3.notice.${name}`).replace(/\s*\*/g, '').split(' (')[0];
-}
-
-// Длинные текстовые поля извещения; остальные — в одну строку.
-const NOTICE_LONG_FIELDS = ['description', 'other_medications', 'measures', 'outcome', 'reporter_comment'];

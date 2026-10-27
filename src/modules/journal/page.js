@@ -91,7 +91,10 @@ function chrome({ user, title, main, description = '' }) {
   return html
     .replace('<body class="page-scroll"', '<body class="page-scroll journal-page"')
     .replace('class="jbtn journal-btn" href="/journal"', 'class="jbtn journal-btn" href="/journal" aria-current="page"')
-    .replace('<meta name="robots"', `${description ? `<meta name="description" content="${esc(description)}">` : ''}<meta name="robots"`);
+    .replace(
+      '<meta name="robots"',
+      `${description ? `<meta name="description" content="${esc(description)}">` : ''}<meta name="robots"`,
+    );
 }
 
 function renderFeed({ user, audience, data, topic }) {
@@ -139,7 +142,7 @@ function renderArticle({ user, item, related }) {
     ${topics.length ? `<p class="small j-topics">${topics.map((x) => esc(cap(x))).join(' · ')}</p>` : ''}
     <h1 class="display">${esc(item.title)}</h1>
     ${item.summary ? `<p class="lead">${esc(item.summary)}</p>` : ''}
-    <p class="small j-meta">${by(item)} · ${meta(item)}${item.ai_assisted ? ` · <span class="j-ai">${esc(t('msg.mag.ai'))}</span>` : ''}</p>
+    <p class="small j-meta">${by(item)} · ${meta(item)}${item.ai_assisted ? ` · <span class="j-ai">${esc(t('msg.mag.ai'))}</span>` : ''}<button type="button" class="j-print" data-print-article aria-label="Распечатать статью" title="Распечатать">${ic('printer', '16')}</button></p>
   </div>
   ${item.cover_url ? `<figure class="j-hero">${cover(item, 'article', false)}</figure>` : ''}
   <div class="read">

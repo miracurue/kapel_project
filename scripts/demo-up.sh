@@ -17,6 +17,9 @@ GIGA_KEY="$(grep -E '^GIGACHAT_AUTH_KEY=.+' .env 2>/dev/null | head -1 | cut -d=
 if [ -n "$GIGA_KEY" ]; then
   export GIGACHAT_AUTH_KEY="$GIGA_KEY" NODE_EXTRA_CA_CERTS="$PWD/deploy/certs/russian_trusted_root_ca.pem"
 fi
+# Хранилище знаний (инструкции и клинреки) из .env: контейнер knowledge-db должен быть запущен, иначе поиск вернёт пустой результат.
+KNOW_URL="$(grep -E '^KNOWLEDGE_DATABASE_URL=.+' .env 2>/dev/null | head -1 | cut -d= -f2- || true)"
+if [ -n "$KNOW_URL" ]; then export KNOWLEDGE_DATABASE_URL="$KNOW_URL"; fi
 node scripts/migrate.js && node scripts/seed-demo.js
 node src/server.js &
 SERVER=$!

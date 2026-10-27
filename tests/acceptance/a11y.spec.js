@@ -70,7 +70,7 @@ test('T-480 [W-55] axe на главных страницах всех роле�
 });
 
 // covers: T-481, UC-18, UC-14, F-25, F-12, F-50
-test('T-481 [W-55] клавиатура: «Перейти к содержимому» первым, видимый фокус, вкладки и «Ещё» с клавиатуры, отправка Enter, Esc закрывает меню, плеер перематывается стрелками', async () => {
+test('T-481 [W-55] клавиатура: «Перейти к содержимому» первым, видимый фокус, вкладки и меню профиля с клавиатуры, отправка Enter, Esc закрывает меню, плеер перематывается стрелками', async () => {
   const { ctx: c, page } = await B.contextAs(ctx.browser, ctx.app, 'patA', B.PHONE);
   ctx.track(c);
   await B.open(page, ctx.app, '/app');
@@ -81,9 +81,11 @@ test('T-481 [W-55] клавиатура: «Перейти к содержимо�
     return s.outlineStyle !== 'none' || s.boxShadow !== 'none';
   });
   assert.ok(outline, 'фокус виден');
-  await page.focus(B.tid('msg.shell.more'));
-  await page.keyboard.press('Enter');
+  // «Ещё» больше нет: все вкладки на виду; меню профиля открывается и закрывается с клавиатуры.
   await B.expectVisible(page, 'msg.nav.patient.doctor');
+  await page.focus(B.tid('msg.shell.avatar'));
+  await page.keyboard.press('Enter');
+  await B.expectVisible(page, 'msg.nav.avatar.help');
   await page.keyboard.press('Escape');
   await page.focus(B.tid('msg.chat.placeholder'));
   await page.keyboard.type('Синтетический вопрос с клавиатуры');

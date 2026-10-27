@@ -8,6 +8,7 @@
  */
 
 const crypto = require('crypto');
+const catalog = require('../../../ai/promptCatalog');
 
 const TEXT_MAX = 20000;
 const COMMENT_MAX = 300;
@@ -84,6 +85,34 @@ function createPromptService({ db, keys }) {
     });
   }
 
+  /** Слои каталога с описаниями и состоянием версий — для экрана «Настройки → Промпт». */
+  function catalogView() {
+    const state = new Map(listKeys().map((k) => [k.key, k]));
+    return catalog.describe().map((c) => ({
+      ...c,
+      items: c.items.map((e) => ({ ...e, ...(state.get(e.key) || { active_version: null, versions: 0, updated_at: null }) })),
+    }));
+  }
+
+  const activeRow = (key) => db.prepare("SELECT version, body FROM prompt_versions WHERE prompt_key = ? AND status = 'active'").get(key) || null;
+
+  /** Итоговая инструкция, как её соберёт шлюз для роли и задачи (без вызова модели). */
+  function compose({ task, role, tools, skills }) {
+    if (!known(task) || catalog.categoryOf(task) === 'role' || catalog.categoryOf(task) === 'tools') return null;
+    const wanted = String(skills || '')
+      .split(',')
+      .map((x) => x.trim())
+      .filter((x) => known(x) && catalog.categoryOf(x) === 'skill');
+    const out = catalog.assemble({
+      promptKey: task,
+      userRole: role,
+      withTools: tools === '1' || tools === 'true' || tools === true,
+      skills: wanted,
+      activePrompt: activeRow,
+    });
+    return { task, role: role || null, system: out.system, layers: out.layers, missing: out.missing };
+  }
+
   /** @returns {{ok:true, version:number}|{ok:false, code:'E-VALIDATION'|'E-CONFLICT'|'E-NOT-FOUND'}} */
   function createVersion(key, { text, comment }, authorId) {
     if (!known(key)) return { ok: false, code: 'E-NOT-FOUND' };
@@ -149,7 +178,7 @@ function createPromptService({ db, keys }) {
     );
   }
 
-  return { known, listKeys, versions, version, createVersion, diff, activate, logAction };
+  return { known, listKeys, catalogView, compose, versions, version, createVersion, diff, activate, logAction };
 }
 
 module.exports = { createPromptService, lineDiff, TEXT_MAX, COMMENT_MAX };

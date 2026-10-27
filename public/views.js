@@ -581,10 +581,14 @@
   async function patientTests() {
     const root = q('#v2-tests');
     if (!root || new URLSearchParams(location.search).get('run')) return;
+    // Страница без боковой панели: методики (рисует сервер) → тесты двумя группами → недавние результаты.
+    // «Результаты и динамика» и отдельный результат открываются на месте, кнопкой «К методикам» — обратно.
+    const assignedBox = q('#tests-assigned');
+    const notice = q('#tests-notice');
+    const testsBlock = q('#tests');
     const holder = document.createElement('div');
     holder.id = 'tests-history';
-    root.before(holder);
-    const side = q('[data-tests-side]');
+    testsBlock.after(holder);
     const [assign, res] = await Promise.all([api('/api/v1/me/assignments'), api('/api/v1/me/results')]);
     const open = ((assign && assign.items) || []).filter((a) => ['pending', 'in_progress'].includes(a.status));
     const series = (res && res.series) || [];
@@ -593,10 +597,20 @@
       .reverse()
       .filter((r) => r.total_score != null) // результат без балла (SCL-90-R) пациенту не показывается
       .forEach((r) => (byCode[r.instrument] = byCode[r.instrument] || []).push(r));
-    let selected = open.length ? `assign:${open[0].id}` : 'overview';
+    let selected = 'hub';
+    const methods = q('#techniques');
+    const tabs = q('#tests-tabs');
+    // Раздел на главной: «Упражнения» или «Тесты»; если врач назначил тест или пришли по ссылке #tests, открываем тесты.
+    let tab = open.length || location.hash === '#tests' ? 'tests' : 'exercises';
+    try {
+      if (!open.length && location.hash !== '#tests' && sessionStorage.getItem('kapel.methodsTab') === 'tests')
+        tab = 'tests';
+    } catch {
+      /* без хранилища всегда начинаем с упражнений */
+    }
 
     const assignCard = (a) =>
-      `<section class="card vcard"><h3>${esc(testTitle(a.instrument_code))}</h3><div class="sub">Назначил(а) специалист${a.progress && a.progress.total > 1 ? ` · ${a.progress.done} из ${a.progress.total}` : ''}</div><div class="acts"><a class="btn primary" href="/app?tab=tests&run=${a.id}">${a.status === 'in_progress' ? 'Продолжить' : 'Начать'}</a></div></section>`;
+      `<section class="card vcard"><h3>${esc(testTitle(a.instrument_code))}</h3><div class="sub">Назначил(а) специалист${a.progress && a.progress.total > 1 ? ` · ${a.progress.done} из ${a.progress.total}` : ''}</div><div class="acts"><a class="btn primary" href="/app?tab=tests&run=${a.id}">${a.status === 'in_progress' ? 'Продолжить' : 'Начать'}<span class="drop-badge" data-flower-badge="test" data-flower-key="test:${esc(a.instrument_code)}:{day}"></span></a></div></section>`;
     const resultCard = (r) => {
       if (r.total_score == null)
         return `<section class="card vcard"><div class="grow"><h3>${esc(testTitle(r.instrument))} · ${esc(day(r.created_at))}</h3><div class="sub">${esc(tx('msg.tests.result.done'))}</div><p class="sub">${esc(tx(r.completion_key || 'msg.tests.result.for_doctor'))}</p>${r.self_initiated && !r.shared_at ? `<button type="button" class="btn" data-share="${r.id}">${esc(tx('msg.tests.self.show'))}</button>` : ''}</div></section>`;
@@ -642,32 +656,71 @@
           ? ''
           : card('Результаты', empty('Результатов пока нет.')));
 
-    const row = (key, title, sub) =>
-      `<a href="#" class="th${selected === key ? ' on' : ''}" data-tsel="${esc(key)}"><span>${esc(title)}</span><br><small class="lib-row-sub">${esc(sub)}</small></a>`;
+    const recent = () => {
+      const last = series.slice(0, 3);
+      if (!last.length) return '';
+      return `<section class="tech-section" aria-labelledby="recent-title"><div class="tech-head row2"><div class="grow"><h2 id="recent-title">Недавние результаты</h2><p>Как менялись баллы — в «Результатах и динамике».</p></div><a href="#" class="btn sm" data-tsel="overview">Результаты и динамика</a></div>${last
+        .map((r) =>
+          r.total_score == null
+            ? resultCard(r)
+            : `<section class="card vcard row2"><div class="grow"><h3>${esc(testTitle(r.instrument))} · ${esc(day(r.created_at))}</h3><div class="sub">${r.total_score} баллов</div></div><a href="#" class="btn sm" data-tsel="result:${esc(r.id)}">Открыть</a></section>`,
+        )
+        .join('')}</section>`;
+    };
+    const assigned = () =>
+      `<div class="tech-head"><h3>Назначено врачом</h3><p>${open.length ? 'Специалист просит пройти эти тесты.' : 'Сейчас ничего не назначено. Когда специалист назначит тест, он появится здесь.'}</p></div>${open.map(assignCard).join('')}`;
+    const back = () =>
+      `<p class="pt-back"><a href="#" class="btn sm" data-tsel="hub"><svg class="i i--16" aria-hidden="true" focusable="false"><use href="/icons.svg#i-arrow-left"/></svg>К методикам</a></p>`;
     const paint = () => {
-      if (side)
-        side.innerHTML =
-          row('overview', 'Обзор', series.length ? `результатов: ${series.length}` : 'динамика') +
-          (open.length
-            ? `<h4>Нужно пройти</h4>${open.map((a) => row(`assign:${a.id}`, testTitle(a.instrument_code), 'назначил(а) специалист')).join('')}`
-            : '') +
-          (series.length
-            ? `<h4>Пройденные</h4>${series.map((r) => row(`result:${r.id}`, `${testTitle(r.instrument)} · ${day(r.created_at)}`, r.total_score == null ? tx('msg.tests.result.done') : `${r.total_score} баллов`)).join('')}`
-            : '');
       const [kind, id] = selected.split(':');
-      const a = kind === 'assign' && open.find((x) => String(x.id) === id);
       const r = kind === 'result' && series.find((x) => String(x.id) === id);
-      holder.innerHTML = a ? assignCard(a) : r ? resultCard(r) : overview();
-      holder.innerHTML += askLine('Спросить ИИ о результатах…');
+      const onHub = selected === 'hub';
+      if (methods) methods.hidden = !(onHub && tab === 'exercises');
+      testsBlock.hidden = !(onHub && tab === 'tests');
+      holder.hidden = onHub && tab !== 'tests';
+      if (tabs) {
+        tabs.hidden = !onHub;
+        tabs
+          .querySelectorAll('[data-ttab]')
+          .forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.ttab === tab)));
+      }
+      if (notice)
+        notice.innerHTML =
+          onHub && open.length && tab === 'exercises'
+            ? `<a class="tests-notice" href="#tests" data-ttab="tests"><svg class="i" aria-hidden="true" focusable="false"><use href="/icons.svg#i-clipboard-text"/></svg><span>Врач назначил ${open.length === 1 ? 'тест' : `тесты: ${open.length}`} — ${esc(open.map((a) => testTitle(a.instrument_code)).join(', '))}</span><b>Перейти</b></a>`
+            : '';
+      assignedBox.innerHTML = assigned();
+      holder.innerHTML = onHub
+        ? recent()
+        : back() + (r ? resultCard(r) : overview()) + askLine('Спросить ИИ о результатах…');
     };
     paint();
-    side?.addEventListener('click', (e) => {
+    const choose = (e) => {
       const link = e.target.closest('[data-tsel]');
       if (!link) return;
       e.preventDefault();
       selected = link.dataset.tsel;
       paint();
+      q('.app-main .scroll')?.scrollTo({ top: 0 });
+    };
+    tabs?.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-ttab]');
+      if (!b) return;
+      tab = b.dataset.ttab;
+      try {
+        sessionStorage.setItem('kapel.methodsTab', tab);
+      } catch {
+        /* вкладка просто не запомнится */
+      }
+      paint();
     });
+    notice?.addEventListener('click', (e) => {
+      if (!e.target.closest('[data-ttab]')) return;
+      e.preventDefault();
+      tab = 'tests';
+      paint();
+    });
+    holder.addEventListener('click', choose);
     holder.addEventListener('click', async (e) => {
       const share = e.target.closest('[data-share]');
       if (share) {
@@ -705,7 +758,12 @@
     const reminders = (rem && rem.items) || [];
     const support = (data && data.course_support) || [];
     const aes = (ae && ae.items) || [];
-    const AE_STATUS = { awaiting_doctor: 'ждёт врача', reviewed: 'врач посмотрел', submitted: 'отправлено' };
+    const AE_STATUS = {
+      awaiting_doctor: 'ждёт врача',
+      reviewed: 'врач посмотрел',
+      submitted: 'отправлено',
+      saved_private: 'Сохранено у вас',
+    };
     let html = '';
     html += reminders.length
       ? `<p class="footnote" id="rem-line">Напоминание о приёме в ${esc(reminders[0].time_hhmm)} · <button type="button" class="link" id="rem-edit">изменить</button></p>`
@@ -830,7 +888,14 @@
       if (line === 'Нет новых событий' && soon) line = `визит ${day(soon.starts_at)}`;
       info[id] = { signal: Boolean(crisis || ae), visit: Boolean(soon) };
       // статус словом и значком (спецификация 11): кризис и побочный эффект выделены, визит скоро — со значком календаря
-      const stIcon = dot === 'r' ? 'warning' : dot === 'y' ? 'warning-circle' : !lastMsg && !lastResult && soon ? 'calendar-blank' : '';
+      const stIcon =
+        dot === 'r'
+          ? 'warning'
+          : dot === 'y'
+            ? 'warning-circle'
+            : !lastMsg && !lastResult && soon
+              ? 'calendar-blank'
+              : '';
       const stLine = q('[data-last]', a);
       stLine.classList.toggle('st--crisis', dot === 'r');
       stLine.classList.toggle('st--ae', dot === 'y');
@@ -1229,7 +1294,7 @@
         (tests && tests.offline_results && tests.offline_results.length
           ? card(
               'Очные результаты',
-              `<ul class="vlist">${tests.offline_results.map((r) => `<li><b>${esc(instr(r.instrument))}</b><span>${r.total_score} баллов</span><em>очно</em></li>`).join('')}</ul>`,
+              `<ul class="vlist">${tests.offline_results.map((r) => `<li data-offline-result="${esc(r.id)}"><b>${esc(instr(r.instrument))}${r.test_date ? ` · ${esc(day(r.test_date))}` : ''}</b><span>${r.total_score == null ? (r.entry_method === 'photo' ? 'без баллов' : '— баллов') : `${r.total_score} баллов`}${r.band && r.band !== 'review_required' ? ` · ${esc(r.band)}` : ''}${r.risk_flag ? ' · <strong class="warn">кризисный пункт</strong>' : ''}</span><em>${r.erroneous ? 'отмечен ошибочным' : r.entry_method === 'photo' ? 'фото бланка' : r.status === 'draft' ? 'очно · черновик' : 'очно, внёс врач'}${r.source_file_id ? ` · <a href="/api/v1/files/${esc(r.source_file_id)}" download data-offline-file>открыть фото</a>` : ''}</em></li>`).join('')}</ul>`,
             )
           : ''),
       diary:
@@ -1398,6 +1463,184 @@
     return `<div class="tool-preview">${parts.join('')}</div>`;
   };
 
+  // Очный бланк: та же шкала, что пациент проходит онлайн, только пустая — врач отмечает ответы с приёма,
+  // сервер считает баллы тем же ключом и сохраняет результат в карточку пациента («Тесты» → «Очные результаты»).
+  function offlineForm(list, people, selectedTool) {
+    const box = q('#offline-form');
+    if (!box) return;
+    const today = () => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+    const field = (x) => {
+      const name = `off-${x.id}`;
+      if (x.type === 'single' || x.type === 'multi')
+        return `<div class="choices" role="${x.type === 'single' ? 'radiogroup' : 'group'}">${x.options.map((o) => `<label class="choice"><input type="${x.type === 'single' ? 'radio' : 'checkbox'}" name="${esc(name)}" value="${esc(o.value)}">${esc(o.label)}</label>`).join('')}</div>`;
+      if (x.type === 'number')
+        return `<input type="number" name="${esc(name)}"${x.min !== undefined ? ` min="${esc(x.min)}"` : ''}${x.max !== undefined ? ` max="${esc(x.max)}"` : ''}>`;
+      if (x.type === 'date') return `<input type="date" name="${esc(name)}">`;
+      return `<textarea name="${esc(name)}" rows="2" maxlength="${x.type === 'text_long' ? 4000 : 300}"></textarea>`;
+    };
+    let current = null;
+    const open = (code) => {
+      const i = list.find((x) => x.code === code);
+      const pv = i && i.preview;
+      current = pv;
+      if (!i || i.assignable === false || !pv || !pv.questions.length) {
+        const ready = list.filter((x) => x.assignable !== false && x.preview?.questions?.length);
+        box.innerHTML = `<p class="sub" role="status">Какую шкалу заполнить? Бланк откроется здесь.</p><div class="soon-tags">${ready.map((x) => `<button type="button" class="tag" data-offline-open="${esc(x.code)}">${esc(x.title || testShort(x.code))}</button>`).join('')}</div>`;
+        return;
+      }
+      if (!people.length) {
+        box.innerHTML = `<p class="sub" role="status">У вас пока нет закреплённых пациентов.</p>`;
+        return;
+      }
+      box.innerHTML = `<section class="card offline-form" data-offline-form="${esc(i.code)}"><h3>${esc(i.title || testShort(i.code))} — очный бланк</h3><div class="row-fields"><label>Пациент<select data-offline-patient>${people.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></label><label>Дата приёма<input type="date" data-offline-date value="${today()}" max="${today()}"></label></div>${pv.instruction ? `<p class="sub">${esc(pv.instruction)}</p>` : ''}<ol class="offline-q">${pv.questions.map((x) => `<li><fieldset data-q="${esc(x.id)}" data-type="${esc(x.type)}"${x.required ? ' data-required' : ''}><legend>${esc(x.text)}</legend>${field(x)}</fieldset></li>`).join('')}</ol><p class="muted small" data-offline-count></p><div class="acts"><button type="button" class="btn primary" data-offline-save>Сохранить в карточку</button><button type="button" class="btn" data-offline-cancel>Отмена</button></div><p class="sub" data-offline-out aria-live="polite"></p><p class="muted small">${esc(tx('msg.tests.review_required'))}</p></section>`;
+      count();
+      box.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    };
+    const answers = () => {
+      const out = {};
+      box.querySelectorAll('fieldset[data-q]').forEach((fs) => {
+        const id = fs.dataset.q;
+        const type = fs.dataset.type;
+        // значения вариантов в методике — строки или числа; отправляем ровно то значение, что в методике
+        const options = (current?.questions.find((x) => x.id === id) || {}).options || [];
+        const value = (raw) => (options.find((o) => String(o.value) === raw) || { value: raw }).value;
+        if (type === 'multi') {
+          const v = [...fs.querySelectorAll('input:checked')].map((x) => value(x.value));
+          if (v.length) out[id] = v;
+        } else if (type === 'single') {
+          const v = fs.querySelector('input:checked');
+          if (v) out[id] = value(v.value);
+        } else {
+          const v = fs.querySelector('input,textarea').value.trim();
+          if (v) out[id] = type === 'number' ? Number(v) : v;
+        }
+      });
+      return out;
+    };
+    const count = () => {
+      const total = box.querySelectorAll('fieldset[data-q]').length;
+      const done = Object.keys(answers()).length;
+      const el = q('[data-offline-count]', box);
+      if (el) el.textContent = `Отмечено ${done} из ${total}`;
+    };
+    // «Фото бланка»: снимок или скан бумажного бланка просто сохраняется в карточке пациента — без распознавания.
+    // Подходит для любой методики, в том числе с рисунком или письмом от руки.
+    const openPhoto = (file) => {
+      const sel = selectedTool();
+      const chosen = sel.startsWith('ins:') ? sel.slice(4) : '';
+      if (!people.length) {
+        box.innerHTML = `<p class="sub" role="status">У вас пока нет закреплённых пациентов.</p>`;
+        return;
+      }
+      box.innerHTML = `<section class="card offline-form" data-offline-photo><h3>Фото бланка</h3><p class="sub">Файл: ${esc(file.name)}. Снимок сохранится в карточке пациента; баллы по нему не считаются.</p><div class="row-fields"><label>Пациент<select data-offline-patient>${people.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></label><label>Шкала<select data-offline-tool>${list.map((i) => `<option value="${esc(i.code)}"${i.code === chosen ? ' selected' : ''}>${esc(i.title || testShort(i.code))}</option>`).join('')}</select></label><label>Дата приёма<input type="date" data-offline-date value="${today()}" max="${today()}"></label></div><div class="acts"><button type="button" class="btn primary" data-photo-save>Сохранить в карточку</button><button type="button" class="btn" data-offline-cancel>Отмена</button></div><p class="sub" data-offline-out aria-live="polite"></p></section>`;
+      box._photo = file;
+      box.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    };
+    q('[data-testid="msg.composer.attach.photo"]')?.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      e.target.value = '';
+      if (file) openPhoto(file);
+    });
+    document.addEventListener('click', (e) => {
+      const opener = e.target.closest('[data-offline-open]');
+      if (opener) {
+        const sel = selectedTool();
+        open(opener.dataset.offlineOpen || (sel.startsWith('ins:') ? sel.slice(4) : ''));
+      }
+    });
+    box.addEventListener('change', (e) => {
+      if (e.target.closest('fieldset[data-q]')) {
+        e.target.closest('fieldset[data-q]').classList.remove('is-missing');
+        count();
+      }
+    });
+    box.addEventListener('click', async (e) => {
+      if (e.target.closest('[data-offline-cancel]')) {
+        box.innerHTML = '';
+        return;
+      }
+      const photoSave = e.target.closest('[data-photo-save]');
+      if (photoSave) {
+        const out = q('[data-offline-out]', box);
+        photoSave.disabled = true;
+        out.textContent = 'Сохраняю…';
+        const token = (await (await fetch('/api/v1/csrf')).json()).token;
+        const fd = new FormData();
+        fd.append('file', box._photo, box._photo.name);
+        fd.append('purpose', 'offline_result');
+        const up = await fetch('/api/v1/uploads', {
+          method: 'POST',
+          headers: { 'x-csrf-token': token, 'idempotency-key': crypto.randomUUID() },
+          body: fd,
+        });
+        const uploaded = await up.json().catch(() => ({}));
+        if (!up.ok || !uploaded.id) {
+          photoSave.disabled = false;
+          out.textContent =
+            up.status === 413
+              ? 'Файл слишком большой (до 10 МБ).'
+              : up.status === 415 || up.status === 422
+                ? 'Нужен снимок JPG или PNG либо PDF.'
+                : 'Не получилось загрузить файл. Попробуйте ещё раз.';
+          return;
+        }
+        const who = q('[data-offline-patient]', box).value;
+        const r = await post(`/api/v1/patients/${who}/offline-results`, {
+          instrument_code: q('[data-offline-tool]', box).value,
+          method: 'photo',
+          upload_id: uploaded.id,
+          held_on: q('[data-offline-date]', box).value || undefined,
+        });
+        photoSave.disabled = false;
+        if (!r.ok) {
+          out.textContent = 'Не получилось сохранить в карточку. Попробуйте ещё раз.';
+          return;
+        }
+        const name = q('[data-offline-patient] option:checked', box).textContent;
+        box.innerHTML = `<section class="card" data-offline-saved="${esc(r.data.id)}" role="status"><h3>Фото сохранено в карточку</h3><p>${esc(name)}: бланк хранится в карточка → «Тесты» → «Очные результаты».</p><div class="acts"><a class="btn" href="/work/patients/${esc(who)}?ptab=tests">Открыть карточку</a></div></section>`;
+        return;
+      }
+      const save = e.target.closest('[data-offline-save]');
+      if (!save) return;
+      const form = q('[data-offline-form]', box);
+      const out = q('[data-offline-out]', box);
+      const given = answers();
+      const missing = [...box.querySelectorAll('fieldset[data-required]')].filter(
+        (fs) => given[fs.dataset.q] === undefined,
+      );
+      box.querySelectorAll('fieldset.is-missing').forEach((fs) => fs.classList.remove('is-missing'));
+      if (missing.length) {
+        missing.forEach((fs) => fs.classList.add('is-missing'));
+        out.textContent = `Не отмечено пунктов: ${missing.length}. Они подсвечены.`;
+        missing[0].scrollIntoView({ block: 'center', behavior: 'smooth' });
+        return;
+      }
+      save.disabled = true;
+      const who = q('[data-offline-patient]', box).value;
+      const r = await post(`/api/v1/patients/${who}/offline-results`, {
+        instrument_code: form.dataset.offlineForm,
+        method: 'manual',
+        answers: given,
+        held_on: q('[data-offline-date]', box).value || undefined,
+      });
+      save.disabled = false;
+      if (!r.ok) {
+        out.textContent =
+          r.status === 422
+            ? 'Проверьте ответы: не все пункты отмечены.'
+            : r.status === 403
+              ? 'Нет доступа к этому пациенту или шкале.'
+              : 'Не получилось сохранить. Попробуйте ещё раз.';
+        return;
+      }
+      const name = q('[data-offline-patient] option:checked', box).textContent;
+      box.innerHTML = `<section class="card" data-offline-saved="${esc(r.data.id)}" role="status"><h3>Сохранено в карточку</h3><p>${esc(name)}: ${esc(r.data.total_score)} баллов${r.data.band && r.data.band !== 'review_required' ? ` · ${esc(r.data.band)}` : ''}.</p>${r.data.risk_flag ? '<p class="warn"><b>Отмечен кризисный пункт</b> — создан сигнал на проверку.</p>' : ''}<div class="acts"><a class="btn" href="/work/patients/${esc(who)}?ptab=tests">Открыть карточку</a><button type="button" class="btn" data-offline-open="${esc(form.dataset.offlineForm)}">Заполнить ещё</button></div></section>`;
+    });
+  }
+
   // ---------- специалист: тесты и пакеты ----------
   async function clinicianTools() {
     const root = q('#work-tools');
@@ -1406,24 +1649,17 @@
     const [ins, pk] = await Promise.all([api('/api/v1/instruments'), api('/api/v1/packages')]);
     const list = (ins && ins.items) || [];
     const packs = (pk && pk.items) || [];
-    const side = q('[data-tools-side]');
     const linkedTool = new URLSearchParams(location.search).get('tool');
-    let selected = list.some((i) => i.code === linkedTool)
-      ? `ins:${linkedTool}`
-      : linkedTool === 'hads'
-        ? 'hads'
-        : list[0]
-        ? `ins:${list[0].code}`
-        : packs[0]
-          ? `pack:${packs[0].id}`
-          : 'start';
+    // Без ссылки на конкретный тест подробности не открыты: сверху — карточки, выбор — по нажатию.
+    let selected = list.some((i) => i.code === linkedTool) ? `ins:${linkedTool}` : linkedTool === 'hads' ? 'hads' : '';
 
     const detail = () => {
+      if (!selected) return '';
       const [kind, id] = selected.split(':');
       if (kind === 'ins') {
         const i = list.find((x) => x.code === id);
         if (!i) return '';
-        return `<section class="card" data-tool="${esc(i.code)}"><h3>${esc(i.title || testShort(i.code))}</h3><div class="sub">${esc(tx(`msg.tests.mode.${i.mode || 'assignable'}`))}${i.preview?.question_count ? ` · ${i.preview.question_count} вопросов` : ''}</div>${i.assignable !== false ? `<div class="acts"><button type="button" class="btn primary" data-assign="${esc(i.code)}">Назначить</button></div>` : ''}${toolPreview(i.preview)}<p class="muted small">${esc(tx('msg.tests.review_required'))}</p></section><div id="assign-flow"></div>`;
+        return `<section class="card" data-tool="${esc(i.code)}"><h3>${esc(i.title || testShort(i.code))}</h3><div class="sub">${esc(tx(`msg.tests.mode.${i.mode || 'assignable'}`))}${i.preview?.question_count ? ` · ${i.preview.question_count} вопросов` : ''}</div>${i.assignable !== false ? `<div class="acts"><button type="button" class="btn primary" data-assign="${esc(i.code)}">Назначить</button>${i.preview?.question_count ? `<button type="button" class="btn" data-offline-open="${esc(i.code)}">Внести очный результат</button><a class="btn" href="/print/test/${encodeURIComponent(i.code)}" target="_blank" rel="noopener">Распечатать бланк</a>` : ''}</div>` : ''}${toolPreview(i.preview)}<p class="muted small">${esc(tx('msg.tests.review_required'))}</p></section><div id="assign-flow"></div>`;
       }
       if (kind === 'pack') {
         const x = packs.find((p) => String(p.id) === id);
@@ -1433,57 +1669,46 @@
       }
       return `<section class="card"><h3>Пакет «Старт»</h3><div class="sub">настроение + тревога, раз в 2 недели ${soon()}</div><div class="acts"><button type="button" class="btn" disabled>Назначить</button></div></section><div id="assign-flow"></div>`;
     };
-    const row = (key, title, sub, dot) =>
-      `<a href="#" class="th${selected === key ? ' on' : ''}" data-toolsel="${esc(key)}"><span class="dotc ${dot}" aria-hidden="true"></span> <span>${esc(title)}</span><br><small class="lib-row-sub">${sub}</small></a>`;
     const paint = () => {
-      if (side)
-        side.innerHTML =
-          '<h4>Опросники</h4>' +
-          list
-            .map((i) =>
-              row(
-                `ins:${i.code}`,
-                i.title || testShort(i.code),
-                esc(tx(`msg.tests.mode.${i.mode || 'assignable'}`)),
-                i.assignable === false ? 'n' : 'g',
-              ),
-            )
-            .join('') +
-          row('hads', 'HADS', 'скоро появится', 'n') +
-          '<h4>Пакеты</h4>' +
-          (packs.length
-            ? packs
-                .map((x) => row(`pack:${x.id}`, x.title || 'Пакет', `${(x.items || []).length} опросников`, 'g'))
-                .join('')
-            : row('start', 'Пакет «Старт»', 'скоро', 'g')) +
-          '<h4>Очный приём</h4><a href="#offline" class="th" data-offline-link><span>Внести очный результат</span><br><small class="lib-row-sub">вручную или по фото бланка</small></a>';
+      const testCard = (key, title, sub, badge, tone) =>
+        `<button type="button" class="tcard tone-${tone}${selected === key ? ' is-on' : ''}" data-toolcard="${esc(key)}" aria-pressed="${selected === key}"><span class="tcard-ico"><svg class="i" aria-hidden="true" focusable="false"><use href="/icons.svg#i-clipboard-text"/></svg></span><span class="tcard-kind">${badge}</span><h3>${esc(title)}</h3><p>${sub}</p></button>`;
+      const ready = list.filter((i) => (i.mode || 'assignable') !== 'awaiting_text');
+      const soon = list.filter((i) => (i.mode || 'assignable') === 'awaiting_text');
+      const grid = `<section class="tech-section" aria-labelledby="tests-title"><div class="tech-head"><h2 id="tests-title">Тесты для назначения</h2><p>Назначаются пациенту кнопкой «Назначить» — он увидит тест у себя во вкладке «Методики».</p></div><div class="tech-grid">${ready
+        .map((i) =>
+          testCard(
+            `ins:${i.code}`,
+            i.title || testShort(i.code),
+            i.preview?.question_count ? `${i.preview.question_count} вопросов` : '',
+            esc(tx(`msg.tests.mode.${i.mode || 'assignable'}`)),
+            i.assignable === false ? 'sage' : 'jade',
+          ),
+        )
+        .join('')}${packs
+        .map((x) =>
+          testCard(`pack:${x.id}`, x.title || 'Пакет', `${(x.items || []).length} опросников`, 'Пакет', 'honey'),
+        )
+        .join(
+          '',
+        )}</div>${soon.length ? `<details class="soon-list"><summary>Скоро появятся (${soon.length})</summary><div class="soon-tags">${soon.map((i) => `<button type="button" class="tag" data-toolcard="ins:${esc(i.code)}">${esc(i.title || testShort(i.code))}</button>`).join('')}</div></details>` : ''}</section>`;
       root.innerHTML =
-        `<div class="tools-mobile-picker"><label>${esc(tx('msg.tests.catalog.pick'))}<select data-tool-picker>${list.map((i) => `<option value="ins:${esc(i.code)}"${selected === `ins:${i.code}` ? ' selected' : ''}>${esc(i.title)}</option>`).join('')}${packs.map((p) => `<option value="pack:${p.id}"${selected === `pack:${p.id}` ? ' selected' : ''}>${esc(p.title)}</option>`).join('')}</select></label></div>` +
+        grid +
         (selected === 'hads'
           ? '<section class="card"><h3>HADS</h3><div class="sub">Госпитальная шкала тревоги и депрессии. Скоро появится.</div></section>'
           : detail());
     };
     paint();
-    root.addEventListener('change', (e) => {
-      if (!e.target.matches('[data-tool-picker]')) return;
-      selected = e.target.value;
+    offlineForm(list, people, () => selected);
+    root.addEventListener('click', (e) => {
+      const cardBtn = e.target.closest('[data-toolcard]');
+      if (!cardBtn) return;
+      selected = cardBtn.dataset.toolcard;
       const url = new URL(location.href);
       if (selected.startsWith('ins:')) url.searchParams.set('tool', selected.slice(4));
       else url.searchParams.delete('tool');
       history.replaceState(null, '', url);
       paint();
-    });
-    side?.addEventListener('click', (e) => {
-      const link = e.target.closest('[data-toolsel]');
-      if (link) {
-        e.preventDefault();
-        selected = link.dataset.toolsel;
-        const url = new URL(location.href);
-        if (selected.startsWith('ins:')) url.searchParams.set('tool', selected.slice(4));
-        else url.searchParams.delete('tool');
-        history.replaceState(null, '', url);
-        paint();
-      }
+      q('[data-tool], #assign-flow', root)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
     });
     root.addEventListener('click', async (e) => {
       const b = e.target.closest('[data-assign],[data-assign-pack]');
@@ -1503,7 +1728,7 @@
           : { instrument_code: send.dataset.send };
         const r = await post(`/api/v1/patients/${who}/assignments`, body);
         q('#assign-out', root).textContent = r.ok
-          ? 'Отправлено пациенту. Он увидит тест во вкладке «Тесты».'
+          ? 'Отправлено пациенту. Он увидит тест во вкладке «Методики».'
           : r.status === 409
             ? 'Этот тест уже назначен пациенту и ещё не пройден.'
             : 'Не получилось назначить.';
@@ -1554,7 +1779,16 @@
         ? `<p class="sub" data-testid="msg.analytics.small">Недостаточно данных для общих цифр: в группе меньше 10. Ниже — ваши пациенты по отдельности.</p>`
         : '') +
       `<p class="footnote left" data-testid="msg.analytics.not_rating">Это не рейтинг пациентов и специалистов.</p>` +
-      card('Дневник вашей когорты', window.CCCohort ? window.CCCohort.html(cohort) : '') +
+      card(
+        'Дневник вашей когорты',
+        window.CCCohort
+          ? window.CCCohort.html(cohort, {
+              url: '/api/v1/analytics/export?section=diary',
+              label: tx('msg.analytics.export.csv_diary', 'Скачать CSV'),
+              testid: 'msg.analytics.export.csv_diary',
+            })
+          : '',
+      ) +
       card(
         'По вашим пациентам',
         `<table class="vtable"><thead><tr><th>Пациент</th><th>PHQ-9 (первый → последний)</th><th>GAD-7</th><th>Настроение (среднее)</th><th>Записей</th></tr></thead><tbody>${rows.map((r) => `<tr><td><a href="/work/patients/${r.p.id}">${esc(r.p.name)}</a></td><td>${cell(r.phq)}</td><td>${cell(r.gad)}</td><td>${r.mood ? r.mood.toFixed(1) : '—'}</td><td>${r.entries}</td></tr>`).join('')}</tbody></table><p class="muted small">Баллы — STAND-IN методики, не диагноз. Стрелка показывает изменение между первым и последним результатом.</p>`,

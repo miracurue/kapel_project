@@ -87,3 +87,27 @@ body.flower-sidebar .page-wrap { width: calc(100% - var(--w-panel) - var(--s-3))
  body.flower-sidebar .app-main { margin-right: 0; }
  body.flower-sidebar .page-wrap { width: 100%; }
 }
+/* Шапка как у обычного окна: «Развернуть» слева вверху, крестик справа вверху. */
+.fp-head h2 { flex: 1; min-width: 0; margin: 0; }
+.fp-head .fp-close { flex: none; margin-left: auto; }
+.fp-head .fp-expand { display: none; flex: none; gap: var(--s-1); text-decoration: none; }
+.is-sidebar .fp-head .fp-expand { display: inline-flex; }
+.is-sidebar .fp-head h2 { text-align: center; }
+@media (min-width: 961px) { body.flower-sidebar .page-wrap { margin-left: 0; margin-right: calc(var(--w-panel) + var(--s-3)); width: auto; max-width: none; padding-left: var(--gutter); } body.flower-sidebar .page-wrap > * { max-width: var(--w-read); margin-left: auto; margin-right: auto; } }
+
+/* Тёплое окошко под капелькой: небольшое, закрывается само или по нажатию, без перекрытия кнопок. */
+.flower-bubble { position: fixed; z-index: 40; max-width: min(320px, calc(100vw - 24px)); margin: 0; padding: var(--s-3) var(--s-4); border: 1px solid var(--hair); border-radius: var(--r-card); background: var(--white); color: var(--ink); box-shadow: var(--lift); font: inherit; font-size: var(--fs-14); line-height: 1.4; text-align: left; cursor: pointer; }
+.flower-bubble[hidden] { display: none; }
+.flower-bubble::before { content: ""; position: absolute; top: -6px; right: var(--s-5); width: 10px; height: 10px; background: var(--white); border-top: 1px solid var(--hair); border-left: 1px solid var(--hair); transform: rotate(45deg); }
+.flower-bubble.on { animation: flower-bubble-in var(--t-ripple, .4s) var(--ease, ease-out) both; }
+@keyframes flower-bubble-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+/* Капелька с цифрой: сколько капелек можно получить за действие (рисует flower.js, число приходит с сервера). */
+.drop-badge { display: inline-flex; align-items: center; gap: 2px; margin-left: var(--s-2); padding: 1px var(--s-2); border-radius: var(--r-pill); background: var(--water-light); color: var(--water-deep); font-size: var(--fs-13); font-weight: 700; line-height: 1.3; white-space: nowrap; vertical-align: middle; }
+.drop-badge:empty { display: none; }
+.drop-badge .drop { width: 1em; height: 1em; fill: var(--water); flex-shrink: 0; }
+.drop-badge.is-done { background: var(--ground); color: var(--ink-2); font-weight: 600; }
+.drop-badge.is-done .drop { fill: var(--ink-2); opacity: .6; }
+.btn.primary .drop-badge { background: var(--white); }
+.tech-done { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-2); margin-top: var(--s-4); }
+@media (prefers-reduced-motion: reduce) { .flower-bubble.on { animation: none; } }

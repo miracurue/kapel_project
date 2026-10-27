@@ -105,14 +105,14 @@ test('лекарства: выбор пациента и лекарства — 
     const page = await c.get('/work?tab=chat', { headers: { accept: 'text/html' } });
     assert.equal(page.status, 200);
     assert.match(String(page.body), /data-pick-search/);
-    assert.match(String(page.body), /data-subject/);
+    assert.doesNotMatch(String(page.body), /data-subject/);
     const more = await c.get('/work?tab=more', { headers: { accept: 'text/html' } });
     assert.doesNotMatch(String(more.body), /tab=drugs/);
     assert.ok(!expectOk(await c.get('/api/v1/me')).tabs.includes('drugs'));
   }
 });
 
-test('лекарства: диагноз и императивы в ответе по-прежнему вырезаются, а в обычном чате названия препаратов фильтруются', async () => {
+test('лекарства: чат специалиста не фильтруется — диагнозы, препараты и императивы проходят врачу', async () => {
   const psy = await ctx.as('psy1');
   const [a] = expectOk(await psy.get('/work/api/drugs?q=сертралин')).items;
   const { thread } = await open(psy, a.id);
@@ -122,9 +122,36 @@ test('лекарства: диагноз и императивы в ответе
     await psy.post(`/work/api/drugs/threads/${thread.id}/messages`, { text: 'Что делать?' }, { idem: false }),
     201,
   );
-  assert.equal(r.reply.status, 'filtered');
+  assert.equal(r.reply.status, 'normal', 'пост-фильтр для чата препарата снят');
+  assert.match(r.reply.text, /депрессия/);
+  assert.match(r.reply.text, /принимайте сертралин/);
   ctx.app.ai.reset();
   ctx.app.ai.queue({ mode: 'text', text: 'Сертралин назначают при депрессии.' });
   const chat = await psy.post('/api/v1/ai/clinician/messages', { text: 'Вопрос без пациента' });
-  assert.equal(expectOk(chat, 201).reply.status, 'filtered', 'общий чат специалиста фильтруется как раньше');
+  assert.equal(expectOk(chat, 201).reply.status, 'normal', 'общий чат специалиста тоже не фильтруется');
+});
+
+test('лекарства: карточка открывается справа без чата — тред появляется только при /open', async () => {
+  const psy = await ctx.as('psy1');
+  const [a] = expectOk(await psy.get('/work/api/drugs?q=сертралин')).items;
+  const before = expectOk(await psy.get('/work/api/drugs/threads')).items.length;
+  expectOk(await psy.get(`/work/api/drugs/${a.id}`));
+  assert.equal(
+    expectOk(await psy.get('/work/api/drugs/threads')).items.length,
+    before,
+    'просмотр карточки не создаёт тред',
+  );
+  const page = await psy.get('/work?tab=chat', { headers: { accept: 'text/html' } });
+  assert.match(String(page.body), /data-drug-panel/);
+  await open(psy, a.id);
+  assert.equal(expectOk(await psy.get('/work/api/drugs/threads')).items.length, before + 1);
+});
+
+test('клинреки в поиске чата: доступ как у лекарств, короткий запрос — пусто, без хранилища знаний — пусто/404', async () => {
+  const psy = await ctx.as('psy1');
+  assert.deepEqual(expectOk(await psy.get('/work/api/clinrecs?q=д')).items, []);
+  assert.deepEqual(expectOk(await psy.get(`/work/api/clinrecs?q=${encodeURIComponent('депрессия')}`)).items, []);
+  expectError(await psy.get('/work/api/clinrecs/nope'), 404, 'E-NOT-FOUND');
+  expectError(await (await ctx.as('patA')).get('/work/api/clinrecs?q=депрессия'), 403, 'E-ACCESS');
+  expectError(await ctx.guest().get('/work/api/clinrecs?q=депрессия'), 401, 'E-SESSION-EXPIRED');
 });

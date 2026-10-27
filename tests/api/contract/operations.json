@@ -1,10 +1,639 @@
 {
  "meta": {
-  "source": ".agents/web-developer/files/12-architecture/openapi.yaml",
+  "source": "docs/openapi.yaml",
   "version": "0.1.0-draft",
-  "operations": 272
+  "operations": 317
  },
  "operations": [
+  {
+   "method": "GET",
+   "path": "/api/v1/me/analytics",
+   "operationId": "get_me_analytics",
+   "tag": "analytics",
+   "page": null,
+   "functions": [
+    "F-71",
+    "F-74"
+   ],
+   "roles": [
+    {
+     "role": "R-02",
+     "scope": "С"
+    }
+   ],
+   "permission": "diary.write",
+   "patientAccess": "self",
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {},
+   "params": [
+    {
+     "name": "from",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    },
+    {
+     "name": "to",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    }
+   ],
+   "body": null
+  },
+  {
+   "method": "GET",
+   "path": "/api/v1/analytics/patients/{patient_id}",
+   "operationId": "get_analytics_patient",
+   "tag": "analytics",
+   "page": null,
+   "functions": [
+    "F-71",
+    "F-74"
+   ],
+   "roles": [
+    {
+     "role": "R-03",
+     "scope": "З"
+    },
+    {
+     "role": "R-04",
+     "scope": "З"
+    }
+   ],
+   "permission": "patient.view",
+   "patientAccess": "diary",
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {},
+   "params": [
+    {
+     "name": "patient_id",
+     "in": "path",
+     "required": true,
+     "type": "integer"
+    },
+    {
+     "name": "from",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    },
+    {
+     "name": "to",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    }
+   ],
+   "body": null
+  },
+  {
+   "method": "GET",
+   "path": "/api/v1/analytics/reports",
+   "operationId": "get_analytics_reports",
+   "tag": "analytics",
+   "page": null,
+   "functions": [
+    "F-71",
+    "F-74"
+   ],
+   "roles": [
+    {
+     "role": "R-03",
+     "scope": "А"
+    },
+    {
+     "role": "R-04",
+     "scope": "А"
+    },
+    {
+     "role": "R-05",
+     "scope": "А"
+    }
+   ],
+   "permission": "analytics.own",
+   "patientAccess": null,
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {},
+   "params": [
+    {
+     "name": "scope",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    },
+    {
+     "name": "from",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    },
+    {
+     "name": "to",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    }
+   ],
+   "body": null
+  },
+  {
+   "method": "GET",
+   "path": "/api/v1/admin/analytics/users",
+   "operationId": "get_admin_analytics_users",
+   "tag": "analytics",
+   "page": null,
+   "functions": [
+    "F-71",
+    "F-74"
+   ],
+   "roles": [
+    {
+     "role": "R-05",
+     "scope": "А"
+    }
+   ],
+   "permission": "admin.metrics",
+   "patientAccess": null,
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {},
+   "params": [
+    {
+     "name": "from",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    },
+    {
+     "name": "to",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    }
+   ],
+   "body": null
+  },
+  {
+   "method": "GET",
+   "path": "/api/v1/admin/dashboard",
+   "operationId": "get_admin_dashboard",
+   "tag": "analytics",
+   "page": null,
+   "functions": [
+    "F-71",
+    "F-74"
+   ],
+   "roles": [
+    {
+     "role": "R-05",
+     "scope": "А"
+    }
+   ],
+   "permission": "admin.metrics",
+   "patientAccess": null,
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {},
+   "params": [
+    {
+     "name": "days",
+     "in": "query",
+     "required": false,
+     "type": "integer"
+    },
+    {
+     "name": "dx",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    }
+   ],
+   "body": null
+  },
+  {
+   "method": "GET",
+   "path": "/api/v1/admin/insights",
+   "operationId": "get_admin_insights",
+   "tag": "analytics",
+   "page": null,
+   "functions": [
+    "F-71",
+    "F-74"
+   ],
+   "roles": [
+    {
+     "role": "R-05",
+     "scope": "А"
+    }
+   ],
+   "permission": "admin.metrics",
+   "patientAccess": null,
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {},
+   "params": [
+    {
+     "name": "dx",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    },
+    {
+     "name": "from",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    },
+    {
+     "name": "to",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    }
+   ],
+   "body": null
+  },
+  {
+   "method": "GET",
+   "path": "/api/v1/admin/insights/export",
+   "operationId": "get_admin_insights_export",
+   "tag": "analytics",
+   "page": null,
+   "functions": [
+    "F-71",
+    "F-74"
+   ],
+   "roles": [
+    {
+     "role": "R-05",
+     "scope": "А"
+    }
+   ],
+   "permission": "admin.metrics",
+   "patientAccess": null,
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {},
+   "params": [
+    {
+     "name": "dx",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    },
+    {
+     "name": "from",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    },
+    {
+     "name": "to",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    }
+   ],
+   "body": null
+  },
+  {
+   "method": "GET",
+   "path": "/api/v1/analytics/export",
+   "operationId": "get_analytics_export",
+   "tag": "analytics",
+   "page": null,
+   "functions": [
+    "F-71",
+    "F-74"
+   ],
+   "roles": [
+    {
+     "role": "R-03",
+     "scope": "А"
+    },
+    {
+     "role": "R-04",
+     "scope": "А"
+    },
+    {
+     "role": "R-05",
+     "scope": "А"
+    }
+   ],
+   "permission": "analytics.export",
+   "patientAccess": null,
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {},
+   "params": [
+    {
+     "name": "section",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    },
+    {
+     "name": "dx",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    },
+    {
+     "name": "from",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    },
+    {
+     "name": "to",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    }
+   ],
+   "body": null
+  },
+  {
+   "method": "GET",
+   "path": "/api/v1/analytics/my-insights",
+   "operationId": "get_analytics_my_insights",
+   "tag": "analytics",
+   "page": null,
+   "functions": [
+    "F-71",
+    "F-74"
+   ],
+   "roles": [
+    {
+     "role": "R-03",
+     "scope": "З"
+    },
+    {
+     "role": "R-04",
+     "scope": "З"
+    }
+   ],
+   "permission": "analytics.own",
+   "patientAccess": null,
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {},
+   "params": [
+    {
+     "name": "dx",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    },
+    {
+     "name": "from",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    },
+    {
+     "name": "to",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    }
+   ],
+   "body": null
+  },
+  {
+   "method": "GET",
+   "path": "/api/v1/me/clinician-profile",
+   "operationId": "get_me_clinician_profile",
+   "tag": "analytics",
+   "page": null,
+   "functions": [
+    "F-71"
+   ],
+   "roles": [
+    {
+     "role": "R-03",
+     "scope": "С"
+    },
+    {
+     "role": "R-04",
+     "scope": "С"
+    }
+   ],
+   "permission": "analytics.own",
+   "patientAccess": null,
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {},
+   "params": [],
+   "body": null
+  },
+  {
+   "method": "PUT",
+   "path": "/api/v1/me/clinician-profile",
+   "operationId": "put_me_clinician_profile",
+   "tag": "analytics",
+   "page": null,
+   "functions": [
+    "F-71"
+   ],
+   "roles": [
+    {
+     "role": "R-03",
+     "scope": "С"
+    },
+    {
+     "role": "R-04",
+     "scope": "С"
+    }
+   ],
+   "permission": "analytics.own",
+   "patientAccess": null,
+   "idempotency": "required",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {},
+   "params": [],
+   "body": null
+  },
+  {
+   "method": "GET",
+   "path": "/api/v1/patients/{patient_id}/diagnosis",
+   "operationId": "get_patient_diagnosis",
+   "tag": "analytics",
+   "page": null,
+   "functions": [
+    "F-71",
+    "F-74"
+   ],
+   "roles": [
+    {
+     "role": "R-03",
+     "scope": "З"
+    },
+    {
+     "role": "R-04",
+     "scope": "З"
+    }
+   ],
+   "permission": "patient.view",
+   "patientAccess": "diagnosis",
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {},
+   "params": [
+    {
+     "name": "patient_id",
+     "in": "path",
+     "required": true,
+     "type": "integer"
+    }
+   ],
+   "body": null
+  },
+  {
+   "method": "PUT",
+   "path": "/api/v1/patients/{patient_id}/diagnosis",
+   "operationId": "put_patient_diagnosis",
+   "tag": "analytics",
+   "page": null,
+   "functions": [
+    "F-71",
+    "F-74"
+   ],
+   "roles": [
+    {
+     "role": "R-03",
+     "scope": "З"
+    }
+   ],
+   "permission": "diagnosis.record",
+   "patientAccess": "diagnosis",
+   "idempotency": "required",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {},
+   "params": [
+    {
+     "name": "patient_id",
+     "in": "path",
+     "required": true,
+     "type": "integer"
+    }
+   ],
+   "body": null
+  },
+  {
+   "method": "POST",
+   "path": "/api/v1/admin/staff",
+   "operationId": "post_admin_staff",
+   "tag": "admin-people",
+   "page": null,
+   "functions": [
+    "F-89"
+   ],
+   "roles": [
+    {
+     "role": "R-05",
+     "scope": "В"
+    },
+    {
+     "role": "R-06",
+     "scope": "В"
+    }
+   ],
+   "permission": "admin.users",
+   "patientAccess": null,
+   "idempotency": "required",
+   "undo": true,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {
+    "E-SESSION-EXPIRED": [
+     401
+    ],
+    "E-CSRF": [
+     403
+    ],
+    "E-ACCESS": [
+     403
+    ],
+    "E-EMAIL-TAKEN": [
+     409
+    ],
+    "E-IDEMPOTENCY-MISMATCH": [
+     409
+    ],
+    "E-VALIDATION": [
+     422
+    ],
+    "E-INTERNAL": [
+     500
+    ]
+   },
+   "params": [
+    {
+     "name": "Idempotency-Key",
+     "in": "header",
+     "required": true,
+     "type": "string"
+    }
+   ],
+   "body": {
+    "media": "application/json",
+    "required": [
+     "full_name",
+     "email",
+     "role"
+    ],
+    "properties": [
+     "email",
+     "full_name",
+     "role"
+    ]
+   }
+  },
   {
    "method": "GET",
    "path": "/healthz",
@@ -877,6 +1506,58 @@
    }
   },
   {
+   "method": "GET",
+   "path": "/api/v1/me/prefs",
+   "operationId": "get_me_prefs",
+   "tag": "auth",
+   "page": null,
+   "functions": [
+    "F-09",
+    "F-34",
+    "F-44",
+    "F-51"
+   ],
+   "roles": [
+    {
+     "role": "R-02",
+     "scope": "С"
+    },
+    {
+     "role": "R-03",
+     "scope": "С"
+    },
+    {
+     "role": "R-04",
+     "scope": "С"
+    },
+    {
+     "role": "R-05",
+     "scope": "С"
+    },
+    {
+     "role": "R-06",
+     "scope": "С"
+    }
+   ],
+   "permission": "session",
+   "patientAccess": null,
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {
+    "E-SESSION-EXPIRED": [
+     401
+    ],
+    "E-ACCESS": [
+     403
+    ]
+   },
+   "params": [],
+   "body": null
+  },
+  {
    "method": "PATCH",
    "path": "/api/v1/me/prefs",
    "operationId": "patch_me_prefs",
@@ -949,11 +1630,14 @@
     "media": "application/json",
     "required": [],
     "properties": [
+     "address_form",
      "ai_intro_seen",
      "course_support_enabled",
      "diary_notes_visible",
      "hints_enabled",
      "onboarding_done",
+     "praise_mode",
+     "push_subscription",
      "timezone"
     ]
    }
@@ -2311,6 +2995,9 @@
     "E-RATE-LIMIT": [
      429
     ],
+    "E-CHAT-PAUSED": [
+     429
+    ],
     "E-INTERNAL": [
      500
     ],
@@ -2345,6 +3032,7 @@
     ],
     "properties": [
      "chips",
+     "progress_id",
      "text",
      "thread_id",
      "upload_ids"
@@ -2406,6 +3094,12 @@
    "params": [
     {
      "name": "purpose",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    },
+    {
+     "name": "progress_id",
      "in": "query",
      "required": false,
      "type": "string"
@@ -2725,6 +3419,9 @@
      429
     ],
     "E-RATE-LIMIT": [
+     429
+    ],
+    "E-CHAT-PAUSED": [
      429
     ],
     "E-INTERNAL": [
@@ -3478,6 +4175,9 @@
     "E-CSRF": [
      403
     ],
+    "E-INSTRUMENT-LICENSE": [
+     403
+    ],
     "E-CONSENT-REQUIRED": [
      403
     ],
@@ -3746,6 +4446,295 @@
      "in": "query",
      "required": false,
      "type": "string"
+    }
+   ],
+   "body": null
+  },
+  {
+   "method": "GET",
+   "path": "/api/v1/me/diary-workspace",
+   "operationId": "get_me_diary_workspace",
+   "tag": "diary",
+   "page": null,
+   "functions": [
+    "F-39",
+    "F-56"
+   ],
+   "roles": [
+    {
+     "role": "R-02",
+     "scope": "С"
+    }
+   ],
+   "permission": "diary.write",
+   "patientAccess": "self",
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {},
+   "params": [
+    {
+     "name": "window",
+     "in": "query",
+     "required": false,
+     "type": "integer"
+    },
+    {
+     "name": "from",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    },
+    {
+     "name": "to",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    }
+   ],
+   "body": null
+  },
+  {
+   "method": "PUT",
+   "path": "/api/v1/me/diary-workspace",
+   "operationId": "put_me_diary_workspace",
+   "tag": "diary",
+   "page": null,
+   "functions": [
+    "F-39",
+    "F-56"
+   ],
+   "roles": [
+    {
+     "role": "R-02",
+     "scope": "С"
+    }
+   ],
+   "permission": "diary.write",
+   "patientAccess": "self",
+   "idempotency": "required",
+   "undo": false,
+   "crisisGate": true,
+   "warnings": [],
+   "public": false,
+   "errors": {},
+   "params": [
+    {
+     "name": "X-CSRF-Token",
+     "in": "header",
+     "required": true,
+     "type": "string"
+    },
+    {
+     "name": "Idempotency-Key",
+     "in": "header",
+     "required": true,
+     "type": "string"
+    }
+   ],
+   "body": {
+    "media": "application/json",
+    "required": [
+     "revision",
+     "state"
+    ],
+    "properties": [
+     "noteSharing",
+     "revision",
+     "state",
+     "window"
+    ]
+   }
+  },
+  {
+   "method": "GET",
+   "path": "/api/v1/me/flower",
+   "operationId": "get_me_flower",
+   "tag": "flower",
+   "page": null,
+   "functions": [
+    "F-39"
+   ],
+   "roles": [
+    {
+     "role": "R-02",
+     "scope": "С"
+    }
+   ],
+   "permission": "flower.view",
+   "patientAccess": "self",
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {},
+   "params": [],
+   "body": null
+  },
+  {
+   "method": "POST",
+   "path": "/api/v1/me/flower/water",
+   "operationId": "post_me_flower_water",
+   "tag": "flower",
+   "page": null,
+   "functions": [
+    "F-39"
+   ],
+   "roles": [
+    {
+     "role": "R-02",
+     "scope": "С"
+    }
+   ],
+   "permission": "flower.water",
+   "patientAccess": "self",
+   "idempotency": "required",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {},
+   "params": [
+    {
+     "name": "X-CSRF-Token",
+     "in": "header",
+     "required": true,
+     "type": "string"
+    },
+    {
+     "name": "Idempotency-Key",
+     "in": "header",
+     "required": true,
+     "type": "string"
+    }
+   ],
+   "body": {
+    "media": "application/json",
+    "required": [],
+    "properties": [
+     "steps"
+    ]
+   }
+  },
+  {
+   "method": "POST",
+   "path": "/api/v1/me/flower/technique",
+   "operationId": "post_me_flower_technique",
+   "tag": "flower",
+   "page": null,
+   "functions": [
+    "F-39"
+   ],
+   "roles": [
+    {
+     "role": "R-02",
+     "scope": "С"
+    }
+   ],
+   "permission": "flower.water",
+   "patientAccess": "self",
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {},
+   "params": [
+    {
+     "name": "X-CSRF-Token",
+     "in": "header",
+     "required": true,
+     "type": "string"
+    }
+   ],
+   "body": {
+    "media": "application/json",
+    "required": [
+     "slug"
+    ],
+    "properties": [
+     "slug"
+    ]
+   }
+  },
+  {
+   "method": "POST",
+   "path": "/api/v1/me/flower/message",
+   "operationId": "post_me_flower_message",
+   "tag": "flower",
+   "page": null,
+   "functions": [
+    "F-39"
+   ],
+   "roles": [
+    {
+     "role": "R-02",
+     "scope": "С"
+    }
+   ],
+   "permission": "flower.water",
+   "patientAccess": "self",
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {},
+   "params": [
+    {
+     "name": "X-CSRF-Token",
+     "in": "header",
+     "required": true,
+     "type": "string"
+    }
+   ],
+   "body": {
+    "media": "application/json",
+    "required": [
+     "action"
+    ],
+    "properties": [
+     "action"
+    ]
+   }
+  },
+  {
+   "method": "GET",
+   "path": "/api/v1/patients/{patient_id}/diary-workspace",
+   "operationId": "get_patient_diary_workspace",
+   "tag": "diary",
+   "page": null,
+   "functions": [
+    "F-39",
+    "F-56"
+   ],
+   "roles": [
+    {
+     "role": "R-03",
+     "scope": "З"
+    },
+    {
+     "role": "R-04",
+     "scope": "З"
+    }
+   ],
+   "permission": "patient.view",
+   "patientAccess": "diary",
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {},
+   "params": [
+    {
+     "name": "patient_id",
+     "in": "path",
+     "required": true,
+     "type": "integer"
     }
    ],
    "body": null
@@ -4145,6 +5134,8 @@
     "media": "application/json",
     "required": [],
     "properties": [
+     "dose",
+     "dose_unit",
      "form_unknown",
      "pending_name",
      "product_id"
@@ -4819,6 +5810,9 @@
     "E-ACCESS": [
      403
     ],
+    "E-NOT-FOUND": [
+     404
+    ],
     "E-IDEMPOTENCY-MISMATCH": [
      409
     ],
@@ -4853,13 +5847,21 @@
     "media": "application/json",
     "required": [],
     "properties": [
+     "discard",
+     "draft_id",
      "from_suggestion",
+     "item_key",
+     "med",
      "med_ref",
+     "patient_med_id",
      "related",
      "severity",
+     "source",
      "started_on",
+     "submit",
      "symptoms",
      "text",
+     "thread_id",
      "upload_ids"
     ]
    }
@@ -6085,6 +7087,144 @@
      "submit"
     ]
    }
+  },
+  {
+   "method": "POST",
+   "path": "/api/v1/patients/{patient_id}/adverse-events",
+   "operationId": "post_patients_patient_id_adverse_events",
+   "tag": "ae",
+   "page": null,
+   "functions": [
+    "F-45",
+    "F-65"
+   ],
+   "roles": [
+    {
+     "role": "R-03",
+     "scope": "З"
+    },
+    {
+     "role": "R-04",
+     "scope": "З"
+    }
+   ],
+   "permission": "ae.report_clinician",
+   "patientAccess": "ae_intake",
+   "idempotency": "required",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {
+    "E-SESSION-EXPIRED": [
+     401
+    ],
+    "E-CSRF": [
+     403
+    ],
+    "E-ACCESS": [
+     403
+    ],
+    "E-CONSENT-REQUIRED": [
+     403
+    ],
+    "E-NOT-FOUND": [
+     404
+    ],
+    "E-NO-PSYCHIATRIST": [
+     409
+    ],
+    "E-STATUS": [
+     409
+    ],
+    "E-IDEMPOTENCY-MISMATCH": [
+     409
+    ],
+    "E-VALIDATION": [
+     422
+    ]
+   },
+   "params": [
+    {
+     "name": "Idempotency-Key",
+     "in": "header",
+     "required": true,
+     "type": "string"
+    },
+    {
+     "name": "patient_id",
+     "in": "path",
+     "required": true,
+     "type": "integer"
+    }
+   ],
+   "body": {
+    "media": "application/json",
+    "required": [
+     "text",
+     "severity"
+    ],
+    "properties": [
+     "comment",
+     "decision",
+     "med",
+     "serious",
+     "severity",
+     "source",
+     "started_on",
+     "symptoms",
+     "text",
+     "thread_id"
+    ]
+   }
+  },
+  {
+   "method": "GET",
+   "path": "/api/v1/patients/{patient_id}/adverse-events/offer",
+   "operationId": "get_patients_patient_id_adverse_events_offer",
+   "tag": "ae",
+   "page": null,
+   "functions": [
+    "F-45",
+    "F-65"
+   ],
+   "roles": [
+    {
+     "role": "R-03",
+     "scope": "З"
+    },
+    {
+     "role": "R-04",
+     "scope": "З"
+    }
+   ],
+   "permission": "ae.report_clinician",
+   "patientAccess": "ae_intake",
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {
+    "E-SESSION-EXPIRED": [
+     401
+    ],
+    "E-ACCESS": [
+     403
+    ],
+    "E-NOT-FOUND": [
+     404
+    ]
+   },
+   "params": [
+    {
+     "name": "patient_id",
+     "in": "path",
+     "required": true,
+     "type": "integer"
+    }
+   ],
+   "body": null
   },
   {
    "method": "GET",
@@ -8258,6 +9398,7 @@
      "method"
     ],
     "properties": [
+     "answers",
      "held_on",
      "instrument_code",
      "method",
@@ -10774,6 +11915,43 @@
    }
   },
   {
+   "method": "GET",
+   "path": "/api/v1/admin/substitutions",
+   "operationId": "get_admin_substitutions",
+   "tag": "admin-queue",
+   "page": null,
+   "functions": [
+    "F-87"
+   ],
+   "roles": [
+    {
+     "role": "R-05",
+     "scope": "В"
+    },
+    {
+     "role": "R-06",
+     "scope": "В"
+    }
+   ],
+   "permission": "admin.assignments",
+   "patientAccess": null,
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {
+    "E-SESSION-EXPIRED": [
+     401
+    ],
+    "E-ACCESS": [
+     403
+    ]
+   },
+   "params": [],
+   "body": null
+  },
+  {
    "method": "POST",
    "path": "/api/v1/admin/substitutions",
    "operationId": "post_admin_substitutions",
@@ -11159,77 +12337,6 @@
   },
   {
    "method": "POST",
-   "path": "/api/v1/admin/staff",
-   "operationId": "post_admin_staff",
-   "tag": "admin-people",
-   "page": null,
-   "functions": [
-    "F-89"
-   ],
-   "roles": [
-    {
-     "role": "R-05",
-     "scope": "В"
-    },
-    {
-     "role": "R-06",
-     "scope": "В"
-    }
-   ],
-   "permission": "admin.users",
-   "patientAccess": null,
-   "idempotency": "required",
-   "undo": true,
-   "crisisGate": false,
-   "warnings": [],
-   "public": false,
-   "errors": {
-    "E-SESSION-EXPIRED": [
-     401
-    ],
-    "E-CSRF": [
-     403
-    ],
-    "E-ACCESS": [
-     403
-    ],
-    "E-EMAIL-TAKEN": [
-     409
-    ],
-    "E-IDEMPOTENCY-MISMATCH": [
-     409
-    ],
-    "E-VALIDATION": [
-     422
-    ],
-    "E-INTERNAL": [
-     500
-    ]
-   },
-   "params": [
-    {
-     "name": "Idempotency-Key",
-     "in": "header",
-     "required": true,
-     "type": "string"
-    }
-   ],
-   "body": {
-    "media": "application/json",
-    "required": [
-     "full_name",
-     "email",
-     "role"
-    ],
-    "properties": [
-     "email",
-     "full_name",
-     "role"
-    ]
-   }
-  },
-  {
-   "method": "POST",
    "path": "/api/v1/admin/people/{user_id}/password-reset",
    "operationId": "post_admin_people_user_id_password_reset",
    "tag": "admin-people",
@@ -11463,6 +12570,59 @@
      "reason_key"
     ]
    }
+  },
+  {
+   "method": "POST",
+   "path": "/api/v1/admin/people/{user_id}/chat-troll/clear",
+   "operationId": "post_admin_people_user_id_chat_troll_clear",
+   "tag": "admin-people",
+   "page": null,
+   "functions": [
+    "F-88"
+   ],
+   "roles": [
+    {
+     "role": "R-05",
+     "scope": "В"
+    },
+    {
+     "role": "R-06",
+     "scope": "В"
+    }
+   ],
+   "permission": "admin.users",
+   "patientAccess": null,
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {
+    "E-SESSION-EXPIRED": [
+     401
+    ],
+    "E-CSRF": [
+     403
+    ],
+    "E-ACCESS": [
+     403
+    ],
+    "E-NOT-FOUND": [
+     404
+    ],
+    "E-INTERNAL": [
+     500
+    ]
+   },
+   "params": [
+    {
+     "name": "user_id",
+     "in": "path",
+     "required": true,
+     "type": "integer"
+    }
+   ],
+   "body": null
   },
   {
    "method": "PUT",
@@ -13177,6 +14337,200 @@
      "primary_model_id"
     ]
    }
+  },
+  {
+   "method": "GET",
+   "path": "/api/v1/admin/ai/prompts",
+   "operationId": "get_admin_ai_prompts",
+   "tag": "admin-ai",
+   "page": null,
+   "functions": [
+    "F-101"
+   ],
+   "roles": [
+    {
+     "role": "R-05",
+     "scope": "В"
+    },
+    {
+     "role": "R-06",
+     "scope": "В"
+    }
+   ],
+   "permission": "admin.ai",
+   "patientAccess": null,
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {
+    "E-SESSION-EXPIRED": [
+     401
+    ],
+    "E-ACCESS": [
+     403
+    ],
+    "E-INTERNAL": [
+     500
+    ]
+   },
+   "params": [],
+   "body": null
+  },
+  {
+   "method": "GET",
+   "path": "/api/v1/admin/ai/prompts/compose",
+   "operationId": "get_admin_ai_prompts_compose",
+   "tag": "admin-ai",
+   "page": null,
+   "functions": [
+    "F-101"
+   ],
+   "roles": [
+    {
+     "role": "R-05",
+     "scope": "В"
+    },
+    {
+     "role": "R-06",
+     "scope": "В"
+    }
+   ],
+   "permission": "admin.ai",
+   "patientAccess": null,
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {
+    "E-SESSION-EXPIRED": [
+     401
+    ],
+    "E-ACCESS": [
+     403
+    ],
+    "E-NOT-FOUND": [
+     404
+    ],
+    "E-INTERNAL": [
+     500
+    ]
+   },
+   "params": [
+    {
+     "name": "task",
+     "in": "query",
+     "required": true,
+     "type": "string"
+    },
+    {
+     "name": "role",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    },
+    {
+     "name": "tools",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    },
+    {
+     "name": "skills",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    }
+   ],
+   "body": null
+  },
+  {
+   "method": "POST",
+   "path": "/api/v1/me/onboarding",
+   "operationId": "post_me_onboarding",
+   "tag": "auth",
+   "page": null,
+   "functions": [
+    "F-09"
+   ],
+   "roles": [
+    {
+     "role": "R-02",
+     "scope": "С"
+    },
+    {
+     "role": "R-03",
+     "scope": "С"
+    },
+    {
+     "role": "R-04",
+     "scope": "С"
+    },
+    {
+     "role": "R-05",
+     "scope": "С"
+    },
+    {
+     "role": "R-06",
+     "scope": "С"
+    }
+   ],
+   "permission": "session",
+   "patientAccess": null,
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {
+    "E-SESSION-EXPIRED": [
+     401
+    ],
+    "E-ACCESS": [
+     403
+    ]
+   },
+   "params": [],
+   "body": null
+  },
+  {
+   "method": "GET",
+   "path": "/api/v1/me/substitutions/candidates",
+   "operationId": "get_me_substitutions_candidates",
+   "tag": "patients",
+   "page": null,
+   "functions": [
+    "F-70"
+   ],
+   "roles": [
+    {
+     "role": "R-03",
+     "scope": "З"
+    },
+    {
+     "role": "R-04",
+     "scope": "З"
+    }
+   ],
+   "permission": "substitution.propose",
+   "patientAccess": null,
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {
+    "E-SESSION-EXPIRED": [
+     401
+    ],
+    "E-ACCESS": [
+     403
+    ]
+   },
+   "params": [],
+   "body": null
   },
   {
    "method": "GET",
@@ -17989,6 +19343,704 @@
     ]
    },
    "params": [],
+   "body": null
+  },
+  {
+   "method": "GET",
+   "path": "/work/api/drugs/{inn_id}/instructions",
+   "operationId": "get_work_drug_instructions",
+   "tag": "drugs",
+   "page": null,
+   "functions": [],
+   "roles": [],
+   "permission": "psychiatrist, psychologist",
+   "patientAccess": null,
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {
+    "E-ACCESS": [
+     403
+    ],
+    "E-NOT-FOUND": [
+     404
+    ]
+   },
+   "params": [
+    {
+     "name": "inn_id",
+     "in": "path",
+     "required": true,
+     "type": "integer"
+    }
+   ],
+   "body": null
+  },
+  {
+   "method": "GET",
+   "path": "/work/api/drugs/{inn_id}/instructions/{doc_id}/toc",
+   "operationId": "get_work_drug_instruction_toc",
+   "tag": "drugs",
+   "page": null,
+   "functions": [],
+   "roles": [],
+   "permission": "psychiatrist, psychologist",
+   "patientAccess": null,
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {
+    "E-NOT-FOUND": [
+     404
+    ],
+    "E-AI-UNAVAILABLE": [
+     503
+    ]
+   },
+   "params": [
+    {
+     "name": "inn_id",
+     "in": "path",
+     "required": true,
+     "type": "integer"
+    },
+    {
+     "name": "doc_id",
+     "in": "path",
+     "required": true,
+     "type": "string"
+    }
+   ],
+   "body": null
+  },
+  {
+   "method": "GET",
+   "path": "/work/api/drugs/{inn_id}/instructions/{doc_id}/sections/{section_id}",
+   "operationId": "get_work_drug_instruction_section",
+   "tag": "drugs",
+   "page": null,
+   "functions": [],
+   "roles": [],
+   "permission": "psychiatrist, psychologist",
+   "patientAccess": null,
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {
+    "E-NOT-FOUND": [
+     404
+    ],
+    "E-VALIDATION": [
+     422
+    ],
+    "E-AI-UNAVAILABLE": [
+     503
+    ]
+   },
+   "params": [
+    {
+     "name": "inn_id",
+     "in": "path",
+     "required": true,
+     "type": "integer"
+    },
+    {
+     "name": "doc_id",
+     "in": "path",
+     "required": true,
+     "type": "string"
+    },
+    {
+     "name": "section_id",
+     "in": "path",
+     "required": true,
+     "type": "string"
+    },
+    {
+     "name": "cursor",
+     "in": "query",
+     "required": false,
+     "type": "integer"
+    }
+   ],
+   "body": null
+  },
+  {
+   "method": "GET",
+   "path": "/work/api/drugs/{inn_id}/search",
+   "operationId": "get_work_drug_instruction_search",
+   "tag": "drugs",
+   "page": null,
+   "functions": [],
+   "roles": [],
+   "permission": "psychiatrist, psychologist",
+   "patientAccess": null,
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {
+    "E-VALIDATION": [
+     422
+    ],
+    "E-RATE-LIMIT": [
+     429
+    ]
+   },
+   "params": [
+    {
+     "name": "inn_id",
+     "in": "path",
+     "required": true,
+     "type": "integer"
+    },
+    {
+     "name": "q",
+     "in": "query",
+     "required": true,
+     "type": "string"
+    },
+    {
+     "name": "limit",
+     "in": "query",
+     "required": false,
+     "type": "integer"
+    },
+    {
+     "name": "offset",
+     "in": "query",
+     "required": false,
+     "type": "integer"
+    }
+   ],
+   "body": null
+  },
+  {
+   "method": "GET",
+   "path": "/work/api/drugs/knowledge/search",
+   "operationId": "get_work_drug_knowledge_search",
+   "tag": "drugs",
+   "page": null,
+   "functions": [],
+   "roles": [],
+   "permission": "psychiatrist, psychologist",
+   "patientAccess": null,
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {
+    "E-VALIDATION": [
+     422
+    ],
+    "E-RATE-LIMIT": [
+     429
+    ]
+   },
+   "params": [
+    {
+     "name": "q",
+     "in": "query",
+     "required": true,
+     "type": "string"
+    },
+    {
+     "name": "limit",
+     "in": "query",
+     "required": false,
+     "type": "integer"
+    },
+    {
+     "name": "offset",
+     "in": "query",
+     "required": false,
+     "type": "integer"
+    }
+   ],
+   "body": null
+  },
+  {
+   "method": "GET",
+   "path": "/work/api/drugs/documents/{doc_id}",
+   "operationId": "get_work_drug_document",
+   "tag": "drugs",
+   "page": null,
+   "functions": [],
+   "roles": [],
+   "permission": "psychiatrist, psychologist",
+   "patientAccess": null,
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {
+    "E-ACCESS": [
+     403
+    ],
+    "E-NOT-FOUND": [
+     404
+    ],
+    "E-AI-UNAVAILABLE": [
+     503
+    ]
+   },
+   "params": [
+    {
+     "name": "doc_id",
+     "in": "path",
+     "required": true,
+     "type": "string"
+    }
+   ],
+   "body": null
+  },
+  {
+   "method": "GET",
+   "path": "/work/api/drugs/documents/{doc_id}/sections/{section_id}",
+   "operationId": "get_work_drug_document_section",
+   "tag": "drugs",
+   "page": null,
+   "functions": [],
+   "roles": [],
+   "permission": "psychiatrist, psychologist",
+   "patientAccess": null,
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {
+    "E-NOT-FOUND": [
+     404
+    ],
+    "E-VALIDATION": [
+     422
+    ],
+    "E-AI-UNAVAILABLE": [
+     503
+    ]
+   },
+   "params": [
+    {
+     "name": "doc_id",
+     "in": "path",
+     "required": true,
+     "type": "string"
+    },
+    {
+     "name": "section_id",
+     "in": "path",
+     "required": true,
+     "type": "string"
+    },
+    {
+     "name": "cursor",
+     "in": "query",
+     "required": false,
+     "type": "integer"
+    },
+    {
+     "name": "chunk",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    }
+   ],
+   "body": null
+  },
+  {
+   "method": "GET",
+   "path": "/work/api/documents",
+   "operationId": "get_work_documents",
+   "tag": "documents",
+   "page": null,
+   "functions": [],
+   "roles": [],
+   "permission": "psychiatrist",
+   "patientAccess": null,
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {
+    "E-SESSION-EXPIRED": [
+     401
+    ],
+    "E-ACCESS": [
+     403
+    ]
+   },
+   "params": [
+    {
+     "name": "patient_id",
+     "in": "query",
+     "required": false,
+     "type": "integer"
+    }
+   ],
+   "body": null
+  },
+  {
+   "method": "POST",
+   "path": "/work/api/documents",
+   "operationId": "post_work_documents",
+   "tag": "documents",
+   "page": null,
+   "functions": [],
+   "roles": [],
+   "permission": "psychiatrist",
+   "patientAccess": null,
+   "idempotency": "required",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {
+    "E-ACCESS": [
+     403
+    ],
+    "E-CSRF": [
+     403
+    ],
+    "E-NOT-FOUND": [
+     404
+    ],
+    "E-STATUS": [
+     409
+    ],
+    "E-IDEMPOTENCY-MISMATCH": [
+     409
+    ],
+    "E-VALIDATION": [
+     422
+    ]
+   },
+   "params": [],
+   "body": {
+    "media": "application/json",
+    "required": [
+     "template_key",
+     "patient_id"
+    ],
+    "properties": [
+     "ae_id",
+     "patient_id",
+     "template_key"
+    ]
+   }
+  },
+  {
+   "method": "GET",
+   "path": "/work/api/documents/blank",
+   "operationId": "get_work_documents_blank",
+   "tag": "documents",
+   "page": null,
+   "functions": [],
+   "roles": [],
+   "permission": "psychiatrist",
+   "patientAccess": null,
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {
+    "E-ACCESS": [
+     403
+    ],
+    "E-VALIDATION": [
+     422
+    ]
+   },
+   "params": [
+    {
+     "name": "format",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    },
+    {
+     "name": "template_key",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    }
+   ],
+   "body": null
+  },
+  {
+   "method": "GET",
+   "path": "/work/api/documents/{id}",
+   "operationId": "get_work_document",
+   "tag": "documents",
+   "page": null,
+   "functions": [],
+   "roles": [],
+   "permission": "psychiatrist",
+   "patientAccess": null,
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {
+    "E-ACCESS": [
+     403
+    ],
+    "E-NOT-FOUND": [
+     404
+    ]
+   },
+   "params": [
+    {
+     "name": "id",
+     "in": "path",
+     "required": true,
+     "type": "integer"
+    }
+   ],
+   "body": null
+  },
+  {
+   "method": "PUT",
+   "path": "/work/api/documents/{id}",
+   "operationId": "put_work_document",
+   "tag": "documents",
+   "page": null,
+   "functions": [],
+   "roles": [],
+   "permission": "psychiatrist",
+   "patientAccess": null,
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {
+    "E-ACCESS": [
+     403
+    ],
+    "E-CSRF": [
+     403
+    ],
+    "E-NOT-FOUND": [
+     404
+    ],
+    "E-CONFLICT": [
+     409
+    ],
+    "E-SIGNED-IMMUTABLE": [
+     409
+    ],
+    "E-VALIDATION": [
+     422
+    ]
+   },
+   "params": [
+    {
+     "name": "id",
+     "in": "path",
+     "required": true,
+     "type": "integer"
+    }
+   ],
+   "body": {
+    "media": "application/json",
+    "required": [
+     "version",
+     "fields"
+    ],
+    "properties": [
+     "fields",
+     "version"
+    ]
+   }
+  },
+  {
+   "method": "DELETE",
+   "path": "/work/api/documents/{id}",
+   "operationId": "delete_work_document",
+   "tag": "documents",
+   "page": null,
+   "functions": [],
+   "roles": [],
+   "permission": "psychiatrist",
+   "patientAccess": null,
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {
+    "E-ACCESS": [
+     403
+    ],
+    "E-CSRF": [
+     403
+    ],
+    "E-NOT-FOUND": [
+     404
+    ],
+    "E-SIGNED-IMMUTABLE": [
+     409
+    ]
+   },
+   "params": [
+    {
+     "name": "id",
+     "in": "path",
+     "required": true,
+     "type": "integer"
+    }
+   ],
+   "body": null
+  },
+  {
+   "method": "POST",
+   "path": "/work/api/documents/{id}/ready",
+   "operationId": "post_work_document_ready",
+   "tag": "documents",
+   "page": null,
+   "functions": [],
+   "roles": [],
+   "permission": "psychiatrist",
+   "patientAccess": null,
+   "idempotency": "required",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {
+    "E-ACCESS": [
+     403
+    ],
+    "E-CSRF": [
+     403
+    ],
+    "E-NOT-FOUND": [
+     404
+    ],
+    "E-CONFLICT": [
+     409
+    ],
+    "E-SIGNED-IMMUTABLE": [
+     409
+    ],
+    "E-IDEMPOTENCY-MISMATCH": [
+     409
+    ],
+    "E-VALIDATION": [
+     422
+    ]
+   },
+   "params": [
+    {
+     "name": "id",
+     "in": "path",
+     "required": true,
+     "type": "integer"
+    }
+   ],
+   "body": {
+    "media": "application/json",
+    "required": [],
+    "properties": [
+     "version"
+    ]
+   }
+  },
+  {
+   "method": "POST",
+   "path": "/work/api/documents/{id}/revise",
+   "operationId": "post_work_document_revise",
+   "tag": "documents",
+   "page": null,
+   "functions": [],
+   "roles": [],
+   "permission": "psychiatrist",
+   "patientAccess": null,
+   "idempotency": "required",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {
+    "E-ACCESS": [
+     403
+    ],
+    "E-CSRF": [
+     403
+    ],
+    "E-NOT-FOUND": [
+     404
+    ],
+    "E-STATUS": [
+     409
+    ],
+    "E-IDEMPOTENCY-MISMATCH": [
+     409
+    ]
+   },
+   "params": [
+    {
+     "name": "id",
+     "in": "path",
+     "required": true,
+     "type": "integer"
+    }
+   ],
+   "body": null
+  },
+  {
+   "method": "GET",
+   "path": "/work/api/documents/{id}/file",
+   "operationId": "get_work_document_file",
+   "tag": "documents",
+   "page": null,
+   "functions": [],
+   "roles": [],
+   "permission": "psychiatrist",
+   "patientAccess": null,
+   "idempotency": "not_used",
+   "undo": false,
+   "crisisGate": false,
+   "warnings": [],
+   "public": false,
+   "errors": {
+    "E-ACCESS": [
+     403
+    ],
+    "E-NOT-FOUND": [
+     404
+    ],
+    "E-VALIDATION": [
+     422
+    ]
+   },
+   "params": [
+    {
+     "name": "id",
+     "in": "path",
+     "required": true,
+     "type": "integer"
+    },
+    {
+     "name": "format",
+     "in": "query",
+     "required": false,
+     "type": "string"
+    }
+   ],
    "body": null
   }
  ]

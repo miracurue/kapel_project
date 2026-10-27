@@ -30,8 +30,15 @@ test('T-230 [W-10] «Войти как» каждую роль без парол
   }
   const route = expectOk(await new Client(ctx.app.base).get('/api/v1/demo/route'));
   assert.ok(route.steps.length >= 3 && route.steps.length <= 8);
-  const page = await new Client(ctx.app.base).get('/', { headers: { accept: 'text/html' } });
+  const page = await new Client(ctx.app.base).get('/demo', { headers: { accept: 'text/html' } });
   assert.match(page.body, /data-page="P-01"/);
+  assert.match(page.body, /data-testid="msg\.p01\.role\.admin"/, 'быстрый вход по ролям — на /demo');
+  for (const path of ['/', '/login']) {
+    const entry = await new Client(ctx.app.base).get(path, { headers: { accept: 'text/html' } });
+    assert.match(entry.body, /data-testid="msg\.login\.email"/, `${path}: вход по почте`);
+    assert.match(entry.body, /href="\/register\?as=specialist"/, `${path}: регистрация специалиста`);
+    assert.doesNotMatch(entry.body, /data-demo-role/, `${path}: без быстрого входа`);
+  }
   assert.match(page.body, /data-testid="msg\.p01\./, '«Войти как» на P-01');
   assert.match(page.body, /синтетическ/i, 'демо-строка (L-01)');
   const log = ctx.app.query("SELECT count(*) n FROM action_log WHERE action LIKE 'demo.%'")[0].n;
@@ -45,12 +52,19 @@ test('T-231 [W-10] сброс демо: только с подтверждени
   const marker = 'Синтетическая запись до сброса Т13';
   expectOk(await patient.post('/api/v1/me/diary', { mood: 2, note: marker }));
   expectError(await host.post('/api/v1/demo/reset', {}), 422, 'E-VALIDATION');
-  const [a, b] = await Promise.all([host.post('/api/v1/demo/reset', { confirm: true }), host.post('/api/v1/demo/reset', { confirm: true })]);
+  const [a, b] = await Promise.all([
+    host.post('/api/v1/demo/reset', { confirm: true }),
+    host.post('/api/v1/demo/reset', { confirm: true }),
+  ]);
   const statuses = [a.status, b.status].sort();
   assert.equal(statuses[0], 200);
   assert.ok(statuses[1] === 200 || statuses[1] === 409, 'параллельный второй сброс не выполняется');
   expectError(await patient.get('/api/v1/me'), 401, 'E-SESSION-EXPIRED');
-  assert.equal(ctx.app.query('SELECT count(*) n FROM mood_entries WHERE note = ?', marker)[0].n, 0, 'база вернулась к эталону');
+  assert.equal(
+    ctx.app.query('SELECT count(*) n FROM mood_entries WHERE note = ?', marker)[0].n,
+    0,
+    'база вернулась к эталону',
+  );
   const files = ctx.app.query("SELECT count(*) n FROM stored_files WHERE purpose = 'temp_upload'")[0].n;
   assert.equal(files, 0, 'загрузки стёрты');
 });
@@ -58,8 +72,18 @@ test('T-231 [W-10] сброс демо: только с подтверждени
 // covers: T-232, UC-40, F-97, S-62
 test('T-232 [W-10] S-62: ведущий меняет шаги маршрута (3–8, только страницы сервиса); после сброса — эталонный маршрут', async () => {
   const { c: host } = await loginAs('demo_host');
-  expectError(await F.setSetting(host, 'demo.route', [{ title: 'Внешний', url: 'https://example.test' }]), 422, 'E-SETTING-INVALID');
-  expectOk(await F.setSetting(host, 'demo.route', [{ title: 'Пациент', url: '/app' }, { title: 'Врач', url: '/work' }, { title: 'Сигналы', url: '/work?tab=signals' }]));
+  expectError(
+    await F.setSetting(host, 'demo.route', [{ title: 'Внешний', url: 'https://example.test' }]),
+    422,
+    'E-SETTING-INVALID',
+  );
+  expectOk(
+    await F.setSetting(host, 'demo.route', [
+      { title: 'Пациент', url: '/app' },
+      { title: 'Врач', url: '/work' },
+      { title: 'Сигналы', url: '/work?tab=signals' },
+    ]),
+  );
   assert.equal(expectOk(await new Client(ctx.app.base).get('/api/v1/demo/route')).steps.length, 3);
 });
 
@@ -74,14 +98,21 @@ test('T-233 [W-10] вне демо-режима (DEMO_MODE=0) демо-адре�
     assert.doesNotMatch(page.body, /data-testid="msg\.p01\.login_as/);
     const demo = await g.get('/demo', { headers: { accept: 'text/html' } });
     assert.equal(demo.status, 404);
-  } finally { await app.stop(); }
+  } finally {
+    await app.stop();
+  }
 });
 
 // covers: T-234, UC-40, F-79, PD-24
 test('T-234 [W-10] эталон и сид содержат только синтетику: почта — служебные домены, телефоны и документы — заглушки, без реальных людей', async () => {
   const users = ctx.app.query("SELECT email, full_name, contact_phone FROM users WHERE status <> 'tombstone'");
   for (const u of users) {
-    if (u.email) assert.match(u.email, /@([a-z0-9-]+\.)*(example\.(com|test|org)|cc\.example\.test|demo\.local)$/i, `синтетическая почта: ${u.email}`);
+    if (u.email)
+      assert.match(
+        u.email,
+        /@([a-z0-9-]+\.)*(example\.(com|test|org)|cc\.example\.test|demo\.local)$/i,
+        `синтетическая почта: ${u.email}`,
+      );
     if (u.contact_phone) assert.match(u.contact_phone.replace(/\D/g, ''), /0000|555/, 'телефон-заглушка');
   }
 });

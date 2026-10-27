@@ -23,7 +23,10 @@ for (const dir of packageDirs) {
     /^@img\/sharp-libvips-(linux|darwin|win32|linuxmusl)-[a-z0-9]+$/.test(pkg.name) &&
     license === 'LGPL-3.0-or-later' &&
     fs.existsSync(path.join(dir, 'versions.json'));
-  if (!allowed.test(license) && !sharpVips)
+  // Решение владельца 2026-10-25: та же неизменённая libvips, собранная sharp под wasm32 (FreeBSD, WebContainers).
+  // npm ставит пакет на всех платформах (в нём не указаны os/cpu), но на Linux sharp его не загружает.
+  const sharpWasm = pkg.name === '@img/sharp-wasm32' && license === 'Apache-2.0 AND LGPL-3.0-or-later AND MIT';
+  if (!allowed.test(license) && !sharpVips && !sharpWasm)
     failures.push(`${pkg.name}@${pkg.version}: ${license || 'license missing'}`);
 }
 if (failures.length) {

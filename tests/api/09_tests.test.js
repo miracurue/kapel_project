@@ -70,8 +70,12 @@ test('T-142 [W-15] подсчёт на сервере совпадает с ру
   const picks = [0, 1, 2, 3, 1, 2, 0];
   let i = 0;
   const res = expectOk(await F.completeTest(p, a.id, (q) => q.options[picks[i++ % picks.length]].value));
-  assert.equal(res.score, picks.reduce((s, x) => s + x, 0));
-  assert.ok(res.band, 'словесная полоса');
+  // Решение владельца: балл и полоса GAD-7 пациенту не показываются (policyForCode), их видит специалист.
+  // Поэтому подсчёт сверяем по сохранённому результату.
+  const [stored] = ctx.app.query('SELECT total_score, band FROM online_results WHERE assignment_id=?', a.id);
+  assert.equal(stored.total_score, picks.reduce((s, x) => s + x, 0));
+  assert.ok(stored.band, 'словесная полоса');
+  assert.equal(res.score, undefined, 'балл GAD-7 пациенту не отдаётся');
   assert.ok(res.band_note_key, 'ключ строки «это не диагноз, результат увидит специалист»');
   assert.doesNotMatch(JSON.stringify(res), /норма|патолог|риск/i);
   void doc;

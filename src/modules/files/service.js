@@ -30,10 +30,18 @@ function readable(db, row, user, current) {
       .get(row.linked_id);
   } else if (row.linked_type === 'adverse_event') {
     if (user.role === 'psychologist') return false;
-    object = db.prepare('SELECT patient_id,visible_from,status FROM adverse_events WHERE id=?').get(row.linked_id);
+    object = db
+      .prepare('SELECT patient_id,visible_from,status,psychiatrist_id FROM adverse_events WHERE id=?')
+      .get(row.linked_id);
+    // Личная запись пациента без врача никому, кроме него, не видна.
+    if (object && object.status === 'service_queue' && !object.psychiatrist_id && user.role !== 'patient') return false;
     // F-45: файлы черновика НЯ читает только владелец-пациент; отменённые — никто.
     if (object && ['cancelled', 'draft'].includes(object.status))
       return object.status === 'draft' && user.role === 'patient' && user.id === object.patient_id;
+  } else if (row.linked_type === 'offline_result') {
+    // Фото бланка очного приёма: только специалист, закреплённый за пациентом (пациенту оно не показывается).
+    if (user.role === 'patient') return false;
+    object = db.prepare("SELECT patient_id,'' visible_from FROM offline_results WHERE id=?").get(row.linked_id);
   } else if (row.linked_type === 'ai_message') {
     return (
       row.owner_user_id === user.id &&

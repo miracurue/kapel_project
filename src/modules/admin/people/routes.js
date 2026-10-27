@@ -12,7 +12,6 @@ const express = require('express');
 
 const db = require('../../../db');
 const platform = require('../../../platform');
-const { requirePermission } = require('../../../permissions');
 const core = require('../../../admin_core');
 const peopleCore = require('./adminCore');
 
@@ -20,9 +19,12 @@ const P = platform;
 
 const router = express.Router();
 
-const adminOnly = requirePermission('admin.users');
 const err = (req, res, status, code, extra) => P.sendError(req, res, status, code, extra);
+// Роль уже проверил контрактный контроль (src/access); здесь — вторая линия на случай монтирования вне /api.
+const adminOnly = (req, res, next) =>
+  ['admin', 'bootstrap_admin'].includes(req.user?.role) ? next() : err(req, res, 403, 'E-ACCESS');
 const ok = (res, body) => res.json(body);
+const trollOf = (until) => (until ? { until } : null);
 
 // Причины блокировки S-54 (экран R-07) — ключи совпадают с msg.blocked.reason.list.*.
 const S54_REASONS = ['staff_leave', 'suspicious', 'owner_request', 'rules', 'other'];
@@ -34,13 +36,28 @@ router.get('/', adminOnly, (req, res) => {
   const role = filter === 'patients' ? 'patient' : filter === 'staff' ? 'staff' : '';
   const f = { role: role === 'staff' ? undefined : role, q: req.query.q, page: req.query.page };
   const result = peopleCore.listPeople(req.user.id, f);
-  ok(res, { items: result.items, page: result.page, page_size: peopleCore.PAGE_SIZE, total: result.total });
+  // Статус ТРОЛЛЬ (пауза чата пациента): только факт и срок, без содержимого чатов.
+  const paused = req.app.locals.chatConduct ? req.app.locals.chatConduct.activeMap() : new Map();
+  const items = result.items.map((p) => (p.role === 'patient' ? { ...p, chat_troll: trollOf(paused.get(p.id)) } : p));
+  ok(res, { items, page: result.page, page_size: peopleCore.PAGE_SIZE, total: result.total });
 });
 
 router.get('/:id', adminOnly, (req, res) => {
   const r = peopleCore.getPersonCard(req.user.id, req.params.id);
   if (!r.ok) return err(req, res, 404, 'E-NOT-FOUND');
+  if (r.card.role === 'patient')
+    r.card.chat_troll = trollOf(req.app.locals.chatConduct && req.app.locals.chatConduct.activeMap().get(r.card.id));
   ok(res, r.card);
+});
+
+// Снять статус ТРОЛЛЬ (мягкую паузу чата) вручную; без содержимого чатов, пишется в журнал действий.
+router.post('/:id/chat-troll/clear', adminOnly, (req, res) => {
+  const target = core.getUser(req.params.id);
+  if (!target || target.role !== 'patient') return err(req, res, 404, 'E-NOT-FOUND');
+  const conduct = req.app.locals.chatConduct;
+  const cleared = conduct ? conduct.clear(target.id, req.user.id) : false;
+  if (cleared) core.logAdmin(req.user.id, 'chat_troll_clear', target.id, {});
+  ok(res, { ok: true, cleared });
 });
 
 router.post('/:id/reveal-contacts', adminOnly, (req, res) => {
@@ -217,6 +234,8 @@ router.put('/:id/role', adminOnly, (req, res) => {
   if (target.id === req.user.id) return err(req, res, 403, 'E-SELF-ACTION');
   const role = String((req.body || {}).role || '');
   if (!['psychiatrist', 'psychologist', 'admin'].includes(role)) return err(req, res, 422, 'E-VALIDATION');
+  // Пациента в специалисты не повышают (у него дневник, согласия и закрепление), а специалиста в пациента не превращают.
+  if (target.role === 'patient') return err(req, res, 422, 'E-VALIDATION');
   if (role === 'admin' && ['psychiatrist', 'psychologist'].includes(target.role)) {
     const n = db
       .prepare('SELECT COUNT(*) n FROM care_assignments WHERE clinician_id = ? AND ended_at IS NULL')

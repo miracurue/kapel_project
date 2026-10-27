@@ -6,22 +6,27 @@
  * drops — сколько капелек за одно событие; dailyCap — не больше капелек в день за это действие;
  * once — событие награждается один раз за всё время; backdated — можно ли награждать запись за прошлые дни
  * (нельзя: запись «задним числом» дальше вчерашнего дня капелек не даёт, чтобы не накручивать).
+ * Тест и методика награждаются не чаще раза в день каждый (ключ содержит день), поэтому повторное прохождение в другой день даёт капельки снова.
  */
 const RULES = {
-  diary: { drops: 3, dailyCap: 3, backdated: false },
-  habit: { drops: 1, dailyCap: 3, backdated: false },
-  med: { drops: 1, dailyCap: 3, backdated: false },
-  test: { drops: 2, dailyCap: 4 },
-  note: { drops: 1, dailyCap: 2, backdated: false },
-  ai: { drops: 1, dailyCap: 2 },
-  article: { drops: 1, dailyCap: 2 },
-  plan: { drops: 2, dailyCap: 4 },
-  visit: { drops: 3, dailyCap: 3 },
-  start: { drops: 2, dailyCap: 2, once: true },
+  login: { drops: 3, dailyCap: 3 },
+  diary: { drops: 12, dailyCap: 12, backdated: false },
+  habit: { drops: 4, dailyCap: 12, backdated: false },
+  med: { drops: 3, dailyCap: 9, backdated: false },
+  test: { drops: 9, dailyCap: 18 },
+  technique: { drops: 7, dailyCap: 14 },
+  note: { drops: 4, dailyCap: 8, backdated: false },
+  ai: { drops: 3, dailyCap: 6 },
+  article: { drops: 4, dailyCap: 8 },
+  plan: { drops: 9, dailyCap: 18 },
+  visit: { drops: 15, dailyCap: 15 },
+  start: { drops: 9, dailyCap: 9, once: true },
 };
 
 // Общий дневной предел. Часть событий в день может остаться без капелек — это не ошибка, они просто сверх нормы.
-const DAILY_MAX = 15;
+// Расчёт: полный цветок — 840 капелек; обычный день около 36, максимум 60, поэтому регулярный пользователь
+// вырастает цветок примерно за 3 недели, а тот, кто заходит реже, — за 1–2 месяца (цветок не вянет).
+const DAILY_MAX = 60;
 
 // Рост: один шаг стоит STEP_PRICE капелек, всего шагов столько же, сколько в прототипе (420 = 12 ветвей, 120 листьев, 12 цветов).
 const STEP_PRICE = 2;

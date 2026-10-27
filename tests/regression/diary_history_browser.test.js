@@ -30,7 +30,7 @@ test('old note sharing survives bounded save, historical doctor preview, unshare
     }
   }
   await B.open(page, ctx.app, '/app?tab=diary');
-  await page.click('#tab-history'); // История — отдельная вкладка страницы
+  // История — секция той же страницы, без отдельных вкладок.
   await oldMonth();
   const index = 13 - 120;
   await page.click(`[data-open-day="${index}"]`);

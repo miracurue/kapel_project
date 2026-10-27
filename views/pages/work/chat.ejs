@@ -6,41 +6,42 @@
   Локалы: t, patients (закреплённые, [{id, name}]), hintsEnabled, isPsychiatrist.
   Клиентская логика — public/js/work_chat.js (новый файл, W-35).
 %>
-<section class="chat-tab" data-work-chat
+<section class="chat-tab" data-work-chat data-ae-mode="<%= isPsychiatrist ? 'psychiatrist' : 'psychologist' %>"
   data-patients="<%- encodeURIComponent(JSON.stringify(patients)) %>"
+  data-t-history-delete="<%= t('msg.chat.history.delete') %>"
   data-t-patient-chip="<%= t('msg.wchat.patient_chip') %>"
-  data-t-no-chips="<%= t('msg.wchat.no_chips') %>"
   data-t-under-answer="<%= t('msg.ai.clinician.under_answer') %>"
-  data-t-to-doc="<%= t('msg.wchat.to_doc') %>"
-  data-t-open-card="<%= t('msg.wchat.open_card') %>"
   data-t-rate-useful="<%= t('msg.ai.rate.useful') %>"
   data-t-rate-not-useful="<%= t('msg.ai.rate.not_useful') %>"
   data-t-pick-patient="<%= t('msg.wchat.pick_patient') %>"
   data-t-drug-placeholder="<%= t('msg.wchat.drug.placeholder') %>"
   data-t-chat-placeholder="<%= t('msg.wchat.placeholder') %>"
-  data-t-pick-patient-card="<%= t('msg.wchat.pick.patient_card') %>"
-  data-t-pick-patient-hint="<%= t('msg.wchat.pick.patient_hint') %>"
-  data-t-pick-open-patient="<%= t('msg.wchat.pick.open_patient') %>"
-  data-t-pick-patients="<%= t('msg.wchat.pick.patients') %>"
+  data-t-ask-label="<%= t('msg.wchat.ask_label') %>"
+  data-t-sugg-label="<%= t('msg.composer.suggestions') %>"
+  data-t-pick-clinrecs="<%= t('msg.wchat.pick.clinrecs') %>"
+  data-t-kind-drug="<%= t('msg.wchat.pick.kind_drug') %>"
+  data-t-kind-clinrec="<%= t('msg.wchat.pick.kind_clinrec') %>"
+  data-clinrec-strings="<%= encodeURIComponent(JSON.stringify(Object.fromEntries(['panel', 'sections', 'version', 'ask', 'chip', 'placeholder', 'q1', 'q2', 'q3', 'open_failed', 'pdf', 'more', 'loading', 'section_failed', 'figure', 'source'].map((k) => [k, t('msg.wchat.clinrec.' + k)])))) %>"
   data-t-pick-drugs="<%= t('msg.wchat.pick.drugs') %>"
   data-t-pick-none="<%= t('msg.wchat.pick.none') %>"
-  data-drug-strings="<%= encodeURIComponent(JSON.stringify(Object.fromEntries(['trade', 'no_trade', 'atc', 'rx', 'otc', 'articles', 'no_articles', 'stand_in', 'ai_assisted', 'all_articles', 'open_failed', 'send_failed', 'q1', 'q2', 'q3', 'q4'].map((k) => [k, t('msg.drugs.' + k)])))) %>">
+  data-drug-strings="<%= encodeURIComponent(JSON.stringify(Object.fromEntries(['trade', 'no_trade', 'atc', 'rx', 'otc', 'articles', 'no_articles', 'stand_in', 'ai_assisted', 'open_failed', 'send_failed', 'ask', 'chip', 'panel', 'panel_close', 'q1', 'q2', 'q3', 'q4'].map((k) => [k, t('msg.drugs.' + k)])))) %>"
+  data-source-strings="<%= encodeURIComponent(JSON.stringify(Object.fromEntries(['title', 'kind_clinrec', 'kind_drug', 'kind_literature', 'kind_model', 'model_title', 'model_badge', 'model_cite', 'model_note', 'card_open', 'lead', 'chapters', 'mark_label', 'load_failed', 'open_failed', 'literature_open', 'literature_note'].map((k) => [k, t('msg.wchat.source.' + k)])))) %>"
+  data-instr-strings="<%= encodeURIComponent(JSON.stringify(Object.fromEntries(['title', 'none', 'loading', 'load_failed', 'toc_empty', 'page', 'more', 'sources'].map((k) => [k, t('msg.drugs.instr.' + k)])))) %>">
   <aside class="side" aria-label="История чатов" data-work-side>
     <div class="side-head"><a class="new" href="/work?tab=chat" data-testid="msg.chat.history.new"><%= t('msg.chat.history.new') %></a></div>
-    <input type="search" class="tpl-find" data-testid="msg.wchat.pick.search" data-pick-search maxlength="80" autocomplete="off" placeholder="<%= t('msg.wchat.pick.search') %>" aria-label="<%= t('msg.wchat.pick.search') %>">
-    <div class="pick-results" data-pick-results role="listbox" aria-label="<%= t('msg.wchat.pick.search') %>" hidden></div>
+    <div class="pick">
+      <input type="search" class="tpl-find" data-testid="msg.wchat.pick.search" data-pick-search maxlength="80" autocomplete="off" placeholder="<%= t('msg.wchat.pick.search') %>" aria-label="<%= t('msg.wchat.pick.search_label') %>" role="combobox" aria-expanded="false" aria-autocomplete="list">
+      <div class="pick-results" data-pick-results role="listbox" aria-label="<%= t('msg.wchat.pick.search_label') %>" hidden></div>
+    </div>
     <div data-threads><p class="small muted" data-testid="msg.chat.history.empty"><%= t('msg.chat.history.empty') %></p></div>
     <p class="small muted" data-testid="msg.chat.history.retention"><%= t('msg.chat.history.retention') %></p>
   </aside>
   <div class="pane">
     <div class="scroll">
       <div class="col feed">
-        <article class="subject-card" data-subject hidden></article>
         <div data-feed aria-live="polite"></div>
         <div class="hello" data-hello>
           <h1 data-testid="msg.wchat.empty.title"><%= t('msg.wchat.empty.title') %></h1>
-          <p data-testid="msg.wchat.pick_patient"><%= t('msg.wchat.pick_patient') %></p>
-          <p data-testid="msg.wchat.empty.lead"><%= t('msg.wchat.empty.lead') %></p>
           <div class="ideas">
             <button type="button" class="idea" data-testid="msg.wchat.example.changes" data-idea="<%= t('msg.wchat.example.changes') %>"><%= t('msg.wchat.example.changes') %></button>
             <button type="button" class="idea" data-testid="msg.wchat.example.visit" data-idea="<%= t('msg.wchat.example.visit') %>"><%= t('msg.wchat.example.visit') %></button>
@@ -56,17 +57,40 @@
     <div class="dock">
       <div class="col">
         <p data-testid="msg.ai.clinician.composer_note"><%= t('msg.ai.clinician.composer_note') %></p>
-        <div data-chips></div>
+        <div class="chat-ctx" data-chips-row><span class="chat-ctx__label" data-chips-label hidden><%= t('msg.wchat.context_label') %></span><div data-chips></div></div>
         <div class="chat-sugg" data-testid="msg.composer.suggestions"><span class="chat-sugg__label"><%= t('msg.composer.suggestions') %></span> <span data-suggestions></span></div>
         <div class="chat-input">
           <textarea data-testid="msg.wchat.placeholder" rows="2" placeholder="<%= t('msg.wchat.placeholder') %>" aria-label="<%= t('msg.wchat.placeholder') %>" autocomplete="off"></textarea>
           <button type="button" data-testid="msg.composer.send"><%= t('msg.composer.send') %></button>
         </div>
         <div role="listbox" data-mention aria-label="<%= t('msg.wchat.pick_patient') %>" hidden></div>
-        <p data-testid="msg.wchat.no_chips" data-no-chips hidden><%= t('msg.wchat.no_chips') %></p>
       </div>
     </div>
   </div>
+  <div class="panel-resizer" data-panel-resizer role="separator" aria-orientation="vertical" tabindex="0" aria-label="Ширина панели" hidden></div>
+  <%# Третий блок справа: по умолчанию сигналы, временно — препарат, инструкция, клинрек или источник ответа ИИ (work_chat.js, signal_rail.js). %>
+  <aside class="drug-panel" data-drug-panel hidden aria-label="<%= t('msg.drugs.panel') %>">
+    <section class="alert-rail" data-alert-rail hidden aria-label="Требует вашего внимания" role="region">
+      <div class="alert-rail__head"><strong>Требует вашего внимания</strong><button type="button" class="round" data-alert-close aria-label="Закрыть панель, напомним позже"><svg class="i" aria-hidden="true" focusable="false"><use href="/icons.svg#i-x"/></svg></button></div>
+      <ul class="alert-rail__list" data-alert-list></ul>
+      <p class="small muted" data-alert-more></p>
+      <a class="btn sm" href="/work?tab=signals">Открыть «Сигналы»</a>
+    </section>
+    <div class="drug-panel__view" data-drug-panel-view hidden>
+      <div class="drug-panel__head">
+        <strong data-drug-panel-title></strong>
+        <button type="button" class="btn ask-ai" data-testid="msg.drugs.ask" data-drug-ask><svg class="i" aria-hidden="true" focusable="false"><use href="/icons.svg#i-sparkle"/></svg><span><%= t('msg.drugs.ask_short') %></span></button>
+        <button type="button" class="round" data-testid="msg.drugs.panel_close" data-drug-panel-close aria-label="<%= t('msg.drugs.panel_close') %>"><svg class="i" aria-hidden="true" focusable="false"><use href="/icons.svg#i-x"/></svg></button>
+      </div>
+      <div class="drug-panel__body" data-drug-panel-body></div>
+    </div>
+  </aside>
 </section>
+<script src="/js/signal_rail.js" defer></script>
+<script src="/js/work_drug_docs.js" defer></script>
+<script src="/js/clinrec_md.js" defer></script>
+<script src="/js/work_sources.js" defer></script>
+<script src="/js/ae_wizard.js" defer></script>
+<script src="/js/ae_clinician.js" defer></script>
 <script src="/js/work_chat.js" defer></script>
 <script src="/js/mic.js" defer></script>

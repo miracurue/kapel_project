@@ -60,9 +60,12 @@ const CATEGORY_LABELS = {
   diary_note_revisions: 'История заметок дневника',
   analytics_product_activity: 'Активность пользователя',
   reminders: 'Напоминания',
+  push_subscriptions: 'Подписки устройств на пуши',
+  push_deliveries: 'Журнал отправленных пушей',
   chatbot_sessions: 'Сессии чат-бота',
   chatbot_messages: 'Сообщения чат-бота',
   ai_threads: 'Диалоги с ИИ',
+  crisis_ai_assessments: 'Оценки ИИ в кризисном разговоре',
   ai_messages: 'Сообщения ИИ-чата',
   ai_prefs: 'Настройки ИИ-чата',
   patient_contact_requests: 'Обращения к врачу',
@@ -360,6 +363,12 @@ function execute(adminId, requestId, { confirmServiceNo } = {}) {
           .prepare('DELETE FROM ai_threads WHERE owner_user_id = ? OR patient_id = ?')
           .run(pid, pid).changes;
         report.deleted.ai_prefs = db.prepare('DELETE FROM ai_prefs WHERE user_id = ?').run(pid).changes;
+      }
+      // шаги агента (без patient_id; каскад при foreign_keys = OFF не сработает), сами запуски — в шаге 4
+      if (tables().includes('ai_agent_steps')) {
+        report.deleted.ai_agent_steps = db
+          .prepare('DELETE FROM ai_agent_steps WHERE run_id IN (SELECT id FROM ai_agent_runs WHERE patient_id = ?)')
+          .run(pid).changes;
       }
       // 4) стирание по белому списку: факты сохраняются, тексты стираются; остальное удаляется.
       const allTables = tables();

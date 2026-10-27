@@ -47,7 +47,9 @@ test('T-211 [W-17] карточка: вкладки обзор·лечение·
   const plg = await ctx.as('plg1');
   expectError(await plg.get(`/api/v1/patients/${ctx.id('patA')}?tab=treatment`), 403, 'E-ACCESS');
   const ov = expectOk(await plg.get(`/api/v1/patients/${ctx.id('patA')}?tab=overview`));
-  assert.doesNotMatch(JSON.stringify(ov), /сертралин|adverse|побочн/i, 'у психолога нет строки НЯ и лекарств');
+  assert.equal(ov.overview.adverse_events, null, 'у психолога нет строки НЯ');
+  assert.equal(ov.overview.patient_meds, null, 'и лекарств');
+  assert.doesNotMatch(JSON.stringify(ov), /сертралин|побочн/i, 'ни названий препаратов, ни слов о побочных эффектах');
   const admin = await ctx.as('admin1');
   expectOk(await admin.post('/api/v1/admin/care-assignments', { patient_id: ctx.id('patI'), clinician_id: ctx.id('plg1'), action: 'unassign' }));
   await F.passUndoWindow(ctx.app);

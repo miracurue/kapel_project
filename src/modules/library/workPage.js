@@ -111,7 +111,7 @@ function render(user) {
   </div>
   <div class="lib-resizer" data-lib-resizer role="separator" tabindex="0" aria-orientation="vertical" aria-label="${p('editor.resize')}" aria-valuemin="30" aria-valuemax="70" aria-valuenow="45" hidden></div>
   <aside class="panel tpl-editor lib-editor" data-lib-editor hidden aria-label="${p('edit')}">
-    <div class="panel-head"><h2 tabindex="-1">${p('edit')}</h2><div class="panel-acts"><button type="button" class="btn ghost sm lib-back" data-lib-back>${p('editor.close')}</button><button type="button" class="round" data-lib-close aria-label="${p('editor.x')}"><svg class="i" aria-hidden="true" focusable="false"><use href="/icons.svg#i-x"/></svg></button></div></div>
+    <div class="panel-head"><h2 tabindex="-1">${p('edit')}</h2><div class="panel-acts"><button type="button" class="round" data-lib-close aria-label="${p('editor.x')}"><svg class="i" aria-hidden="true" focusable="false"><use href="/icons.svg#i-x"/></svg></button></div></div>
     <div class="panel-body">
       <div class="lib-cover" data-lib-cover hidden><img alt="" data-lib-cover-img></div>
       <div class="lib-status-row"><span class="st-pill lib-status" data-lib-status></span><span class="muted small" data-lib-byline></span></div>

@@ -8,6 +8,7 @@
  */
 
 const chips = require('./chips');
+const { isFullyAssigned } = require('../../access/assignment');
 const { redactEntry } = require('../diary/visibility');
 const { instrumentLabelFor } = require('../../format');
 const { t } = require('../../i18n');
@@ -147,7 +148,9 @@ function clinicianSuggestions(db, user, patientId, tab) {
   }
   if (can('adverse_event')) {
     for (const r of db
-      .prepare('SELECT id, created_at FROM adverse_events WHERE patient_id=? ORDER BY created_at DESC LIMIT 5')
+      .prepare(
+        "SELECT id, created_at FROM adverse_events WHERE patient_id=? AND status NOT IN ('draft','cancelled') AND NOT (status='service_queue' AND psychiatrist_id IS NULL) ORDER BY created_at DESC LIMIT 5",
+      )
       .all(patientId)) {
       rows.push({
         type: 'adverse_event',
@@ -220,8 +223,10 @@ function searchObjects(db, user, query, patientId) {
   }
   if (chips.ALLOWED[user.role].has('adverse_event')) {
     for (const r of db
-      .prepare('SELECT id, created_at FROM adverse_events WHERE patient_id=? ORDER BY created_at DESC LIMIT 50')
-      .all(scope)) {
+      .prepare(
+        "SELECT id, created_at FROM adverse_events WHERE patient_id=? AND (?=1 OR (status NOT IN ('draft','cancelled') AND NOT (status='service_queue' AND psychiatrist_id IS NULL))) ORDER BY created_at DESC LIMIT 50",
+      )
+      .all(scope, user.role === 'patient' ? 1 : 0)) {
       const label = t('msg.composer.label.ae', 'Побочный эффект · {date}').replace(
         '{date}',
         chips.shortDate(r.created_at),
@@ -276,10 +281,7 @@ function install(app, deps) {
   const assignedPatient = (user, rawId) => {
     const pid = Number(rawId);
     if (!Number.isInteger(pid) || pid <= 0) return null;
-    const own = db
-      .prepare('SELECT 1 FROM care_assignments WHERE patient_id=? AND clinician_id=? AND ended_at IS NULL')
-      .get(pid, user.id);
-    return own ? pid : null;
+    return isFullyAssigned(db, pid, user.id) ? pid : null;
   };
 
   // GET /api/v1/context/suggestions — подсказки над полем ввода (F-12).
@@ -320,7 +322,7 @@ function install(app, deps) {
     const rawId = req.query.object_id;
     const id = /^\d+$/.test(String(rawId)) ? Number(rawId) : String(rawId || '');
     const resolved = chips.resolveObject(db, type, id);
-    if (!resolved) return P.sendError(req, res, 404, 'E-NOT-FOUND');
+    if (!resolved || (resolved.ownerOnly && req.user.role !== 'patient')) return P.sendError(req, res, 404, 'E-NOT-FOUND');
     // Объекты без владельца-пациента (библиотека) доступны всем ролям allowlist.
     if (resolved.patientId != null) {
       const expected = req.user.role === 'patient' ? req.user.id : assignedPatient(req.user, resolved.patientId);

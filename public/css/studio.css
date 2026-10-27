@@ -112,8 +112,10 @@
 
 /* телефон и планшет: список — выпадающий, на одной строке с «Новый» */
 .lib-tab .lib-mobile-nav { display: none; }
+.lib-tab .lib-mobile-row { display: flex; gap: var(--s-2); }
+.lib-tab .lib-mobile-row select { flex: 1; min-width: 0; }
 @media (max-width: 1200px) {
-  .lib-tab .lib-mobile-nav { display: flex; gap: var(--s-2); padding: var(--s-3) var(--s-4) 0; }
+  .lib-tab .lib-mobile-nav { display: flex; flex-direction: column; gap: var(--s-2); padding: var(--s-3) var(--s-4) 0; }
   .lib-tab .lib-mobile-nav select { flex: 1; min-width: 0; }
 }
 @media (max-width: 960px) {
@@ -140,3 +142,111 @@
   .approvals-tab .qrow .q-act { justify-content: flex-start; }
   .approvals-tab .qrow .q-act button { min-height: var(--h-btn); }
 }
+
+/* ---------- «Шаблоны и документы»: переключатель, документы по пациентам, форма извещения ---------- */
+.lib-tab .doc-seg-wrap { padding: var(--s-1) 0 var(--s-3); }
+.lib-tab .doc-seg { display: flex; width: 100%; }
+.lib-tab .doc-seg button { flex: 1; justify-content: center; }
+.lib-tab .side a.th small { white-space: normal; }
+
+/* список документов: группы по пациентам, строка — название, дата и статус-чип */
+.lib-tab .doc-list { display: flex; flex-direction: column; gap: var(--s-1); }
+.lib-tab .doc-group { display: flex; flex-direction: column; gap: 2px; margin-bottom: var(--s-2); }
+.lib-tab .side a.doc-row { display: flex; flex-direction: column; gap: 6px; white-space: normal; min-height: 0; }
+.lib-tab .doc-row-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3; overflow-wrap: anywhere; }
+.lib-tab .doc-row-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: var(--fs-13); color: var(--ink-2); }
+.lib-tab .doc-row .st-pill { min-height: 24px; padding: 0 8px; }
+.lib-tab .doc-row-tag { font-weight: 700; }
+.lib-tab .doc-list-empty { padding: var(--s-3); display: flex; flex-direction: column; gap: var(--s-1); }
+.lib-tab .doc-list-empty p { padding: 0; }
+
+/* шаблон-форма: описание и «Заполнить для пациента» */
+.lib-tab .doc-lead { max-width: var(--w-read); margin: 0 0 var(--s-4); font-size: var(--fs-16); line-height: var(--lh-16); color: var(--ink-2); }
+.lib-tab .doc-fillbox { margin-top: var(--s-4); max-width: 520px; }
+.lib-tab .doc-fillbox h3 { margin: 0; font-size: var(--fs-18); }
+.lib-tab [data-tpl-form] .tpl-acts + .small { margin: var(--s-3) 0 0; }
+
+/* документ: шапка, баннер «зафиксирован», список недостающего, карточки-группы, нижняя панель */
+.lib-tab .doc-view { padding-top: var(--s-2); }
+.lib-tab .doc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-3); margin: 0 0 var(--s-3); }
+.lib-tab .doc-head-main { min-width: 0; }
+.lib-tab .doc-title { margin: 0; font-size: var(--fs-24); line-height: var(--lh-24); overflow-wrap: anywhere; }
+.lib-tab .doc-title:focus { outline: none; }
+.lib-tab .doc-sub { margin: var(--s-1) 0 0; color: var(--ink-2); font-size: var(--fs-14); line-height: var(--lh-14); overflow-wrap: anywhere; }
+.lib-tab .doc-head-tags { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: var(--s-2); }
+.lib-tab .doc-view [data-doc-msg] { min-height: 0; margin: 0 0 var(--s-3); }
+.lib-tab .doc-view [data-doc-msg]:empty { display: none; }
+.lib-tab .doc-req-note { margin: 0 0 var(--s-3); }
+.lib-tab .doc-locked { display: flex; gap: var(--s-3); margin: 0 0 var(--s-4); padding: var(--s-4) var(--s-5); border-radius: var(--r-card); background: var(--jade-t); }
+.lib-tab .doc-locked > .i { flex: none; width: 24px; height: 24px; color: var(--jade); margin-top: 2px; }
+.lib-tab .doc-locked-body { min-width: 0; }
+.lib-tab .doc-locked p { margin: var(--s-1) 0 var(--s-3); }
+.lib-tab .doc-missing { margin: 0 0 var(--s-4); padding: var(--s-4); border-radius: var(--r-card); background: var(--warn-bg); }
+.lib-tab .doc-missing h3 { display: flex; align-items: center; gap: var(--s-2); margin: 0; font-size: var(--fs-16); color: var(--warn); }
+.lib-tab .doc-missing p { margin: var(--s-1) 0 0; }
+.lib-tab .doc-missing-list { display: flex; flex-wrap: wrap; gap: var(--s-2); margin: var(--s-3) 0 0; padding: 0; list-style: none; }
+.lib-tab .doc-missing-chip { background: var(--white); cursor: pointer; }
+.lib-tab .doc-missing-chip:hover { background: var(--sunk); }
+.lib-tab .doc-form { display: flex; flex-direction: column; gap: var(--gap-block); }
+.lib-tab .doc-card-head h3 { margin: 0; font-size: var(--fs-18); line-height: var(--lh-18); }
+.lib-tab .doc-card-head .hint { margin: var(--s-1) 0 0; }
+.lib-tab .doc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: var(--s-4) var(--s-3); }
+.lib-tab .doc-wide { grid-column: 1 / -1; }
+.lib-tab .doc-field { min-width: 0; }
+.lib-tab .doc-req { color: var(--brick); font-weight: 800; }
+.lib-tab .doc-count { align-self: flex-end; }
+.lib-tab .doc-choice { min-width: 0; margin: 0; padding: 0; border: 0; }
+.lib-tab .doc-choice legend { padding: 0; margin: 0 0 var(--s-2); font-size: var(--fs-14); line-height: var(--lh-14); font-weight: 700; }
+.lib-tab .doc-choice .choice, .lib-tab .doc-check .choice { height: auto; padding: var(--s-2) var(--s-4); font-size: var(--fs-15); line-height: 1.3; }
+.lib-tab .doc-clear { margin-top: var(--s-2); font-size: var(--fs-13); }
+.lib-tab .doc-drugs { display: flex; flex-direction: column; gap: var(--s-3); }
+.lib-tab .doc-drug { display: flex; flex-direction: column; gap: var(--s-3); }
+.lib-tab .doc-drug-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); }
+.lib-tab .doc-add { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3); }
+.lib-tab .doc-add .hint { margin: 0; }
+.lib-tab .doc-none { margin: 0; color: var(--ink-2); }
+.lib-tab .doc-bar { position: sticky; bottom: var(--s-3); z-index: 3; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-3); margin-top: var(--gap-block); padding: var(--s-3) var(--s-4); border-radius: var(--r-big); background: var(--white); box-shadow: var(--float); }
+.lib-tab .doc-bar-state { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-1) var(--s-3); min-width: 0; }
+.lib-tab .doc-bar-acts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
+.lib-tab .doc-save { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-14); font-weight: 700; color: var(--ink-2); }
+.lib-tab .doc-save .i { width: 18px; height: 18px; }
+.lib-tab .doc-save[data-save="saved"] { color: var(--jade); }
+.lib-tab .doc-save[data-save="failed"], .lib-tab .doc-save[data-save="conflict"] { color: var(--brick); }
+.lib-tab .doc-confirm { display: flex; flex-direction: column; gap: var(--s-2); width: 100%; }
+.lib-tab .doc-confirm b:focus { outline: none; }
+.lib-tab .doc-confirm p { margin: 0; color: var(--ink-2); }
+/* зафиксированный документ: значения вместо полей */
+.lib-tab .doc-dl { display: grid; grid-template-columns: minmax(130px, 210px) minmax(0, 1fr); gap: var(--s-2) var(--s-4); margin: 0; }
+.lib-tab .doc-dl dt { color: var(--ink-2); font-size: var(--fs-14); line-height: var(--lh-14); font-weight: 700; }
+.lib-tab .doc-dl dd { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.lib-tab .doc-dl dd ul { margin: 0; padding-left: var(--s-4); }
+.lib-tab .doc-dl .doc-empty { color: var(--ink-2); }
+.lib-tab .doc-drug > b { font-size: var(--fs-15); }
+@media (max-width: 960px) {
+  .lib-tab .pane > .scroll > .col { width: calc(100% - 2 * var(--s-4)); }
+  .lib-tab .doc-head { flex-direction: column; }
+  .lib-tab .doc-head-tags { justify-content: flex-start; }
+  .lib-tab .doc-view .card { padding: var(--s-4); }
+  .lib-tab .doc-dl { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .lib-tab .doc-dl dd { margin-bottom: var(--s-2); }
+  .lib-tab .doc-bar { bottom: var(--s-2); padding: var(--s-3); }
+  .lib-tab .doc-bar-acts { width: 100%; }
+  .lib-tab .doc-bar-acts .btn { flex: 1 1 auto; }
+  .lib-tab .doc-locked { padding: var(--s-4); }
+}
+.lib-tab .doc-seg [aria-pressed="true"] { background: var(--white); color: var(--ink); box-shadow: var(--lift); font-weight: 700; }
+.lib-tab .doc-fillbox { gap: var(--s-3); padding: var(--s-4) var(--s-5); }
+.lib-tab .doc-fillbox .small { padding: 0; }
+.lib-tab .doc-card-head .hint { padding: 0; }
+.lib-tab .doc-check { align-self: end; }
+.lib-tab [data-tpl-form] .doc-title { margin: 0; }
+.lib-tab [data-tpl-form] .lib-reading-head { align-items: flex-start; }
+.lib-tab .doc-missing-chip { height: auto; min-height: var(--h-chip); padding: 6px 14px; white-space: normal; text-align: left; line-height: 1.3; }
+.lib-tab .doc-card-head, .lib-tab .doc-card-head .hint { min-width: 0; overflow-wrap: anywhere; }
+
+/* встроенные шаблоны: цветная полоса и метка, отличают их от личных (светлая и тёмная темы — через токены) */
+.lib-tab .side a.th.th-builtin { border-left: 3px solid var(--jade); }
+.lib-tab .side a.th.th-builtin small { display: inline-block; margin-top: 2px; padding: 0 8px; border-radius: var(--r-pill); background: var(--jade-t); color: var(--jade-d); font-weight: 700; }
+.lib-tab .tpl-builtin-tag { background: var(--jade-t); color: var(--jade-d); font-weight: 700; }
+.lib-tab .tpl-builtin-tag[hidden] { display: none; }
+.lib-tab .doc-text { white-space: pre-wrap; font-size: var(--fs-16); line-height: var(--lh-16); max-width: var(--w-read); margin: var(--s-3) 0; }

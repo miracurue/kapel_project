@@ -9,7 +9,7 @@ const { expectOk, expectError } = require('../lib/client');
 const R = require('../../src/modules/clinical/instruments/clinrec_methods');
 const ctx = useApp();
 
-const SOURCE = path.join(__dirname, '../../experiments/поиск_по_оглавлению/methods_registry.json');
+const SOURCE = path.join(__dirname, '../../knowledge/clinrecs/methods_registry.json');
 const NEW_CODES =
   `cssrs_full hcl32 hcl33 flybocs vegetative_q pdss phq_panic ecr_r ace tsq caps scid_ptsd ies_r ms_ptsd ces_combat psychophys_stress pdeq des bhs top8 panss psp nddi_e phq2 phq4 gad2`.split(
     ' ',

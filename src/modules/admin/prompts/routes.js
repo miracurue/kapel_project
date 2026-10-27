@@ -2,6 +2,8 @@
 
 /**
  * Каталог промптов ИИ для администратора (F-101). Контракт — docs/openapi.yaml:
+ *   GET  /api/v1/admin/ai/prompts                              — слои каталога (роли, инструменты, навыки, задачи) с описаниями
+ *   GET  /api/v1/admin/ai/prompts/compose?task=&role=&tools=&skills= — итоговая инструкция, как её соберёт шлюз
  *   GET  /api/v1/admin/ai/prompts/{key}/versions               — все версии ключа
  *   POST /api/v1/admin/ai/prompts/{key}/versions               — новая версия (черновик)
  *   GET  /api/v1/admin/ai/prompts/{key}/diff?from=&to=         — построчное сравнение версий
@@ -26,6 +28,17 @@ function install(app, { db, P, keys }) {
   };
   const fail = (req, res, out) =>
     P.sendError(req, res, out.code === 'E-NOT-FOUND' ? 404 : out.code === 'E-VALIDATION' ? 422 : 409, out.code, out.fields ? { fields: out.fields } : undefined);
+
+  app.get('/api/v1/admin/ai/prompts', (req, res) => {
+    if (!adminOnly(req, res)) return undefined;
+    return res.json({ categories: svc.catalogView() });
+  });
+
+  app.get('/api/v1/admin/ai/prompts/compose', (req, res) => {
+    if (!adminOnly(req, res)) return undefined;
+    const out = svc.compose({ task: String(req.query.task || ''), role: req.query.role, tools: req.query.tools, skills: req.query.skills });
+    return out ? res.json(out) : P.sendError(req, res, 404, 'E-NOT-FOUND');
+  });
 
   app.get('/api/v1/admin/ai/prompts/:key/versions', (req, res) => {
     if (!adminOnly(req, res)) return undefined;

@@ -334,11 +334,7 @@
         report.summary.length
           ? `<ul>${report.summary.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>`
           : empty(own ? 'Пока нет данных для выводов.' : 'Данных пока недостаточно для выводов.')
-      }<p class="muted small">${esc(report.diagnosis.selected.label)}, период ${esc(report.period.from)} — ${esc(report.period.to)}. ${esc(report.disclaimer)}</p>${
-        own
-          ? ''
-          : `<a class="btn sm" data-ins-csv href="/api/v1/admin/insights/export?dx=${encodeURIComponent(report.diagnosis.selected.code)}&from=${report.period.from}&to=${report.period.to}" download>Скачать CSV</a>`
-      }</section>` +
+      }<p class="muted small">${esc(report.diagnosis.selected.label)}, период ${esc(report.period.from)} — ${esc(report.period.to)}. ${esc(report.disclaimer)}</p><a class="btn sm" data-ins-csv data-testid="msg.analytics.export.csv_insights" href="/api/v1/analytics/export?section=insights&dx=${encodeURIComponent(report.diagnosis.selected.code)}&from=${report.period.from}&to=${report.period.to}" download>${esc(tx('msg.analytics.export.csv_insights', 'Скачать CSV'))}</a></section>` +
       cards +
       (own
         ? patientsTable(report) +
@@ -346,7 +342,19 @@
         : '<p class="footnote left ins-wide">Только агрегаты: групп меньше порога нет, идентификаторов пациентов и специалистов нет.</p>');
   }
 
+  // Тексты из locales/ru.json (общий словарь страниц); без него кнопка получает запасную подпись.
+  let TX = {};
+  const tx = (key, fallback) => TX[key] || fallback || key;
+
   async function mount(root, opts) {
+    if (!Object.keys(TX).length) {
+      try {
+        const r = await fetch('/assets/ru.json');
+        if (r.ok) TX = await r.json();
+      } catch (_) {
+        TX = {};
+      }
+    }
     const state = { dx: opts.dx || 'all', days: 180 };
     root.classList.add('ins-root');
     if (root.parentElement) root.parentElement.classList.add('ins-host');

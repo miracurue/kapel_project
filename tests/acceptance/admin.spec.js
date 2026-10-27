@@ -20,16 +20,13 @@ async function admin(url = '/admin', pageId = 'P-34') {
 }
 
 // covers: T-460, UC-16, UC-44, F-81, F-91, F-17
-test('T-460 [W-37] админ-чат: «заблокируй …» → карточка-черновик со всеми полями и одной кнопкой → «Заблокирован · Отменить»', async () => {
+// test-change: T-460, одобрено 2026-10-26 (владелица) — чат администратора убран, первой вкладкой стал обзор с аналитикой
+test('T-460 [W-37] обзор администратора: вводная, главы с выводами, чата в кабинете нет', async () => {
   const page = await admin();
-  await B.expectVisible(page, 'msg.admin.chat.empty.title');
-  await page.fill(B.tid('msg.admin.chat.placeholder'), 'заблокируй plg2@cc.example.test');
-  await page.click(B.tid('msg.composer.send'));
-  await B.expectVisible(page, 'msg.admin.chat.draft.block');
-  await page.click(B.tid('msg.admin.chat.draft.save'));
-  await B.expectVisible(page, 'msg.undo.admin.blocked');
-  await page.click(B.tid('msg.undo.action'));
-  await B.expectVisible(page, 'msg.undo.done');
+  await B.expectVisible(page, 'msg.nav.admin.dashboard');
+  await page.locator('.dsh-lead').waitFor();
+  assert.ok((await page.locator('.dsh-ch').count()) >= 8);
+  assert.equal(await page.locator('[data-testid="msg.admin.chat.placeholder"]').count(), 0);
 });
 
 // covers: T-461, UC-17, UC-05, F-82, F-83, PD-20

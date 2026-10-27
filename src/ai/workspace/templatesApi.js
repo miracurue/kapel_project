@@ -7,6 +7,8 @@
  * Пути — вне замороженного /api/v1: только психиатр и психолог, изменения — с CSRF-токеном сессии.
  */
 
+const { isFullyAssigned, hasBaseConsent } = require('../../access/assignment');
+
 const TITLE_MAX = 120;
 const BODY_MAX = 10000;
 const REQUEST_MAX = 1000;
@@ -58,6 +60,13 @@ const BUILTIN = {
         'Врач: [врач]',
       ].join('\n'),
     },
+    {
+      // Форма (бланк Росздравнадзора): не текст с метками, а заполняемые поля; из неё создаётся документ пациента.
+      id: 'b-roszdravnadzor',
+      kind: 'form',
+      title: 'Извещение о нежелательной реакции (Росздравнадзор)',
+      body: '',
+    },
   ],
   psychologist: [
     {
@@ -75,6 +84,39 @@ const BUILTIN = {
         '',
         'Анализ результатов: [вносит психолог]',
         'Рекомендации: [рекомендации]',
+        '',
+        'Психолог: [врач]',
+      ].join('\n'),
+    },
+    {
+      // Структура — Приложение Г21 клинических рекомендаций «Паническое расстройство» (шаблон заключения ЭПИ).
+      id: 'b-epi',
+      title: 'Заключение по результатам ЭПИ',
+      body: [
+        'Заключение по результатам экспериментально-психологического исследования (ЭПИ)',
+        '',
+        'Пациент: [ФИО]',
+        'Дата рождения: [дата рождения]',
+        'Дата обследования: [дата]',
+        '',
+        'Цель исследования: [цели, поставленные перед психологом]',
+        'Методы исследования: [использованные методы]',
+        'Жалобы: [жалобы пациента]',
+        '',
+        'Результаты клинико-психологического обследования:',
+        '[контакт, эмоциональный фон, речь, темп, работоспособность]',
+        '',
+        'Результаты экспериментально-психологического исследования:',
+        'Внимание: [результаты по методикам, степень нарушений]',
+        'Память: [результаты по методикам, степень нарушений]',
+        'Мышление: [результаты по методикам, степень нарушений]',
+        'Компоненты мышления: [операциональный; динамический; мотивационно-личностный]',
+        'Эмоционально-волевая сфера: [тревожность, депрессия, контроль, фрустрированность]',
+        'Личность: [свойства личности, самооценка, совладание, защиты]',
+        '',
+        'Выводы: [количественная и качественная характеристика нарушений]',
+        'Заключение: [обобщённая квалификация нарушений]',
+        'Рекомендации: [мишени психокоррекции; повторное ЭПИ; психотерапия]',
         '',
         'Психолог: [врач]',
       ].join('\n'),
@@ -160,7 +202,7 @@ function install(app, h) {
       )
       .all(user.id)
       .map(view);
-    return res.json({ own, builtin: BUILTIN[user.role] || [] });
+    return res.json({ own, builtin: (BUILTIN[user.role] || []).map((t) => ({ kind: 'text', ...t })) });
   });
 
   app.post('/work/api/templates', (req, res) => {
@@ -228,12 +270,15 @@ function install(app, h) {
       const pseudo = pii.pseudonymize(modelData, scope, { nerEntities: ner.entities, nerOk: ner.ok });
       const out = await gateway.run({
         purpose: 'document_draft',
-        promptKey: 'document_draft.template',
+        promptKey: 'task.document_template',
         user,
         text: pseudo.text,
+        question: request,
         piiCounts: pseudo.counts || {},
         piiMode: pseudo.mode,
       });
+      // Нецелевой запрос (слой guard.scope_clinician): сообщение выводится в чате, шаблон не меняется и не создаётся.
+      if (out.offTopic) return res.json({ off_topic: true, message: out.text, ai: true });
       if (out.status === 'filtered' || !String(out.text || '').trim()) return P.sendError(req, res, 502, 'E-AI-EMPTY');
       const body = clean(pii.reveal(out.text, scope).text, BODY_MAX).trim();
       return res.json({ body, ai: true });
@@ -248,10 +293,8 @@ function install(app, h) {
     const user = guard(req, res, false);
     if (!user) return undefined;
     const pid = Number(req.params.pid);
-    const own = db
-      .prepare('SELECT 1 FROM care_assignments WHERE patient_id=? AND clinician_id=? AND ended_at IS NULL')
-      .get(pid, user.id);
-    if (!own) return P.sendError(req, res, 404, 'E-NOT-FOUND');
+    if (!isFullyAssigned(db, pid, user.id)) return P.sendError(req, res, 404, 'E-NOT-FOUND');
+    if (!hasBaseConsent(db, pid)) return P.sendError(req, res, 403, 'E-CONSENT-REQUIRED');
     const name = db.prepare('SELECT full_name FROM users WHERE id=?').get(pid);
     const results = db
       .prepare(

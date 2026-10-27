@@ -15,10 +15,22 @@
 const express = require('express');
 
 const chipsMod = require('../../modules/context/chips');
+const { isFullyAssigned } = require('../../access/assignment');
 const exporter = require('./export');
 const docDraft = require('./docDraft');
+const drugInstructions = require('../../modules/drugs/instructions');
 const hintsSchema = require('./hintsSchema');
+const aeOffer = require('../aeOffer');
+const { offerEligibility } = require('../../modules/v3/ae_intake');
 const { buildContext } = require('./clinicianContext');
+const { createPatientTools } = require('./patientTools');
+const { createClinrecTools } = require('./clinrecTools');
+const { createPlanSpec } = require('./clinrecPlan');
+const { sourcesFor, stripMarkers, stripMeta, attributionWarnings } = require('./sources');
+const { combineTools } = require('./toolsets');
+const { createLiteratureTools } = require('./literatureTools');
+const { getKnowledge } = require('../../modules/knowledge/service');
+const progress = require('../progress');
 // W-49: заключения психолога (conclusions/conclusion_versions) обслуживает модуль
 // documents; делегирование — по требованию в момент запроса (модуль монтируется позже).
 const docsApi = require('../../modules/documents/routes');
@@ -39,7 +51,7 @@ const HINT_MARKS = new Set(['accepted', 'edited', 'rejected', 'noted']);
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function install(app, h) {
-  const { db, P, config, pii, gateway, idemCached, saveIdem } = h;
+  const { db, P, config, pii, gateway, idemCached, saveIdem, activeSetting } = h;
   const router = express.Router();
   app.use(router);
 
@@ -66,7 +78,14 @@ function install(app, h) {
     if (!m) return null;
     const scope = h.scopeFor(t, user.id);
     const shown = pii.reveal(m.text, scope);
-    return { thread: h.threadView(t), reply: h.replyView(m, shown.text), warnings: h.warningsOf(shown.warnings) };
+    const rebuilt = {
+      thread: h.threadView(t),
+      reply: h.replyView(m, shown.text),
+      warnings: h.warningsOf(shown.warnings),
+    };
+    if (m.flags_json && m.flags_json.includes('"ae_offer":true'))
+      rebuilt.ae_offer = { prefill: {}, mode: user.role === 'psychiatrist' ? 'decision' : 'to_psychiatrist' };
+    return rebuilt;
   }
 
   function rebuildDraftResponse(ref) {
@@ -158,8 +177,18 @@ function install(app, h) {
   // Без чипов модель знает только #PERSON-1#; ответ показывается врачу
   // с подставленным именем (F-80) и пометкой ИИ.
   // ------------------------------------------------------------------
+  // Ход ответа для интерфейса (этапы «смотрю инструкции…»); только свои, только подписи этапов.
+  app.get('/work/api/chat-progress/:id', (req, res) => {
+    if (!req.user) return res.status(401).json({});
+    res.set('Cache-Control', 'no-store');
+    res.json(progress.read(req.user.id, String(req.params.id)) || { stages: [], done: false });
+  });
+
   app.post('/api/v1/ai/clinician/messages', async (req, res) => {
     const user = req.user;
+    const trace = progress.start(user.id, req.body && req.body.progress_id);
+    res.on('close', trace.done);
+    trace.push('Читаю вопрос');
     const text = String((req.body && req.body.text) || '');
     if (!text.trim()) {
       return P.sendError(req, res, 422, 'E-VALIDATION', {
@@ -181,10 +210,7 @@ function install(app, h) {
     }
     if (patientId) {
       // Чип незакреплённого пациента — отказ без вызова модели (T-131).
-      const own = db
-        .prepare('SELECT 1 FROM care_assignments WHERE patient_id=? AND clinician_id=? AND ended_at IS NULL')
-        .get(patientId, user.id);
-      if (!own) return P.sendError(req, res, 404, 'E-NOT-FOUND');
+      if (!isFullyAssigned(db, patientId, user.id)) return P.sendError(req, res, 404, 'E-NOT-FOUND');
       if (
         !db
           .prepare("SELECT 1 FROM consent_current WHERE user_id=? AND consent_kind='base' AND action='given'")
@@ -199,19 +225,28 @@ function install(app, h) {
       if (rebuilt) return res.json(rebuilt);
     }
 
-    let thread = patientId
-      ? db
-          .prepare(
-            "SELECT * FROM ai_threads WHERE owner_user_id=? AND purpose='clinician_chat' AND patient_id=? AND hidden_at IS NULL ORDER BY id DESC LIMIT 1",
-          )
-          .get(user.id, patientId)
-      : db
-          .prepare(
-            "SELECT * FROM ai_threads WHERE owner_user_id=? AND purpose='clinician_chat' AND patient_id IS NULL AND hidden_at IS NULL ORDER BY id DESC LIMIT 1",
-          )
-          .get(user.id);
+    // Клиент сообщает, в каком треде идёт разговор (thread_id) или просит начать новый (new_thread);
+    // без этого — прежнее поведение: последний тред по тому же пациенту (или без пациента).
+    const wantedId = Number(req.body && req.body.thread_id) || null;
+    const wanted = wantedId ? h.getOwnThread(user.id, wantedId, 'clinician_chat') : null;
+    let thread = wanted && (wanted.patient_id || null) === patientId ? wanted : null;
+    if (!thread && req.body && req.body.new_thread === true)
+      thread = h.createThread({ userId: user.id, role: user.role, purpose: 'clinician_chat', patientId });
+    if (!thread)
+      thread = patientId
+        ? db
+            .prepare(
+              "SELECT * FROM ai_threads WHERE owner_user_id=? AND purpose='clinician_chat' AND patient_id=? AND hidden_at IS NULL ORDER BY id DESC LIMIT 1",
+            )
+            .get(user.id, patientId)
+        : db
+            .prepare(
+              "SELECT * FROM ai_threads WHERE owner_user_id=? AND purpose='clinician_chat' AND patient_id IS NULL AND hidden_at IS NULL ORDER BY id DESC LIMIT 1",
+            )
+            .get(user.id);
     if (!thread) thread = h.createThread({ userId: user.id, role: user.role, purpose: 'clinician_chat', patientId });
 
+    trace.thread(thread.id);
     const scope = h.scopeFor(thread, user.id);
     let userMsg = null;
     try {
@@ -223,20 +258,160 @@ function install(app, h) {
       mergeCounts(counts, pseudo.counts);
       userMsg = h.addMessage(thread.id, { role: 'user', text: pseudo.text });
       h.autoTitle(thread.id, pseudo.text);
-      const modelText = [ctx.text, pseudo.text ? `Сообщение врача: ${pseudo.text}` : ''].filter(Boolean).join('\n');
+      trace.push('Проверяю вопрос и контекст');
+      // Закреплённый пациент: данные модель получает инструментами сама (get_overview, get_diary, …), не в запросе.
+      // У психиатра — агент по клиническим рекомендациям и инструкциям (этапы 2 и 5 плана агента,
+      // src/ai/workspace/clinrecTools.js); с закреплённым пациентом — вместе с инструментами его данных (этап 6).
+      // Поисковые запросы наружу очищаются от меток #ТИП-N# и длинных чисел.
+      let clinrecLogged = false;
+      let sourceNo = 0;
+      const nextNo = () => ++sourceNo; // общая нумерация [n] источников ответа
+      const knowledgeTools =
+        user.role === 'psychiatrist'
+          ? await createClinrecTools({
+              knowledge: getKnowledge(),
+              db,
+              nextNo,
+              onAccess: () => {
+                if (clinrecLogged) return;
+                clinrecLogged = true;
+                db.prepare(
+                  'INSERT INTO action_log(actor_id,actor_role,action,target_type,target_id) VALUES (?,?,?,?,?)',
+                ).run(user.id, user.role, 'knowledge.clinrec_tool', 'ai_thread', String(thread.id));
+              },
+            })
+          : null;
+      // Вопрос о лекарствах без пациента: сервер подкладывает выдержки из инструкций (поиск по всему корпусу).
+      // У психиатра выдержки получают номера [n] общей нумерации ответа (как фрагменты поиска), поэтому карточкой
+      // становится только та выдержка, на которую ответ действительно сослался.
+      const rag = await drugInstructions.ragForGeneralChat({
+        db,
+        text: pseudo.text,
+        patientAttached: Boolean(thread.patient_id),
+        ...(knowledgeTools && knowledgeTools.registerDrug ? { register: knowledgeTools.registerDrug } : {}),
+        audit: (r) => {
+          if (r.mode !== 'off')
+            db.prepare(
+              'INSERT INTO action_log(actor_id,actor_role,action,target_type,target_id) VALUES (?,?,?,?,?)',
+            ).run(user.id, user.role, 'knowledge.retrieve', 'ai_thread', String(thread.id));
+        },
+      });
+      if (rag.sources && rag.sources.length) trace.push('Сверяю с инструкциями к лекарствам');
+      const literatureTools =
+        user.role === 'psychiatrist' && !thread.patient_id
+          ? createLiteratureTools({
+              nextNo,
+              onAccess: () =>
+                db
+                  .prepare(
+                    'INSERT INTO action_log(actor_id,actor_role,action,target_type,target_id) VALUES (?,?,?,?,?)',
+                  )
+                  .run(user.id, user.role, 'literature.search', 'ai_thread', String(thread.id)),
+            })
+          : null;
+      const combined = combineTools(
+        thread.patient_id
+          ? createPatientTools({
+              db,
+              pii,
+              scope,
+              req,
+              user,
+              patientId: thread.patient_id,
+              counts,
+              mergeCounts,
+              nowIso: h.nowIso,
+            })
+          : null,
+        knowledgeTools,
+        // Статьи (этап 8): только без закреплённого пациента и только если включено (LITERATURE_SEARCH=europepmc).
+        literatureTools,
+      );
+      // Этап 10: психиатр без пациента — схема «план и исполнение» (план, поиск, проверка полноты, ответ без
+      // инструментов); при любой неудаче шлюз отвечает прежним циклом инструментов. Переключатель
+      // CLINICIAN_AGENT_MODE=plan|tools (по умолчанию plan). С пациентом и с поиском статей — прежний цикл.
+      const planned =
+        process.env.CLINICIAN_AGENT_MODE !== 'tools' &&
+        user.role === 'psychiatrist' &&
+        !thread.patient_id &&
+        !literatureTools &&
+        knowledgeTools &&
+        knowledgeTools.retrieval;
+      const answerReasoningTokens = Number(process.env.CLINICIAN_ANSWER_REASONING_TOKENS ?? 2000) || 0;
+      const tools = planned
+        ? {
+            ...combined,
+            plan: createPlanSpec({
+              clinrec: knowledgeTools,
+              embeddingClient: () => getKnowledge().embeddingClient(),
+              question: pseudo.text,
+              lead: [ctx.text, rag.block].filter(Boolean).join('\n'),
+              // Рассуждение при ответе не отключено, но ограничено бюджетом (CLINICIAN_ANSWER_REASONING_TOKENS, 0 — без
+              // ограничения): иначе у Qwen ответ на сложный клинический случай уходит за таймаут вызова.
+              answerReasoning: answerReasoningTokens > 0 ? { max_tokens: answerReasoningTokens } : null,
+            }),
+          }
+        : combined;
+      const modelText = [
+        ctx.text,
+        tools ? tools.card : '',
+        rag.block,
+        pseudo.text ? `Сообщение врача: ${pseudo.text}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n');
+      // Пакет E: предложение оформить НЯ только в чате о закреплённом пациенте, если сервер разрешает (psychiatrist:
+      // действующий препарат в плане; psychologist: ещё и закреплённый психиатр) и за 12 часов предложения не было.
+      // Слово из словаря - сразу; иначе модель сама решает, вызвать ли навык (skills в запросе).
+      let aeMode = null;
+      let aeSkills = [];
+      if (thread.patient_id && ['psychiatrist', 'psychologist'].includes(user.role)) {
+        const eligible =
+          offerEligibility({ db, iso: h.nowIso }, { user, patientId: thread.patient_id }) &&
+          !aeOffer.recentlyOffered(db, { user, patientId: thread.patient_id, nowIso: h.nowIso() });
+        if (eligible) {
+          aeMode = user.role === 'psychiatrist' ? 'decision' : 'to_psychiatrist';
+          aeSkills = [user.role === 'psychiatrist' ? 'skill.ae_offer_clinician' : 'skill.ae_offer_psychologist'];
+        }
+      }
+      const dictionaryOffer = Boolean(aeMode && aeOffer.dictionaryHit(activeSetting, pseudo.text));
       const out = await gateway.run({
         purpose: 'clinician_chat',
         user,
         patientId: thread.patient_id || null,
         threadId: thread.id,
+        tools,
         text: modelText,
-        history: h.historyFor(thread.id, userMsg.id),
+        question: pseudo.text,
+        onProgress: (ev) =>
+          trace.push(
+            ev.phase === 'tool'
+              ? progress.toolLabel(ev.name)
+              : ev.phase === 'answer'
+                ? 'Формулирую ответ'
+                : progress.phaseLabel(ev.phase),
+          ),
+        // Шлюз подгоняет историю под окно модели и сжимает раннее. Метки [n] прошлых ответов убираются: номера
+        // источников действуют в пределах одного ответа, в новом ответе они означали бы другие документы.
+        history: h
+          .historyFor(thread.id, userMsg.id, 200)
+          .map((m) => (m.role === 'assistant' ? { ...m, text: stripMarkers(m.text) } : m)),
         piiCounts: counts,
         piiMode: pseudo.mode,
+        ...(aeSkills.length && !dictionaryOffer ? { skills: aeSkills } : {}),
       });
+      // Ссылки [n] на источники, которых модель не получала (выдуманные, из прошлых реплик), убираются из текста до
+      // сохранения: карточки у них не будет, а пустая метка в ответе вводила бы в заблуждение.
+      const cleaned = tools && tools.sanitize ? tools.sanitize(out.text) : out.text;
+      // Обороты про ход поиска («не удалось найти», «в предоставленных фрагментах») врачу не показываются.
+      const answerText = knowledgeTools ? stripMeta(cleaned) : cleaned;
+      // Источники ответа: показанные модели и процитированные [n]; [0] — «Знания модели». Без нумерации
+      // (психолог, знания недоступны) остаются выдержки инструкций как прежде.
+      const sources = sourcesFor(answerText, tools && tools.cited ? tools.cited(answerText) : []);
+      if (!(knowledgeTools && knowledgeTools.registerDrug)) sources.push(...rag.sources);
       const asMsg = h.addMessage(thread.id, {
         role: 'assistant',
-        text: out.text,
+        text: answerText,
         kind: out.status === 'filtered' ? 'filtered' : 'normal',
         aiGenerated: 1,
         modelId: out.model.id,
@@ -244,13 +419,44 @@ function install(app, h) {
         promptVersion: out.promptVersion,
         flags: { provider: out.model.adapter },
       });
+      // Проверка привязки (без изменения ответа): УУР/УДД у препарата, которого нет в тексте цитируемого источника,
+      // попадает в журнал шагов агента как предупреждение.
+      if (knowledgeTools && out.traceId) {
+        const warn = attributionWarnings(answerText, {
+          innsIn: (sentence) => drugInstructions.mentionedInns(db, sentence),
+          textOf: knowledgeTools.fragmentText,
+        });
+        if (warn.length) {
+          try {
+            const next = (db.prepare('SELECT COALESCE(MAX(n),0)+1 AS n FROM ai_agent_steps WHERE run_id=?').get(out.traceId) || { n: 1 }).n;
+            db.prepare(
+              "INSERT INTO ai_agent_steps(run_id,n,kind,name,result_text,result_chars,status,created_at) VALUES (?,?, 'note','attribution_warning',?,?, 'ok',?)",
+            ).run(
+              out.traceId,
+              next,
+              warn.map((w) => `[${w.n}] «${w.drug}» не назван в тексте источника`).join('; '),
+              0,
+              h.nowIso(),
+            );
+          } catch {
+            /* предупреждение не ломает ответ */
+          }
+        }
+      }
+      if (sources.length)
+        db.prepare('UPDATE ai_messages SET sources_json=? WHERE id=?').run(JSON.stringify(sources), asMsg.id);
+      if (gateway.attachTraceMessage) gateway.attachTraceMessage(out.traceId, asMsg.id);
       const shown = pii.reveal(asMsg.text, scope);
       const response = {
         thread: h.threadView(db.prepare('SELECT * FROM ai_threads WHERE id=?').get(thread.id)),
-        reply: h.replyView(asMsg, shown.text),
+        reply: { ...h.replyView(asMsg, shown.text), ...(sources.length ? { sources } : {}) },
         warnings: h.warningsOf(shown.warnings),
+        ...(sources.length ? { sources } : {}),
       };
+      const offered = dictionaryOffer || (aeSkills.length > 0 && (out.flags || []).includes('ae_offer'));
+      if (offered) response.ae_offer = { prefill: {}, mode: aeMode };
       saveIdem(user.id, state, { __ai_reply: { thread_id: thread.id, reply_id: asMsg.id } });
+      if (offered) aeOffer.markOffered(db, asMsg.id); // ответ записан и отдаётся клиенту сейчас
       return res.status(201).json(response);
     } catch (e) {
       if (userMsg) db.prepare("UPDATE ai_messages SET kind='error' WHERE id=?").run(userMsg.id);
@@ -447,10 +653,7 @@ function install(app, h) {
       return P.sendError(req, res, 404, 'E-NOT-FOUND');
     }
     const own =
-      doc.author_id === user.id ||
-      db
-        .prepare('SELECT 1 FROM care_assignments WHERE patient_id=? AND clinician_id=? AND ended_at IS NULL')
-        .get(doc.patient_id, user.id);
+      doc.author_id === user.id || isFullyAssigned(db, doc.patient_id, user.id);
     if (!own) return P.sendError(req, res, 404, 'E-NOT-FOUND');
     const fmt = String(req.query.format || '');
     const format = exporter.FORMATS[fmt];

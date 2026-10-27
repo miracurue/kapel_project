@@ -123,7 +123,7 @@ function cohortReport(db, { scope, clinicianId, from, to, minGroup, actorRole })
       scope === 'historical'
         ? 'assignment_and_episode_at_event_day;current_base_consent'
         : scope === 'program'
-          ? 'current_base_and_program_consent;not_all_users'
+          ? 'current_base_and_research_consent;not_all_users'
           : 'current_assignment_and_base_consent',
     habits_policy: 'excluded_without_common_metric_definition_and_aggregate_permission',
     day_policy: 'inclusive_UTC_source_days;assignment_boundaries_day_precision',

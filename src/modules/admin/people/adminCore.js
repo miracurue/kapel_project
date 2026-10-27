@@ -38,8 +38,12 @@ function staffLabel(u) {
 
 function listPeople(adminId, filters = {}) {
   const role = ALL_ROLES.includes(filters.role) ? filters.role : '';
-  const status = ['active', 'blocked', 'archived', 'deactivated', 'deleted'].includes(filters.status) ? filters.status : '';
-  const q = String(filters.q || '').slice(0, 100).trim();
+  const status = ['active', 'blocked', 'archived', 'deactivated', 'deleted'].includes(filters.status)
+    ? filters.status
+    : '';
+  const q = String(filters.q || '')
+    .slice(0, 100)
+    .trim();
   const page = Math.max(1, parseInt(filters.page, 10) || 1);
 
   let where = [];
@@ -71,7 +75,11 @@ function listPeople(adminId, filters = {}) {
 
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
   try {
-    const rows = db.prepare(`SELECT id, service_no, email, full_name, role, status, status_reason, must_change_password FROM users ${whereSql} ORDER BY role, full_name, id`).all(...args);
+    const rows = db
+      .prepare(
+        `SELECT id, service_no, email, full_name, role, status, status_reason, must_change_password FROM users ${whereSql} ORDER BY role, full_name, id`,
+      )
+      .all(...args);
 
     const items = rows.map((u) => {
       const base = {
@@ -94,7 +102,9 @@ function listPeople(adminId, filters = {}) {
     const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
     return {
       items: items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
-      total, page, pages,
+      total,
+      page,
+      pages,
     };
   } catch (_e) {
     // Схема могла не догнать (ensureColumn) или запрос невалиден —
@@ -131,9 +141,17 @@ function getPersonCard(adminId, id) {
     label: isPatient ? patientLabel(u) : u.full_name,
     must_change_password: !!u.must_change_password,
   };
+  if (!isPatient)
+    base.flags = {
+      research: !!u.flag_research,
+      clinical_lead: !!u.flag_clinical_lead,
+      reference_reviewer: !!u.flag_reference_reviewer,
+    };
   if (isPatient) {
     base.clinicians = db
-      .prepare('SELECT c.id, c.full_name FROM care_assignments ca JOIN users c ON c.id = ca.clinician_id WHERE ca.patient_id = ?')
+      .prepare(
+        'SELECT c.id, c.full_name FROM care_assignments ca JOIN users c ON c.id = ca.clinician_id WHERE ca.patient_id = ?',
+      )
       .all(u.id);
     base.episodes = db
       .prepare('SELECT id, started_at, ended_at, end_reason FROM care_episodes WHERE patient_id = ? ORDER BY id DESC')
@@ -150,7 +168,7 @@ function revealContacts(adminId, userId) {
   if (!u) return { ok: false, error: 'E-NOT-FOUND' };
   // Журнал доступа: актор, пациент, раздел «учётные данные», время (F-22 дедупликация — на клиенте).
   db.prepare(
-    "INSERT INTO phi_access_log (actor_id, actor_role, patient_id, section, action, basis) VALUES (?, ?, ?, 'account.credentials', 'view', 'admin_service')"
+    "INSERT INTO phi_access_log (actor_id, actor_role, patient_id, section, action, basis) VALUES (?, ?, ?, 'account.credentials', 'view', 'admin_service')",
   ).run(adminId, 'admin', u.id);
   core.logAdmin(adminId, 'account_reveal', u.id, { section: 'account.credentials' });
   return {
@@ -163,7 +181,14 @@ function revealContacts(adminId, userId) {
 }
 
 module.exports = {
-  PAGE_SIZE, STAFF_ROLES, PATIENT_ROLES, ALL_ROLES,
-  patientLabel, staffLabel, statusKey,
-  listPeople, getPersonCard, revealContacts,
+  PAGE_SIZE,
+  STAFF_ROLES,
+  PATIENT_ROLES,
+  ALL_ROLES,
+  patientLabel,
+  staffLabel,
+  statusKey,
+  listPeople,
+  getPersonCard,
+  revealContacts,
 };

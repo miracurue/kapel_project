@@ -1,9 +1,29 @@
 node_modules/
 data/*.sqlite3
 data/*.sqlite3-*
+*.log
+
+# Re-clonable third-party repositories and downloaded source copies are local
+# research caches. Their provenance belongs in the tracked pipeline registers.
+research-tools/repos/
+research-tools/sources/
+
+# supervisor runtime state
+.agents/.supervisor.*
+.agents/board.html
 data/uploads/
 data/demo-show/
-ml-worker/models/
-*.log
+
+# локальные секреты и диагностика Node
 .env
 report.*.json
+
+# Клинреки: пересобираемый результат чанкера
+knowledge/clinrecs/out/
+knowledge/clinrecs/**/__pycache__/
+
+# Локальный архив прежних материалов (не в Git)
+archive/
+
+# Скачанные модели (большие файлы)
+models/

@@ -49,7 +49,7 @@ function install(app, { db, P, config, now, activeSetting }) {
     });
   });
 
-  // Администратор: цифры по участникам программы (согласие 'program'). Другие срезы метрик добавляет W-47.
+  // Администратор: уровень 1 по всем, уровень 2 по согласию 'research'. Другие срезы метрик добавляет W-47.
   app.get('/api/v1/admin/metrics', (req, res, next) => {
     if (String(req.query.by || '') !== 'diary') return next();
     const range = period(req);

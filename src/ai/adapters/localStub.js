@@ -7,7 +7,7 @@
  *   AI_STUB_CAPTURE=<файл> — по строке JSON на КАЖДЫЙ вызов:
  *     { purpose, model, binding_version, prompt_key, prompt_version, system, messages, tools }
  *   AI_STUB_SCRIPT=<файл>  — { queue:[...], default:{...} }, режимы:
- *     text | echo | error | timeout | empty | tool {name, arguments}.
+ *     text {text, delay_ms?} | echo | error | timeout | empty | tool {name, arguments}.
  * Без файлов адаптер возвращает пустой ответ (E-AI-EMPTY): осмысленные шаблонные ответы
  * старого детерминированного чата остаются в src/ai/provider.js (прежний путь /chat).
  */
@@ -20,6 +20,34 @@ function lastUserContent(messages) {
     if (arr[i] && arr[i].role === 'user') return String(arr[i].content || '');
   }
   return '';
+}
+
+// Демо-режим с инструментами: по ключевым словам вопроса «вызывает» нужный инструмент, затем отвечает по его результату.
+function demoToolStep(payload) {
+  const messages = payload.messages || [];
+  const lastTool = [...messages].reverse().find((m) => m.role === 'tool');
+  const names = payload.tools.map((d) => d.name);
+  const after = messages[messages.length - 1];
+  if (after && after.role === 'tool' && lastTool)
+    return {
+      text: `Демо-ответ по данным инструмента ${lastTool.name}: ${String(lastTool.content).replace(/\s+/g, ' ').slice(0, 600)}`,
+    };
+  const full = lastUserContent(messages);
+  const q = full.includes('Сообщение врача:') ? full.split('Сообщение врача:').pop().toLowerCase() : full.toLowerCase();
+  const pick = (name, re) => (names.includes(name) && re.test(q) ? name : null);
+  const name =
+    pick('get_my_medications', /лекарств|таблетк|принял|приняла|препарат/) ||
+    pick('get_my_tests', /тест|опросник/) ||
+    pick('search_journal', /стать|почитать|журнал|прочитать/) ||
+    pick('get_my_diary', /дневник|заполнил|записал/) ||
+    pick('get_diary', /дневник|настроени|сон|тревог|заметк/) ||
+    pick('get_results', /тест|результат|шкал|phq|gad|балл/) ||
+    pick('get_plan', /план|препарат|назначен|доз|лекарств/) ||
+    pick('get_adverse_events', /побочн|нежелат/) ||
+    pick('get_visits', /визит|приём|прием/) ||
+    (names.includes('get_overview') ? 'get_overview' : null);
+  const args = name === 'search_journal' ? { query: q.slice(0, 120) } : {};
+  return name ? { text: '', tool: { id: `demo_${name}`, name, arguments: args } } : null;
 }
 
 function createLocalStub() {
@@ -35,6 +63,7 @@ function createLocalStub() {
           binding_version: meta.bindingVersion,
           prompt_key: meta.promptKey,
           prompt_version: meta.promptVersion,
+          prompt_layers: meta.promptLayers || null,
           system: payload.system,
           messages: payload.messages,
           tools: payload.tools || null,
@@ -69,7 +98,14 @@ function createLocalStub() {
       if (mode === 'empty') return { text: '' };
       if (mode === 'tool') return { text: '', tool: { name: item.name, arguments: item.arguments || {} } };
       if (mode === 'echo') return { text: lastUserContent(payload.messages) };
-      if (mode === 'text') return { text: String(item.text || '') };
+      if (mode === 'text') {
+        if (item.delay_ms) await new Promise((resolve) => setTimeout(resolve, Number(item.delay_ms)));
+        return { text: String(item.text || '') };
+      }
+      if (process.env.AI_DEMO_REPLIES === '1' && payload.tools && payload.tools.length) {
+        const demo = demoToolStep(payload);
+        if (demo) return demo;
+      }
       if (process.env.AI_DEMO_REPLIES === '1')
         return { text: demoReply(meta.purpose, lastUserContent(payload.messages), meta.promptKey) };
       return { text: '' };
@@ -85,7 +121,7 @@ function demoReply(purpose, userText, promptKey) {
   if (purpose === 'patient_assistant') {
     return (
       'STAND-IN: это демонстрационный ответ без настоящей модели. Спасибо, что написали. ' +
-      'Можно записать состояние в дневник, пройти короткий тест на вкладке «Тесты» или отправить вопрос специалисту ' +
+      'Можно записать состояние в дневник, пройти короткий тест на вкладке «Методики» или отправить вопрос специалисту ' +
       'на вкладке «Врач». Если стало тяжело — «Мне нужна помощь · 112» всегда сверху.'
     );
   }
@@ -119,9 +155,9 @@ function demoReply(purpose, userText, promptKey) {
       '\nРешение остаётся за специалистом.'
     );
   }
-  if (purpose === 'document_draft' && /^article_draft\./.test(String(promptKey))) {
+  if (purpose === 'document_draft' && /^task\.article_(patient|specialist)$/.test(String(promptKey))) {
     // Демо-черновик статьи: каркас из основных мыслей автора, без клинических утверждений.
-    const forPatients = promptKey === 'article_draft.patient';
+    const forPatients = promptKey === 'task.article_patient';
     const points = String(userText)
       .split('СООБЩЕНИЕ АВТОРА:')
       .pop()
@@ -143,12 +179,12 @@ function demoReply(purpose, userText, promptKey) {
         : '### Практический вывод\nСТАНД-ИН: вывод для работы специалиста вносит автор.',
     ].join('\n');
   }
-  if (purpose === 'document_draft' && promptKey === 'article_rewrite') {
+  if (purpose === 'document_draft' && promptKey === 'task.article_rewrite') {
     // Демо-правка: возвращает фрагмент с пометкой, чтобы в тестах и демо была видна подмена.
     const fragment = String(userText).split('ФРАГМЕНТ:').pop().trim();
     return `${fragment} (переформулировано)`;
   }
-  if (purpose === 'document_draft' && promptKey === 'document_draft.template') {
+  if (purpose === 'document_draft' && promptKey === 'task.document_template') {
     // Демо-заготовка для кнопки «ИИ» в шаблонах врача: только пустые места, без клинического содержания.
     return [
       'Пациент: [ФИО]',

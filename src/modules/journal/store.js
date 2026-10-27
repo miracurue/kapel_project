@@ -116,6 +116,35 @@ function create(db, nowMs) {
       .map((x) => view(x.r));
   }
 
+  /** Поиск по ключевым словам среди опубликованных статей аудитории пациента (название, теги, описание, текст). */
+  function search(user, query, limit = 3, { minHits = 1 } = {}) {
+    const words = [
+      ...new Set(
+        String(query || '')
+          .toLowerCase()
+          .match(/[а-яёa-z0-9]{3,}/g) || [],
+      ),
+    ].map((w) => (w.length > 5 ? w.slice(0, w.length - 2) : w));
+    if (!words.length) return [];
+    const count = (text) => words.filter((w) => text.includes(w)).length;
+    return published(user, 'patient')
+      .map((r) => {
+        const tags = JSON.parse(r.tags_json || '[]')
+          .join(' ')
+          .toLowerCase();
+        const hits =
+          3 * count(String(r.title || '').toLowerCase()) +
+          2 * count(tags) +
+          2 * count(String(r.summary || '').toLowerCase()) +
+          count(String(r.body_md || '').toLowerCase());
+        return { r, hits, s: score(r) };
+      })
+      .filter((x) => x.hits >= minHits)
+      .sort((a, b) => b.hits - a.hits || b.s - a.s)
+      .slice(0, limit)
+      .map((x) => view(x.r));
+  }
+
   /** Поставить или снять лайк. Возвращает null, если статьи нет или она недоступна читателю. */
   function setLike(user, id, liked) {
     const item = article(user, id);
@@ -257,7 +286,7 @@ function create(db, nowMs) {
     return true;
   }
 
-  return { feed, article, related, setLike, adminList, adminGet, adminEdit, adminSetStatus, adminDelete };
+  return { feed, article, related, search, setLike, adminList, adminGet, adminEdit, adminSetStatus, adminDelete };
 }
 
 module.exports = { create, PAGE_SIZE, audiencesFor, topicOf };

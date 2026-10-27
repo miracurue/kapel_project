@@ -72,6 +72,7 @@ function checkChip(db, user, chip, patientId) {
   }
   const obj = resolveObject(db, type, id);
   if (!obj) return { ok: false, reason: 'not_found' };
+  if (obj.ownerOnly && user.role !== 'patient') return { ok: false, reason: 'not_found' };
   if (type === 'file') {
     const own = obj.ownerId === user.id || (!!obj.patientId && !!patientId && obj.patientId === patientId);
     if (!own) return { ok: false, reason: 'foreign' };
@@ -198,8 +199,15 @@ function resolveObject(db, type, rawId) {
     }
     case 'adverse_event': {
       if (!isNum) return null;
-      const row = db.prepare('SELECT patient_id, created_at FROM adverse_events WHERE id=?').get(rawId);
-      return row ? { patientId: row.patient_id, label: t('msg.composer.label.ae', 'Побочный эффект · {date}').replace('{date}', shortDate(row.created_at)) } : null;
+      const row = db.prepare('SELECT patient_id, created_at, status, psychiatrist_id FROM adverse_events WHERE id=?').get(rawId);
+      return row
+        ? {
+            patientId: row.patient_id,
+            // Черновик, отменённая и личная запись пациента без врача (service_queue без psychiatrist_id): только сам пациент.
+            ownerOnly: ['draft', 'cancelled'].includes(row.status) || (row.status === 'service_queue' && !row.psychiatrist_id),
+            label: t('msg.composer.label.ae', 'Побочный эффект · {date}').replace('{date}', shortDate(row.created_at)),
+          }
+        : null;
     }
     case 'visit': {
       if (!isNum) return null;

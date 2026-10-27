@@ -11,6 +11,7 @@ services:
       SMTP_HOST: mailpit
       SMTP_PORT: 1025
       ML_WORKER_URL: http://ml-worker:8000
+      KNOWLEDGE_DATABASE_URL: postgres://knowledge:${KNOWLEDGE_DB_PASSWORD:-devpass}@knowledge-db:5432/knowledge
       NODE_EXTRA_CA_CERTS: /app/certs/russian_trusted_root_ca.pem
     ports: ["3000:3000"]
     volumes: ["cc_data:/app/data", "./certs:/app/certs:ro"]
@@ -21,6 +22,25 @@ services:
     security_opt: ["no-new-privileges:true"]
     cap_drop: ["ALL"]
     networks: [default, internal]
+  knowledge-db:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    mem_limit: 1536m
+    environment:
+      POSTGRES_USER: knowledge
+      POSTGRES_DB: knowledge
+      POSTGRES_PASSWORD: ${KNOWLEDGE_DB_PASSWORD:-devpass}
+    command: ["postgres", "-c", "shared_buffers=256MB", "-c", "maintenance_work_mem=384MB", "-c", "max_parallel_maintenance_workers=0"]
+    # только loopback; 5432 на машине часто занят другими проектами
+    ports: ["127.0.0.1:${KNOWLEDGE_DB_PORT:-54329}:5432"]
+    volumes: ["knowledge_pg:/var/lib/postgresql/data"]
+    shm_size: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U knowledge -d knowledge"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    security_opt: ["no-new-privileges:true"]
   mailpit:
     image: axllent/mailpit:v1.27.9
     restart: unless-stopped
@@ -47,3 +67,4 @@ networks:
     internal: true
 volumes:
   cc_data:
+  knowledge_pg:

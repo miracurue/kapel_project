@@ -15,10 +15,11 @@ const template = ejs.compile(fs.readFileSync(TEMPLATE_PATH, 'utf8'), { filename:
 
 /**
  * @param {{ t: (key: string, fallback?: string) => string, aiOff?: boolean,
- *          today?: Array<{id: number, title: string}>, earlier?: Array<{id: number, title: string}> }} locals
+ *          today?: Array<{id: number, title: string}>, earlier?: Array<{id: number, title: string}>, reminders?: object[],
+ *          pausedUntil?: string|null }} locals (pausedUntil — срок мягкой паузы чата, статус ТРОЛЛЬ: поле ввода неактивно с подписью)
  */
-function render({ t, aiOff = false, today = [], earlier = [] }) {
-  return template({ t, aiOff, today, earlier });
+function render({ t, aiOff = false, today = [], earlier = [], reminders = [], pausedUntil = null }) {
+  return template({ t, aiOff, today, earlier, reminders, pausedUntil });
 }
 
 module.exports = { render };

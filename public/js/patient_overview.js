@@ -123,5 +123,6 @@ window.CCPatientOverview = {
         : `<p>${t('meds.restricted')}</p>`,
     );
     holder.innerHTML = `<div class="ov-intro"><h2>${t('title')}</h2><span>${t('updated', { date: date(o.as_of, true) })}</span></div><div class="ov-top">${duration}${visitHtml}</div>${safety}${dynamics}${medications}${adverse}`;
+    if (window.CCColleague) window.CCColleague.mount(holder, id, { tx: (key) => tx(key), esc });
   },
 };

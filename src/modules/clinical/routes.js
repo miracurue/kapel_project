@@ -288,6 +288,55 @@ function assignmentView(db, row) {
   };
 }
 
+// Подсчёт баллов по ответам — один для онлайн-прохождения и для очного бланка, который заполняет врач.
+function scoreAnswers(db, ins, answers, patientId) {
+  // SCL-90-R: ключ берём из сохранённой версии методики, ответам пациента не доверяем (только варианты 0–4).
+  const scl = ins.scoring.type === 'scl90r' ? scoreScl90r(answers, ins.scoring.scales) : null;
+  // ИТТ: ключ и таблицы берём из сохранённой версии методики; группу норм выбирает сервер по профилю.
+  const itt =
+    ins.scoring.type === 'itt'
+      ? scoreItt(answers, ins.scoring, db.prepare('SELECT sex,age_band FROM users WHERE id=?').get(patientId))
+      : null;
+  const stai = ins.scoring.type === 'stai' ? scoreStai(answers, ins.scoring) : null;
+  const score =
+    stai?.total ??
+    scl?.total ??
+    itt?.total ??
+    ins.questions.reduce((sum, q) => {
+      // В сумму идут только числовые ответы: текст, дата и «несколько вариантов» без баллов дают 0
+      // (иначе NaN и total_score NOT NULL роняет отправку).
+      const points = (answer) => {
+        const found = (q.options || []).find((o) => o.value === answer);
+        const v = Number(found?.score ?? answer ?? 0);
+        return Number.isFinite(v) ? v : 0;
+      };
+      const a = answers[q.id];
+      if (Array.isArray(a)) return sum + a.reduce((s, x) => s + points(x), 0);
+      const v = points(a);
+      return sum + (q.reverse ? (q.options?.length || 4) - 1 - v : v);
+    }, 0);
+  const band =
+    scl || itt || stai
+      ? 'Показатели рассчитаны'
+      : ins.bands.find((b) => score >= b.min && score <= b.max)?.label || 'review_required';
+  const sub = scl
+    ? { scales: scl.scales, gsi: scl.gsi, psi: scl.psi, pdsi: scl.pdsi }
+    : itt
+      ? itt.sub
+      : stai
+        ? stai.sub
+        : null;
+  return { score, band, sub };
+}
+
+// Кризисный пункт методики: явный признак crisis_item (SCL-90-R) или, если его нет, эвристика по номеру и словам.
+function crisisAnswer(q, value) {
+  const explicit = typeof q.crisis_item === 'boolean';
+  const crisisItem = explicit ? q.crisis_item : /9$/.test(q.id) || /смерт|навред|вред/i.test(`${q.id} ${q.text || ''}`);
+  const lastOption = Array.isArray(q.options) ? q.options.at(-1)?.value : undefined;
+  return crisisItem && (explicit ? Number(value) > 0 : String(value) === String(lastOption) || Number(value) > 0);
+}
+
 const PLAN_UNITS = ['мг', 'мкг', 'мл', 'таблетка'];
 
 function install(app, deps) {
@@ -367,6 +416,13 @@ function install(app, deps) {
       )
       .get(req.user.id, ins.code, P.iso(new Date(now(config).getTime() - 7 * 86400000)));
     if (recent) return err(req, res, 429, 'E-RATE-LIMIT');
+    // Открытое назначение той же методики одно на пациента (uq_ia_open): продолжаем его, а не создаём второе.
+    const open = db
+      .prepare(
+        "SELECT id, assigned_by FROM instrument_assignments WHERE patient_id=? AND instrument=? AND status IN ('pending','in_progress','waiting_entry')",
+      )
+      .get(req.user.id, ins.code);
+    if (open) return res.status(201).json({ id: open.id, instrument_code: ins.code, self: open.assigned_by == null });
     const id = Number(
       db
         .prepare(
@@ -389,7 +445,7 @@ function install(app, deps) {
   app.get('/api/v1/me/prefs', (req, res) => {
     const row = db
       .prepare(
-        'SELECT share_diary_notes, course_support_enabled, hints_enabled, timezone FROM user_prefs WHERE user_id=?',
+        'SELECT share_diary_notes, course_support_enabled, hints_enabled, timezone, address_form, praise_mode FROM user_prefs WHERE user_id=?',
       )
       .get(req.user.id);
     return res.json({
@@ -397,6 +453,14 @@ function install(app, deps) {
       course_support_enabled: Boolean(row && row.course_support_enabled),
       hints_enabled: Boolean(row && row.hints_enabled),
       timezone: (row && row.timezone) || null,
+      address_form: (row && row.address_form) || 'n',
+      praise_mode: (row && row.praise_mode) || 'normal',
+      // Пуши о напоминаниях: ключ для подписки браузера и признак, что это устройство-пользователь подписан хотя бы одним устройством.
+      push: {
+        available: Boolean(app.locals.push && app.locals.push.enabled()),
+        public_key: app.locals.push ? app.locals.push.publicKey() : null,
+        subscribed: Boolean(app.locals.push && app.locals.push.subscribed(req.user.id)),
+      },
     });
   });
   app.patch('/api/v1/me/prefs', (req, res) => {
@@ -413,6 +477,22 @@ function install(app, deps) {
     if (typeof req.body.timezone === 'string') {
       fields.push('timezone=?');
       values.push(req.body.timezone.slice(0, 64));
+    }
+    // Форма обращения в тёплых фразах (не медицинский пол) и режим фраз цветка.
+    if (['f', 'm', 'n'].includes(req.body.address_form)) {
+      fields.push('address_form=?', 'address_form_set=1');
+      values.push(req.body.address_form);
+    }
+    if (['normal', 'quiet', 'off'].includes(req.body.praise_mode)) {
+      fields.push('praise_mode=?');
+      values.push(req.body.praise_mode);
+    }
+    // Подписка устройства на пуши: объект подписки браузера или null (отписаться от всех устройств).
+    if (req.user.role === 'patient' && req.body.push_subscription !== undefined) {
+      const push = app.locals.push;
+      if (req.body.push_subscription === null) push.unsubscribe(req.user.id);
+      else if (!push.subscribe(req.user.id, req.body.push_subscription)) return err(req, res, 422, 'E-VALIDATION');
+      if (!fields.length) return res.json({ ok: true });
     }
     if (!fields.length) return err(req, res, 422, 'E-VALIDATION');
     fields.push('updated_at=?');
@@ -474,6 +554,21 @@ function install(app, deps) {
       return err(req, res, 422, 'E-VALIDATION', { fields: [{ key: 'err.e-validation.choose' }] });
     if (q.type === 'single' && value != null && value !== '' && q.options && !q.options.some((o) => o.value === value))
       return err(req, res, 422, 'E-VALIDATION', { fields: [{ key: 'err.e-validation.choose' }] });
+    const filled = value !== null && value !== undefined && value !== '';
+    if (q.type === 'number' && filled) {
+      const n = Number(value);
+      if (!Number.isFinite(n) || (q.min !== undefined && n < q.min) || (q.max !== undefined && n > q.max))
+        return err(req, res, 422, 'E-VALIDATION', {
+          fields: [{ key: 'err.e-validation.range', params: { min: q.min, max: q.max } }],
+        });
+    }
+    if (q.type === 'date' && filled && !/^\d{4}-\d{2}-\d{2}$/.test(String(value)))
+      return err(req, res, 422, 'E-VALIDATION');
+    const textLimit = { text_short: 300, text_long: 4000 }[q.type];
+    if (textLimit && filled && String(value).length > textLimit)
+      return err(req, res, 422, 'E-VALIDATION', {
+        fields: [{ key: 'err.e-validation.too_long', params: { max: textLimit } }],
+      });
     if (q.type === 'multi') {
       if (!Array.isArray(value) || value.length > (q.max_select || Infinity))
         return err(req, res, 422, 'E-VALIDATION', { fields: [{ key: 'err.e-validation.max_select' }] });
@@ -491,13 +586,7 @@ function install(app, deps) {
     // Если у пункта есть явный признак crisis_item (SCL-90-R), эвристика по номеру и словам не применяется:
     // иначе q19, q29… (id на «9») давали бы ложные срабатывания, а пункт 15 не срабатывал бы совсем.
     const explicit = typeof q.crisis_item === 'boolean';
-    const crisisItem = explicit
-      ? q.crisis_item
-      : /9$/.test(q.id) || /смерт|навред|вред/i.test(`${q.id} ${q.text || ''}`);
-    const lastOption = Array.isArray(q.options) ? q.options.at(-1)?.value : undefined;
-    const crisis =
-      /нет смысла жить|поконч|суицид/i.test(text) ||
-      (crisisItem && (explicit ? Number(value) > 0 : String(value) === String(lastOption) || Number(value) > 0));
+    const crisis = /нет смысла жить|поконч|суицид/i.test(text) || crisisAnswer(q, value);
     const crisisCard = crisis
       ? deps.crisis(explicit ? `Пункт ${q.id.slice(1)}: ${q.text}. Ответ: ${text}` : text, 'test', req.user.id)
       : null;
@@ -528,27 +617,7 @@ function install(app, deps) {
     for (const q of ins.questions)
       if (q.required && (answers[q.id] === undefined || answers[q.id] === null))
         return err(req, res, 422, 'E-VALIDATION');
-    // SCL-90-R: ключ берём из сохранённой версии методики, ответам пациента не доверяем (только варианты 0–4).
-    const scl = ins.scoring.type === 'scl90r' ? scoreScl90r(answers, ins.scoring.scales) : null;
-    // ИТТ: ключ и таблицы берём из сохранённой версии методики; группу норм выбирает сервер по профилю.
-    const itt =
-      ins.scoring.type === 'itt'
-        ? scoreItt(answers, ins.scoring, db.prepare('SELECT sex,age_band FROM users WHERE id=?').get(req.user.id))
-        : null;
-    const stai = ins.scoring.type === 'stai' ? scoreStai(answers, ins.scoring) : null;
-    const score =
-      stai?.total ??
-      scl?.total ??
-      itt?.total ??
-      ins.questions.reduce((sum, q) => {
-        const found = (q.options || []).find((o) => o.value === answers[q.id]);
-        const v = Number(found?.score ?? answers[q.id] ?? 0);
-        return sum + (q.reverse ? (q.options?.length || 4) - 1 - v : v);
-      }, 0);
-    const band =
-      scl || itt || stai
-        ? 'Показатели рассчитаны'
-        : ins.bands.find((b) => score >= b.min && score <= b.max)?.label || 'review_required';
+    const { score, band, sub } = scoreAnswers(db, ins, answers, req.user.id);
     const hidden = hidesPatientResult(ins);
     const id = Number(
       db
@@ -562,13 +631,7 @@ function install(app, deps) {
           ins.selected_version,
           JSON.stringify(answers),
           score,
-          scl
-            ? JSON.stringify({ scales: scl.scales, gsi: scl.gsi, psi: scl.psi, pdsi: scl.pdsi })
-            : itt
-              ? JSON.stringify(itt.sub)
-              : stai
-                ? JSON.stringify(stai.sub)
-                : null,
+          sub ? JSON.stringify(sub) : null,
           band,
           row.assigned_by ? 0 : 1,
           iso(deps),
@@ -994,11 +1057,14 @@ function install(app, deps) {
       for (const time of times.length ? times : ['any'])
         db.prepare(
           "INSERT INTO reminders(patient_id,created_by,kind,plan_item_id,message,time_hhmm,active,created_at) VALUES (?,?,'med',?,'STAND-IN: напоминание о приёме',?,1,?)",
-        ).run(req.user.id, req.user.id, item.id, /^\d\d:\d\d$/.test(time) ? time : '09:00', iso(deps));
+        ).run(req.user.id, req.user.id, item.id, reminderTimeOf(time), iso(deps));
     }
     const listed = planItems(planRow(req.user.id, 'published', true), req.user.id).find((x) => x.item_key === key);
     return res.json({ item: listed, undo: deps.makeUndo(req.user.id, 'med.accept', 'purchase_mark', markId) });
   }
+  // Время напоминания по слову из плана («утро», «вечер»…): те же часы, с которых чат напоминает по умолчанию.
+  const REMINDER_TIME = { утро: '08:00', день: '13:00', вечер: '19:00', 'на ночь': '22:00' };
+  const reminderTimeOf = (time) => (/^\d\d:\d\d$/.test(time) ? time : REMINDER_TIME[time] || '09:00');
   app.post('/api/v1/me/plan-items/:key/accept', (req, res) => {
     if (!req.body.product_id && !req.body.pending_name) return err(req, res, 422, 'E-GENERIC-REQUIRED');
     return setPurchase(req, res, req.params.key);
@@ -1087,7 +1153,9 @@ function install(app, deps) {
   });
   app.get('/api/v1/me/reminders', (req, res) => {
     const items = db
-      .prepare('SELECT id,time_hhmm,days_mask,active FROM reminders WHERE patient_id=? ORDER BY id')
+      .prepare(
+        'SELECT r.id,r.time_hhmm,r.days_mask,r.active,r.kind,CASE WHEN r.plan_item_id IS NOT NULL THEN (SELECT i.name FROM plan_items p JOIN inn i ON i.id=p.inn_id WHERE p.id=r.plan_item_id) END AS name FROM reminders r WHERE r.patient_id=? ORDER BY r.id',
+      )
       .all(req.user.id);
     return res.json({ items });
   });
@@ -1096,8 +1164,10 @@ function install(app, deps) {
       .prepare('SELECT id FROM reminders WHERE id=? AND patient_id=?')
       .get(Number(req.params.id), req.user.id);
     if (!row) return err(req, res, 404, 'E-NOT-FOUND');
-    db.prepare('UPDATE reminders SET time_hhmm=?,active=?,updated_at=? WHERE id=?').run(
-      req.body.time || '09:00',
+    if (req.body.time !== undefined && !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(req.body.time)))
+      return err(req, res, 422, 'E-VALIDATION');
+    db.prepare('UPDATE reminders SET time_hhmm=COALESCE(?,time_hhmm),active=?,updated_at=? WHERE id=?').run(
+      req.body.time === undefined ? null : String(req.body.time),
       req.body.enabled ? 1 : 0,
       iso(deps),
       row.id,
@@ -1194,12 +1264,123 @@ function install(app, deps) {
     );
     return res.json({ ok: true });
   });
+  // Очный бланк: врач на приёме отмечает ответы пациента в той же методике, что и онлайн, — баллы считает сервер
+  // тем же ключом, результат сразу сохраняется в карточку (без черновика: врач сам видел ответы).
+  const offlineFromAnswers = (req, res, patientId, code, upload) => {
+    const ins = instrument(db, code);
+    const answers = req.body.answers;
+    if (!ins || !answers || typeof answers !== 'object' || Array.isArray(answers))
+      return err(req, res, 422, 'E-VALIDATION');
+    const missing = [];
+    for (const q of ins.questions) {
+      const value = answers[q.id];
+      const filled = value !== undefined && value !== null && value !== '';
+      if (!filled) {
+        if (q.required) missing.push(q.id);
+        continue;
+      }
+      if (q.type === 'single' && q.options && !q.options.some((o) => o.value === value)) missing.push(q.id);
+      if (
+        q.type === 'multi' &&
+        (!Array.isArray(value) || value.some((x) => !(q.options || []).some((o) => o.value === x)))
+      )
+        missing.push(q.id);
+    }
+    if (missing.length)
+      return err(req, res, 422, 'E-VALIDATION', {
+        fields: missing.map((id) => ({ key: 'err.e-validation.choose', field: id })),
+      });
+    const clean = Object.fromEntries(
+      ins.questions.filter((q) => answers[q.id] !== undefined).map((q) => [q.id, answers[q.id]]),
+    );
+    const { score, band, sub } = scoreAnswers(db, ins, clean, patientId);
+    const risky = ins.questions.filter((q) => clean[q.id] !== undefined && crisisAnswer(q, clean[q.id]));
+    const id = Number(
+      db
+        .prepare(
+          "INSERT INTO offline_results(patient_id,entered_by,instrument,total_score,subscales_json,band,risk_flag,risk_reasons_json,test_date,entry_method,source_file_id,status,answers_json,confirmed_at,created_at) VALUES (?,?,?,?,?,?,?,?,?,'form',?,'saved',?,?,?)",
+        )
+        .run(
+          patientId,
+          req.user.id,
+          ins.code,
+          score,
+          sub ? JSON.stringify(sub) : null,
+          band,
+          risky.length ? 1 : 0,
+          risky.length ? JSON.stringify(risky.map((q) => q.id)) : null,
+          heldOn(req),
+          upload ? upload.id : null,
+          JSON.stringify(clean),
+          iso(deps),
+          iso(deps),
+        ).lastInsertRowid,
+    );
+    if (upload) linkUpload(upload.id, id, patientId);
+    // Тревожный ответ в кризисном пункте — та же эскалация, что у подтверждённого очного результата.
+    if (risky.length)
+      db.prepare(
+        "INSERT INTO crisis_escalations(patient_id,source,tier,triggers_json,status,due_at,created_at) VALUES (?,'offline',2,?,'new',?,?)",
+      ).run(
+        patientId,
+        JSON.stringify(risky.map((q) => q.id)),
+        P.iso(new Date(now(config).getTime() + 60 * 60 * 1000)),
+        iso(deps),
+      );
+    return res.status(201).json({
+      id,
+      draft: null,
+      source_ref: upload ? { id: upload.id } : null,
+      total_score: score,
+      band,
+      risk_flag: risky.length > 0,
+    });
+  };
+  // Фото или скан бумажного бланка: временная загрузка врача (POST /uploads) становится исходником очного результата
+  // и хранится в карточке пациента (stored_files: offline_source → offline_result), а не удаляется через 20 минут.
+  const takeUpload = (req, uploadId) =>
+    uploadId == null
+      ? null
+      : db
+          .prepare(
+            "SELECT id FROM stored_files WHERE id=? AND owner_user_id=? AND status='temp' AND (expires_at IS NULL OR expires_at>?) AND (mime LIKE 'image/%' OR mime='application/pdf')",
+          )
+          .get(Number(uploadId), req.user.id, iso(deps)) || false;
+  const linkUpload = (fileId, resultId, patientId) =>
+    db
+      .prepare(
+        "UPDATE stored_files SET purpose='offline_source',linked_type='offline_result',linked_id=?,patient_id=?,status='linked',expires_at=NULL WHERE id=?",
+      )
+      .run(resultId, patientId, fileId);
+  const heldOn = (req) =>
+    /^\d{4}-\d{2}-\d{2}$/.test(String(req.body.held_on || '')) ? req.body.held_on : iso(deps).slice(0, 10);
   app.post('/api/v1/patients/:patientId/offline-results', (req, res) => {
     const patientId = patient(req);
     const code = String(req.body.instrument_code || '');
-    if (!instrument(db, code)) return err(req, res, 403, 'E-INSTRUMENT-LICENSE');
     const method = req.body.method === 'photo' ? 'photo' : 'form';
-    const draft = req.body.scores || (method === 'photo' ? { total: 0 } : {});
+    const upload = takeUpload(req, req.body.upload_id);
+    if (upload === false || (method === 'photo' && !upload)) return err(req, res, 422, 'E-VALIDATION');
+    // Фото бланка можно сохранить по любой методике каталога — и по той, что онлайн не проходится
+    // (рисунок, письмо от руки); бланк с ответами и черновик баллов — только по проходимой.
+    const known = db
+      .prepare("SELECT code FROM instruments WHERE code=? AND status NOT IN ('blocked','withdrawn')")
+      .get(code);
+    if (method === 'photo' && !req.body.scores && req.body.answers === undefined) {
+      if (!known) return err(req, res, 403, 'E-INSTRUMENT-LICENSE');
+      const id = Number(
+        db
+          .prepare(
+            "INSERT INTO offline_results(patient_id,entered_by,instrument,total_score,subscales_json,test_date,entry_method,source_file_id,status,created_at) VALUES (?,?,?,NULL,NULL,?,'photo',?,'draft',?)",
+          )
+          .run(patientId, req.user.id, code, heldOn(req), upload.id, iso(deps)).lastInsertRowid,
+      );
+      linkUpload(upload.id, id, patientId);
+      // Баллов с фото нет: бланк хранится как исходник, баллы врач может внести отдельно.
+      return res.status(201).json({ id, draft: { total: null }, source_ref: { id: upload.id } });
+    }
+    if (!instrument(db, code)) return err(req, res, 403, 'E-INSTRUMENT-LICENSE');
+    if (req.body.answers !== undefined) return offlineFromAnswers(req, res, patientId, code, upload);
+    const draft = req.body.scores || {};
     const id = Number(
       db
         .prepare(
@@ -1211,13 +1392,14 @@ function install(app, deps) {
           code,
           draft.total ?? null,
           JSON.stringify(draft),
-          iso(deps).slice(0, 10),
+          heldOn(req),
           method,
-          req.body.upload_id || null,
+          upload ? upload.id : null,
           iso(deps),
         ).lastInsertRowid,
     );
-    return res.status(201).json({ id, draft, source_ref: req.body.upload_id ? { id: req.body.upload_id } : null });
+    if (upload) linkUpload(upload.id, id, patientId);
+    return res.status(201).json({ id, draft, source_ref: upload ? { id: upload.id } : null });
   });
   app.post('/api/v1/offline-results/:id/confirm', (req, res) => {
     const row = db

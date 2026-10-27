@@ -2,8 +2,19 @@
 
 const { RULES, DAILY_MAX, STEP_PRICE, MAX_STEPS, WATER_MAX_STEPS, STAGES } = require('./rules');
 const { shiftDay } = require('../analytics/facts');
+const phrases = require('./phrases');
 
 const SCAN_MARGIN_DAYS = 3;
+// Тёплые окошки: не чаще одного за 10 минут, не больше 4 в день, одно на вид действия в день; фразы не повторяются
+// ближе чем через 6 показов, а «молодец/умница» (тон praise) — не чаще одного из десяти и не больше одного в день.
+const BUBBLE_GAP_MINUTES = 10;
+const BUBBLE_DAILY_MAX = 4;
+const PHRASE_MEMORY = 6;
+const PRAISE_WINDOW = 10;
+const CRISIS_QUIET_MINUTES = 30;
+// Приветствие и напоминания ночью не показываем (часы по поясу организации).
+const QUIET_FROM_HOUR = 22;
+const QUIET_TO_HOUR = 8;
 
 function stageFor(steps) {
   let index = 0;
@@ -13,7 +24,10 @@ function stageFor(steps) {
   return index;
 }
 
-/** @param {{ now: () => string, today: () => string }} clock now — ISO UTC, today — день по поясу организации */
+/**
+ * @param {{ now: () => string, today: () => string, hour?: () => number, rand?: () => number }} clock
+ *   now — ISO UTC, today — день по поясу организации, hour — час по поясу организации, rand — для тестов
+ */
 function create(db, clock) {
   const q = {
     state: db.prepare('SELECT * FROM flower_state WHERE patient_id=?'),
@@ -35,6 +49,20 @@ function create(db, clock) {
     recent: db.prepare(
       "SELECT id,action,amount,created_at FROM flower_ledger WHERE patient_id=? AND kind='earn' AND amount>0 ORDER BY id DESC LIMIT 8",
     ),
+    prefs: db.prepare('SELECT address_form, praise_mode FROM user_prefs WHERE user_id=?'),
+    todayKeys: db.prepare("SELECT idem_key k FROM flower_ledger WHERE patient_id=? AND kind='earn' AND day=?"),
+    msgLast: db.prepare(
+      'SELECT phrase_key, created_at FROM flower_message_log WHERE patient_id=? ORDER BY id DESC LIMIT ?',
+    ),
+    msgToday: db.prepare('SELECT phrase_key FROM flower_message_log WHERE patient_id=? AND day=?'),
+    msgInsert: db.prepare(
+      'INSERT INTO flower_message_log(patient_id,kind,phrase_key,day,created_at) VALUES (?,?,?,?,?)',
+    ),
+    msgPrune: db.prepare('DELETE FROM flower_message_log WHERE patient_id=? AND day<?'),
+    crisisRecent: db.prepare(
+      "SELECT 1 FROM online_results WHERE patient_id=? AND risk_flag=1 AND created_at>=? UNION ALL SELECT 1 FROM crisis_incident_log WHERE patient_id=? AND event_type='created' AND created_at>=? LIMIT 1",
+    ),
+    techniqueOpen: db.prepare('INSERT OR IGNORE INTO technique_runs(patient_id,slug,day,created_at) VALUES (?,?,?,?)'),
     eligible: db.prepare(
       "SELECT 1 FROM users u WHERE u.id=? AND u.role='patient' AND u.status='active' AND NOT EXISTS(SELECT 1 FROM data_subject_requests r WHERE r.patient_id=u.id AND r.request_type='erasure' AND r.status IN ('submitted','in_work','waiting_crisis'))",
     ),
@@ -96,10 +124,29 @@ function create(db, clock) {
       'test',
       db
         .prepare(
-          'SELECT id FROM online_results WHERE patient_id=? AND invalid_at IS NULL AND substr(created_at,1,10)>=? ORDER BY id',
+          'SELECT id, instrument, substr(created_at,1,10) d FROM online_results WHERE patient_id=? AND invalid_at IS NULL AND substr(created_at,1,10)>=? ORDER BY id',
         )
         .all(patientId, from)
-        .map((r) => ({ key: `test:${r.id}`, source: `online_results:${r.id}` })),
+        // Не чаще раза в день за каждый тест; результаты, уже награждённые по старому ключу «номер результата», не повторяем.
+        .filter((r) => !q.has.get(patientId, `test:${r.id}`))
+        .map((r) => ({ key: `test:${r.instrument}:${r.d}`, source: `online_results:${r.id}` })),
+    );
+    add(
+      'technique',
+      db
+        .prepare('SELECT id, slug, day d FROM technique_runs WHERE patient_id=? AND day>=? ORDER BY id')
+        .all(patientId, from)
+        .map((r) => ({ key: `technique:${r.slug}:${r.d}`, source: `technique_runs:${r.id}` })),
+    );
+    add(
+      'login',
+      db
+        .prepare(
+          'SELECT DISTINCT substr(created_at,1,10) d FROM sessions WHERE user_id=? AND substr(created_at,1,10)>=? ORDER BY d',
+        )
+        .all(patientId, from)
+        .filter((r) => r.d >= recentDay)
+        .map((r) => ({ key: `login:${r.d}`, source: 'sessions' })),
     );
     add(
       'note',
@@ -192,6 +239,17 @@ function create(db, clock) {
     return q.totals.get(patientId);
   }
 
+  /** Сколько капелек ещё можно получить сегодня за каждое действие: для рисунков «капелька с цифрой». */
+  function leftToday(patientId) {
+    const day = clock.today();
+    const out = {};
+    for (const [action, rule] of Object.entries(RULES)) {
+      const used = q.sum.get(action, patientId, day);
+      out[action] = Math.max(0, Math.min(rule.drops, rule.dailyCap - used.action_today, DAILY_MAX - used.earned_today));
+    }
+    return out;
+  }
+
   function state(patientId) {
     ensure(patientId);
     const { balance, earned, steps } = totals(patientId);
@@ -220,6 +278,8 @@ function create(db, clock) {
       today_drops: q.todayEarned.get(patientId, clock.today()).n,
       daily_max: DAILY_MAX,
       recent: q.recent.all(patientId),
+      left: leftToday(patientId),
+      today_keys: q.todayKeys.all(patientId, clock.today()).map((r) => r.k),
       sources: Object.entries(RULES).map(([action, r]) => ({
         action,
         drops: r.drops,
@@ -247,16 +307,87 @@ function create(db, clock) {
       .immediate();
   }
 
+  /** Отметить выполненную методику (раз в день на методику) и начислить капельки. */
+  function technique(patientId, slug) {
+    try {
+      if (!q.eligible.get(patientId)) return { gained: 0, items: [] };
+      ensure(patientId);
+      q.techniqueOpen.run(patientId, slug, clock.today(), clock.now());
+    } catch (error) {
+      console.error(JSON.stringify({ event: 'flower.technique.failed', message: String(error.message || error) }));
+      return { gained: 0, items: [] };
+    }
+    return sync(patientId);
+  }
+
+  const minutesAgo = (iso) => (Date.parse(clock.now()) - Date.parse(iso)) / 60000;
+
+  /**
+   * Тёплая фраза для окошка под капелькой или null, если сейчас лучше промолчать. Пределы и подбор фраз — на сервере,
+   * чтобы их нельзя было обойти с клиента и чтобы фразы не повторялись между страницами.
+   * @param {'bubble'|'greeting'} kind
+   */
+  function message(patientId, action, kind = 'bubble') {
+    if (!phrases.ACTIONS.includes(action) || !q.eligible.get(patientId)) return null;
+    const prefs = q.prefs.get(patientId) || { address_form: 'n', praise_mode: 'normal' };
+    if (prefs.praise_mode !== 'normal') return null;
+    const day = clock.today();
+    const now = clock.now();
+    if (kind === 'greeting') {
+      const hour = clock.hour ? clock.hour() : 12;
+      if (hour >= QUIET_FROM_HOUR || hour < QUIET_TO_HOUR) return null;
+    }
+    // Рядом с кризисной карточкой или тревожным результатом никаких похвал.
+    const since = new Date(Date.parse(now) - CRISIS_QUIET_MINUTES * 60000).toISOString();
+    if (q.crisisRecent.get(patientId, since, patientId, since)) return null;
+    const today = q.msgToday.all(patientId, day).map((r) => r.phrase_key);
+    if (today.length >= BUBBLE_DAILY_MAX || today.some((k) => k.startsWith(`${action}.`))) return null;
+    const recent = q.msgLast.all(patientId, Math.max(PHRASE_MEMORY, PRAISE_WINDOW));
+    if (recent[0] && minutesAgo(recent[0].created_at) < BUBBLE_GAP_MINUTES) return null;
+    const toneOf = (key) => {
+      const [a, id] = key.split('.');
+      return (phrases.BANK[a] || []).find((x) => String(x.id) === id)?.tone;
+    };
+    const praiseBlocked =
+      today.some((k) => toneOf(k) === 'praise') ||
+      recent.slice(0, PRAISE_WINDOW - 1).some((r) => toneOf(r.phrase_key) === 'praise');
+    const lastKeys = new Set(recent.slice(0, PHRASE_MEMORY).map((r) => r.phrase_key));
+    const rand = clock.rand || Math.random;
+    // Оценочные фразы («молодец») выпадают реже остальных: их шанс — треть от шанса обычной.
+    const pool = phrases.BANK[action].filter(
+      (x) => !lastKeys.has(`${action}.${x.id}`) && (x.tone !== 'praise' || (!praiseBlocked && rand() < 0.34)),
+    );
+    if (!pool.length) return null;
+    const pick = pool[Math.floor(rand() * pool.length)];
+    const key = `${action}.${pick.id}`;
+    db.transaction(() => {
+      q.msgInsert.run(patientId, kind, key, day, now);
+      q.msgPrune.run(patientId, shiftDay(day, -30));
+    }).immediate();
+    return { key, kind, tone: pick.tone, text: phrases.textFor(pick, prefs.address_form || 'n') };
+  }
+
   function exportData(patientId) {
     return {
       state: db.prepare('SELECT started_at FROM flower_state WHERE patient_id=?').get(patientId) || null,
       ledger: db
         .prepare('SELECT kind,action,amount,steps,day,created_at FROM flower_ledger WHERE patient_id=? ORDER BY id')
         .all(patientId),
+      techniques: db.prepare('SELECT slug,day FROM technique_runs WHERE patient_id=? ORDER BY id').all(patientId),
     };
   }
 
-  return { ensure, sync, award, state, water, exportData, balance: (patientId) => totals(patientId).balance };
+  return {
+    ensure,
+    sync,
+    award,
+    state,
+    water,
+    technique,
+    message,
+    exportData,
+    balance: (patientId) => totals(patientId).balance,
+  };
 }
 
 module.exports = { create, stageFor };

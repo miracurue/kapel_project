@@ -21,7 +21,9 @@ test('V3 browser: selected file is uploaded and sent to chosen recipient; remove
   await B.expectVisible(page, 'msg.composer.file.remove');
   await page.fill(B.tid('msg.doctor.placeholder'), 'BROWSER-FILE-MESSAGE');
   await page.click(B.tid('msg.composer.send'));
-  await B.expectVisible(page, 'msg.undo.message_sent');
+  await page.waitForFunction(() =>
+    document.querySelector('#v3-doctor .thread')?.innerText.includes('BROWSER-FILE-MESSAGE'),
+  );
   const message = ctx.app.query("SELECT * FROM care_messages WHERE body='BROWSER-FILE-MESSAGE'")[0];
   assert.equal(message.clinician_id, ctx.app.ids.plg1);
   const file = ctx.app.query(
@@ -112,26 +114,16 @@ test('V3 browser: signal quote/name escaped, release/outcome/undo work, notice e
   await page.click(B.tid('msg.signals.filter.ae'));
   const aeCard = page.locator(`[data-signal="ae-${ae.ae.id}"]`);
   await aeCard.locator(B.tid('msg.signals.ae.likely')).click();
+  // test-change: редактор извещения убран из «Сигналов»; кнопка ведёт в «Шаблоны и документы» (2026-10-26).
+  assert.equal(await aeCard.locator('[data-notice-field]').count(), 0);
   await aeCard.locator(B.tid('msg.signals.notice.open')).click();
-  await aeCard.locator('[data-notice-field="reporter_comment"]').fill('BROWSER-NOTICE-EDIT');
-  await page.waitForTimeout(5500);
-  assert.equal(await aeCard.locator('[data-notice-field="reporter_comment"]').inputValue(), 'BROWSER-NOTICE-EDIT');
-  await aeCard.locator(B.tid('msg.v3.notice.save')).click();
-  await page.waitForFunction(() => document.querySelector('[data-notice]')?.dataset.version === '2');
-  assert.equal(
-    JSON.parse(
-      ctx.app.query(
-        'SELECT fields_enc FROM ae_notice_versions WHERE adverse_event_id=? ORDER BY version DESC',
-        ae.ae.id,
-      )[0].fields_enc,
-    ).reporter_comment,
-    'BROWSER-NOTICE-EDIT',
-  );
-  for (const extension of ['pdf', 'docx']) {
-    const link = aeCard.locator(`a[href$="format=${extension}"]`);
-    const [download] = await Promise.all([page.waitForEvent('download'), link.click()]);
-    assert.match(download.suggestedFilename(), new RegExp(`\\.${extension}$`));
-  }
+  await page.waitForURL(/tab=docs&doc=\d+/);
+  await page.locator('[data-field="region"]').fill('BROWSER-NOTICE-EDIT');
+  await page.waitForSelector('[data-save="saved"]');
+  const docId = Number(new URL(page.url()).searchParams.get('doc'));
+  const saved = expectOk(await (await ctx.api('psy1')).get(`/work/api/documents/${docId}`)).document;
+  assert.equal(saved.fields.region, 'BROWSER-NOTICE-EDIT');
+  assert.equal(saved.ae_id, ae.ae.id);
 });
 
 test('V3 browser: clinician reads thread and sends actual file reply; edited visit creates real details and submitted previsit appears in chart', async () => {
@@ -150,7 +142,9 @@ test('V3 browser: clinician reads thread and sends actual file reply; edited vis
   await B.expectVisible(page, 'msg.composer.file.remove');
   await page.fill(B.tid('msg.v3.messages.reply'), 'CLINICIAN-FILE-REPLY');
   await page.click(B.tid('msg.composer.send'));
-  await B.expectVisible(page, 'msg.undo.message_sent');
+  await page.waitForFunction(() =>
+    document.querySelector('[data-message-thread]')?.innerText.includes('CLINICIAN-FILE-REPLY'),
+  );
   const reply = ctx.app.query("SELECT * FROM care_messages WHERE body='CLINICIAN-FILE-REPLY'")[0];
   assert.ok(reply);
   assert.equal(

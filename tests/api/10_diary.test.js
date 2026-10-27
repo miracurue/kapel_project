@@ -80,16 +80,16 @@ test('T-158 [W-19] напоминание о приёме приходит в с
 });
 
 // covers: T-159, UC-08, F-39, F-06, PD-10
-test('T-159 [W-21] после отзыва обязательного согласия новая запись дневника не создаётся (403 E-ACCESS: запрос на стирание, ограничение обработки W-50); кризисная заметка всё равно распознаётся', async () => {
+test('T-159 [W-21] после отзыва обязательного согласия новая запись дневника не создаётся (403 E-CONSENT-REQUIRED: запрос на стирание, ограничение обработки W-50); кризисная заметка всё равно распознаётся', async () => {
   const p = await ctx.as('patG');
   const v = expectOk(await p.get('/api/v1/consents')).items.find((x) => x.kind === 'base').version;
   expectOk(await p.post('/api/v1/consents/base', { action: 'revoke', version: v, confirm: true }));
   const before = ctx.app.query('SELECT count(*) n FROM crisis_escalations WHERE patient_id = ?', ctx.id('patG'))[0].n;
   // Одобрено 2026-10-21: отзыв создаёт запрос на стирание, ограничение обработки (W-50) действует раньше проверки согласия.
-  // Обычная запись не создаётся: 403 E-ACCESS.
+  // Решение владельца 2026-10-25: причина отказа для пациента — «нужно согласие». Обычная запись не создаётся.
   const calm = await p.post('/api/v1/me/diary', { mood: 3, note: F.CALM_PHRASE });
   assert.equal(calm.status, 403);
-  assert.equal(calm.body.error.code, 'E-ACCESS');
+  assert.equal(calm.body.error.code, 'E-CONSENT-REQUIRED');
   // Кризисная заметка не теряется: запись не сохраняется, но карточка 112 показана и сигнал создан.
   const r = await p.post('/api/v1/me/diary', { mood: 1, note: F.CRISIS_PHRASE });
   assert.equal(r.status, 200);

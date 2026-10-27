@@ -141,6 +141,13 @@ test('T-138 [W-36] модель order_parse дополняет правила; �
   ctx.app.ai.queue({ mode: 'tool', name: 'order_parse', arguments: { inn_name: 'несуществующинмаб', dose: 50, unit: 'мг', times: ['утро'] } });
   const bad = expectOk(await doc.post(`/api/v1/patients/${ctx.id('patA')}/parse`, { target: 'plan_item', phrase: 'то же самое, что и в прошлый раз, но утром' }));
   assert.ok(!bad.draft.inn_id, 'МНН, которого нет в справочнике, не принят из ответа модели');
+  // ответ модели с корректными полями принимается: разбираются аргументы функции order_parse, а не весь результат шлюза
+  ctx.app.ai.queue({ mode: 'tool', name: 'order_parse', arguments: { dose: 50, unit: 'мг', times: ['утро'] } });
+  const good = expectOk(await doc.post(`/api/v1/patients/${ctx.id('patA')}/parse`, { target: 'plan_item', phrase: 'сертралин как обычно' }));
+  assert.equal(good.draft.dose, 50);
+  assert.deepEqual(good.draft.times, ['утро']);
+  assert.deepEqual(good.missing, []);
+  assert.deepEqual(ctx.app.ai.calls().at(-1).tools.map((t) => t.name), ['order_parse'], 'в модель ушла схема функции');
   ctx.app.ai.queue({ mode: 'timeout' });
   const t0 = Date.now();
   const slow = expectOk(await doc.post(`/api/v1/patients/${ctx.id('patA')}/parse`, { target: 'plan_item', phrase: 'сертралин как обычно' }));
@@ -177,4 +184,20 @@ test('T-139 [W-42] привязки и промпты каждого назна�
     assert.equal(c.model, 'stub-c-t13', `${purpose}: новая модель`);
     assert.ok(c.system.includes(`МАРКЕР-${purpose}`), `${purpose}: новая версия промпта`);
   }
+});
+
+// covers: F-32
+test('чат специалиста без пациента: new_thread открывает новый тред, thread_id дописывает в указанный, чужой/неподходящий thread_id игнорируется', async () => {
+  const doc = await ctx.as('psy1');
+  ctx.app.ai.reset();
+  ctx.app.ai.setDefault({ mode: 'text', text: 'Синтетика' });
+  const first = expectOk(await doc.post('/api/v1/ai/clinician/messages', { text: 'Первый вопрос без пациента', chips: [] }));
+  const second = expectOk(await doc.post('/api/v1/ai/clinician/messages', { text: 'Второй вопрос', chips: [], new_thread: true }));
+  assert.notEqual(second.thread.id, first.thread.id, 'new_thread создаёт новый тред');
+  const back = expectOk(await doc.post('/api/v1/ai/clinician/messages', { text: 'Вернёмся к первому', chips: [], thread_id: first.thread.id }));
+  assert.equal(back.thread.id, first.thread.id, 'thread_id дописывает в указанный тред');
+  const plain = expectOk(await doc.post('/api/v1/ai/clinician/messages', { text: 'Без указаний', chips: [] }));
+  assert.equal(plain.thread.id, second.thread.id, 'без указаний — последний тред, как раньше');
+  const other = expectOk(await doc.post('/api/v1/ai/clinician/messages', { patient_id: ctx.id('patA'), text: 'Про пациента', chips: [{ type: 'patient', id: ctx.id('patA') }], thread_id: first.thread.id }));
+  assert.notEqual(other.thread.id, first.thread.id, 'тред без пациента не подменяет тред пациента');
 });

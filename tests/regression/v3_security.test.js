@@ -108,8 +108,9 @@ test('V3 regression: consent withdrawal blocks records but preserves crisis card
   expectOk(await patient.post('/api/v1/consents/base', { action: 'revoke', confirm: true }));
   try {
     const before = ctx.app.query('SELECT count(*) n FROM adverse_events')[0].n;
-    // отзыв базового согласия заводит запрос на стирание (W-50, PD-12): обычная запись закрыта ограничением
-    expectError(await patient.post('/api/v1/me/adverse-events', { text: 'ordinary' }), 403, 'E-ACCESS');
+    // отзыв базового согласия заводит запрос на стирание (W-50, PD-12): обычная запись закрыта ограничением;
+    // причина для пациента — «нужно согласие» (решение владельца 2026-10-25)
+    expectError(await patient.post('/api/v1/me/adverse-events', { text: 'ordinary' }), 403, 'E-CONSENT-REQUIRED');
     const result = expectOk(await patient.post('/api/v1/me/adverse-events', { text: F.CRISIS_PHRASE }));
     assert.equal(result.saved, false);
     assert.equal(result.crisis.contacts[0].phone, '112');
@@ -195,7 +196,8 @@ test('V3 regression: erasure restriction blocks writes but crisis text still get
   expectOk(await patient.post('/api/v1/consents/base', { action: 'revoke', confirm: true }));
   try {
     const before = ctx.app.query('SELECT count(*) n FROM care_messages')[0].n;
-    expectError(await patient.post('/api/v1/me/messages', { text: 'ordinary' }), 403, 'E-ACCESS');
+    // ограничение вызвано отзывом согласия — пациенту «нужно согласие» (решение владельца 2026-10-25)
+    expectError(await patient.post('/api/v1/me/messages', { text: 'ordinary' }), 403, 'E-CONSENT-REQUIRED');
     const result = expectOk(await patient.post('/api/v1/me/messages', { text: F.CRISIS_PHRASE }));
     assert.equal(result.saved, false);
     assert.equal(result.crisis.contacts[0].phone, '112');

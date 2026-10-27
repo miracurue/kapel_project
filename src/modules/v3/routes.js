@@ -4,6 +4,9 @@
 // Свободный текст проверяется вызывающей стороной через `crisis` до сохранения.
 
 const crypto = require('crypto');
+const aeIntake = require('./ae_intake');
+const crisisMode = require('../../ai/crisisMode');
+const { isFullyAssigned } = require('../../access/assignment');
 
 function install(app, { db, P, config, now, makeUndo, crisis, activeSetting, auditPatient, baseConsentGiven }) {
   const secured = require('./security').create(app, {
@@ -25,10 +28,7 @@ function install(app, { db, P, config, now, makeUndo, crisis, activeSetting, aud
       WHERE ca.patient_id=? AND ca.ended_at IS NULL ${psychiatristOnly ? "AND u.role='psychiatrist'" : ''} ORDER BY ca.id LIMIT 1`,
       )
       .get(patientId);
-  const assigned = (clinicianId, patientId) =>
-    db
-      .prepare('SELECT 1 FROM care_assignments WHERE clinician_id=? AND patient_id=? AND ended_at IS NULL')
-      .get(clinicianId, patientId);
+  const assigned = (clinicianId, patientId, signal = false) => isFullyAssigned(db, patientId, clinicianId, { signal });
   const notify = (recipient, type, objectType, objectId, patientId, title, visible = iso()) => {
     db.prepare(
       "INSERT INTO notifications(recipient_id,type,event_key,object_type,object_id,title,patient_id,visible_from,status,created_at) VALUES (?,?,?,?,?,?,?,?, 'active',?)",
@@ -44,6 +44,22 @@ function install(app, { db, P, config, now, makeUndo, crisis, activeSetting, aud
       iso(),
     );
   };
+  // Переход из «Сигналов» к извещению во вкладке «Шаблоны и документы»: готовый документ (если есть) или ключи для создания.
+  const noticeDocument = (ae, ownerId) => {
+    const doc = db
+      .prepare(
+        'SELECT id,status FROM clinician_documents WHERE owner_id=? AND ae_id=? AND NOT EXISTS (SELECT 1 FROM clinician_documents n WHERE n.supersedes_id=clinician_documents.id) ORDER BY id DESC LIMIT 1',
+      )
+      .get(ownerId, ae.id);
+    return {
+      available: ae.status === 'related_likely',
+      template_key: 'b-roszdravnadzor',
+      patient_id: ae.patient_id,
+      ae_id: ae.id,
+      document_id: doc ? doc.id : null,
+      document_status: doc ? doc.status : null,
+    };
+  };
   const signalView = (row) => ({
     id: row.id,
     kind: 'crisis',
@@ -54,12 +70,13 @@ function install(app, { db, P, config, now, makeUndo, crisis, activeSetting, aud
     source: row.source,
     created_at: row.created_at,
     level: row.tier,
+    ...(row.ai ? { ai_assessment: row.ai } : {}),
     can_open_chart: Boolean(row.canOpenChart),
     patient: { id: row.patient_id, ...(row.patientName ? { name: row.patientName } : {}) },
     taken_by: row.taken_by ? { id: row.taken_by, name: row.taken_name, role: row.taken_role, at: row.taken_at } : null,
   });
   const canSignal = (req, row) =>
-    assigned(req.user.id, row.patient_id) ||
+    assigned(req.user.id, row.patient_id, true) ||
     (row.escalated_to_backup_at && (activeSetting('crisis.backup').value || []).map(Number).includes(req.user.id));
   const log = (id, patient, event, actor = null, detail = {}) =>
     db
@@ -82,6 +99,7 @@ function install(app, { db, P, config, now, makeUndo, crisis, activeSetting, aud
       signalView({
         ...row,
         includeQuote: true,
+        ai: crisisMode.latestAssessment(db, row.id),
         canOpenChart: Boolean(assigned(req.user.id, row.patient_id)),
         patientName: db.prepare('SELECT full_name FROM users WHERE id=?').get(row.patient_id)?.full_name,
       }),
@@ -102,7 +120,9 @@ function install(app, { db, P, config, now, makeUndo, crisis, activeSetting, aud
             name: db.prepare('SELECT full_name FROM users WHERE id=?').get(ae.patient_id)?.full_name,
           },
           can_open_chart: true,
+          notice_document: noticeDocument(ae, req.user.id),
           due_at: null,
+          created_at: ae.created_at,
           text: ae.description_enc,
           started_on: ae.onset_date,
           severity: ae.severity,
@@ -124,7 +144,7 @@ function install(app, { db, P, config, now, makeUndo, crisis, activeSetting, aud
     const total = items.length;
     const page = Math.max(1, Number(req.query.page) || 1);
     for (const patientId of new Set(items.slice((page - 1) * 50, page * 50).map((item) => item.patient.id)))
-      auditPatient(req, patientId, 'allow', 'signals', assigned(req.user.id, patientId) ? 'assignment' : 'crisis');
+      auditPatient(req, patientId, 'allow', 'signals', assigned(req.user.id, patientId, true) ? 'assignment' : 'crisis');
     res.json({ items: items.slice((page - 1) * 50, page * 50), page, page_size: 50, total });
   });
 
@@ -244,6 +264,9 @@ function install(app, { db, P, config, now, makeUndo, crisis, activeSetting, aud
       ).run(iso(), draftId);
       return res.json({ ae: { id: draftId, status: 'cancelled', version: 1 } });
     }
+    // Опрос из чата: «ничего не принимаю» - это не побочный эффект, запись не создаётся.
+    if (req.body.med && typeof req.body.med === 'object' && req.body.med.kind === 'none')
+      return res.json({ not_adverse: true, saved: false });
     if (draftId && !isDiscard) {
       const row = db
         .prepare('SELECT id,status,version FROM adverse_events WHERE id=? AND patient_id=?')
@@ -263,6 +286,34 @@ function install(app, { db, P, config, now, makeUndo, crisis, activeSetting, aud
       (req.body.related && !['yes', 'no', 'unknown'].includes(req.body.related))
     )
       return P.sendError(req, res, 422, 'E-VALIDATION');
+    const symptomsIn = aeIntake.normalizeSymptoms(req.body.symptoms);
+    if (symptomsIn === null) return P.sendError(req, res, 422, 'E-VALIDATION');
+    // Новые поля опроса: source, thread_id, med. Без них работает прежний контракт.
+    const medIn = req.body.med;
+    if (
+      medIn !== undefined &&
+      (!medIn ||
+        typeof medIn !== 'object' ||
+        !['plan_item', 'other'].includes(medIn.kind) ||
+        (medIn.kind === 'plan_item' && !medIn.item_key) ||
+        (medIn.kind === 'other' && !medIn.patient_med_id && !medIn.inn_id && !String(medIn.name || '').trim()))
+    )
+      return P.sendError(req, res, 422, 'E-VALIDATION');
+    if (req.body.source !== undefined && !['form', 'ai_chat'].includes(req.body.source))
+      return P.sendError(req, res, 422, 'E-VALIDATION');
+    const intakeThread =
+      req.body.thread_id !== undefined && req.body.thread_id !== null
+        ? aeIntake.ownThread(db, req.user, req.user.id, req.body.thread_id)
+        : null;
+    if (req.body.thread_id !== undefined && req.body.thread_id !== null && !intakeThread)
+      return P.sendError(req, res, 404, 'E-NOT-FOUND');
+    const itemKeyIn = medIn ? (medIn.kind === 'plan_item' ? medIn.item_key : null) : req.body.item_key;
+    const patientMedIn = medIn ? (medIn.kind === 'other' ? medIn.patient_med_id : null) : req.body.patient_med_id;
+    const innIn = medIn && medIn.kind === 'other' && medIn.inn_id ? Number(medIn.inn_id) : null;
+    if (innIn && !db.prepare('SELECT 1 FROM inn WHERE id=?').get(innIn))
+      return P.sendError(req, res, 422, 'E-VALIDATION');
+    const medText =
+      medIn && medIn.kind === 'other' && !patientMedIn && medIn.name ? String(medIn.name).trim().slice(0, 200) : null;
     const hasUploadList = Array.isArray(req.body.upload_ids);
     const uploadIds = hasUploadList ? req.body.upload_ids.map(Number) : [];
     if (uploadIds.length > 5) return P.sendError(req, res, 422, 'E-FILE-COUNT');
@@ -279,20 +330,20 @@ function install(app, { db, P, config, now, makeUndo, crisis, activeSetting, aud
     )
       return P.sendError(req, res, 422, 'E-VALIDATION');
     let medication = null;
-    if (req.body.item_key)
+    if (itemKeyIn)
       medication = db
         .prepare(
           "SELECT pi.item_key,pi.inn_id FROM plan_items pi JOIN plan_versions pv ON pv.id=pi.plan_version_id JOIN plan_item_acceptance a ON a.item_key=pi.item_key AND a.patient_id=pv.patient_id AND a.hidden_at IS NULL WHERE pv.patient_id=? AND pv.status='published' AND pv.visible_from<=? AND pi.item_key=? AND pi.status='active'",
         )
-        .get(req.user.id, iso(), String(req.body.item_key));
-    else if (req.body.patient_med_id)
+        .get(req.user.id, iso(), String(itemKeyIn));
+    else if (patientMedIn)
       medication = db
         .prepare(
           "SELECT pm.id patient_med_id,pmv.inn_id FROM patient_meds pm JOIN patient_med_versions pmv ON pmv.patient_med_id=pm.id AND pmv.version=pm.current_version WHERE pm.id=? AND pm.patient_id=? AND pm.hidden_at IS NULL AND pm.status='active'",
         )
-        .get(Number(req.body.patient_med_id), req.user.id);
-    if ((req.body.item_key || req.body.patient_med_id) && !medication)
-      return P.sendError(req, res, 422, 'E-VALIDATION');
+        .get(Number(patientMedIn), req.user.id);
+    else if (innIn) medication = { inn_id: innIn };
+    if ((itemKeyIn || patientMedIn) && !medication) return P.sendError(req, res, 422, 'E-VALIDATION');
     const c = req.crisisResult;
     const syncFiles = (aeId) => {
       // Без явного списка upload_ids существующие привязки не трогаем (F-45: файлы
@@ -314,7 +365,7 @@ function install(app, { db, P, config, now, makeUndo, crisis, activeSetting, aud
       new Date(now(config).getTime() + Number(activeSetting('ui.undo_window_seconds').value || 10) * 1000),
     );
     const fields = {
-      symptoms: JSON.stringify(req.body.symptoms || []),
+      symptoms: JSON.stringify(symptomsIn),
       text: text.slice(0, 1000),
       onset: req.body.started_on || null,
       severity: req.body.severity || null,
@@ -322,12 +373,15 @@ function install(app, { db, P, config, now, makeUndo, crisis, activeSetting, aud
       itemKey: medication ? medication.item_key || null : null,
       patientMedId: medication ? medication.patient_med_id || null : null,
       innId: medication ? medication.inn_id : null,
+      medText,
+      source: req.body.source === 'ai_chat' ? 'ai_chat' : 'form',
+      threadId: intakeThread ? intakeThread.id : null,
     };
     if (isDraft) {
       let id;
       if (draftId) {
         db.prepare(
-          'UPDATE adverse_events SET complaint_codes_json=?,description_enc=?,onset_date=?,severity=?,relation_patient=?,item_key=?,patient_med_id=?,inn_id=?,version=version+1,updated_at=? WHERE id=?',
+          'UPDATE adverse_events SET complaint_codes_json=?,description_enc=?,onset_date=?,severity=?,relation_patient=?,item_key=?,patient_med_id=?,inn_id=?,med_text_enc=?,source=?,thread_id=?,version=version+1,updated_at=? WHERE id=?',
         ).run(
           fields.symptoms,
           fields.text,
@@ -337,6 +391,9 @@ function install(app, { db, P, config, now, makeUndo, crisis, activeSetting, aud
           fields.itemKey,
           fields.patientMedId,
           fields.innId,
+          fields.medText,
+          fields.source,
+          fields.threadId,
           iso(),
           draftId,
         );
@@ -344,7 +401,7 @@ function install(app, { db, P, config, now, makeUndo, crisis, activeSetting, aud
       } else {
         const info = db
           .prepare(
-            "INSERT INTO adverse_events(patient_id,complaint_codes_json,description_enc,onset_date,severity,relation_patient,item_key,patient_med_id,inn_id,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,'draft',?,?)",
+            "INSERT INTO adverse_events(patient_id,complaint_codes_json,description_enc,onset_date,severity,relation_patient,item_key,patient_med_id,inn_id,med_text_enc,source,thread_id,reported_by,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'draft',?,?)",
           )
           .run(
             req.user.id,
@@ -356,6 +413,10 @@ function install(app, { db, P, config, now, makeUndo, crisis, activeSetting, aud
             fields.itemKey,
             fields.patientMedId,
             fields.innId,
+            fields.medText,
+            fields.source,
+            fields.threadId,
+            req.user.id,
             iso(),
             iso(),
           );
@@ -370,7 +431,7 @@ function install(app, { db, P, config, now, makeUndo, crisis, activeSetting, aud
     let id;
     if (draftId) {
       db.prepare(
-        'UPDATE adverse_events SET complaint_codes_json=?,description_enc=?,onset_date=?,severity=?,relation_patient=?,item_key=?,patient_med_id=?,inn_id=?,status=?,visible_from=?,psychiatrist_id=?,updated_at=? WHERE id=?',
+        'UPDATE adverse_events SET complaint_codes_json=?,description_enc=?,onset_date=?,severity=?,relation_patient=?,item_key=?,patient_med_id=?,inn_id=?,med_text_enc=?,source=?,thread_id=?,reported_by=?,status=?,visible_from=?,psychiatrist_id=?,updated_at=? WHERE id=?',
       ).run(
         fields.symptoms,
         fields.text,
@@ -380,6 +441,10 @@ function install(app, { db, P, config, now, makeUndo, crisis, activeSetting, aud
         fields.itemKey,
         fields.patientMedId,
         fields.innId,
+        fields.medText,
+        fields.source,
+        fields.threadId,
+        req.user.id,
         psych ? 'submitted' : 'service_queue',
         visible,
         psych?.clinician_id || null,
@@ -390,7 +455,7 @@ function install(app, { db, P, config, now, makeUndo, crisis, activeSetting, aud
     } else {
       const info = db
         .prepare(
-          'INSERT INTO adverse_events(patient_id,complaint_codes_json,description_enc,onset_date,severity,relation_patient,item_key,patient_med_id,inn_id,status,visible_from,psychiatrist_id,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+          'INSERT INTO adverse_events(patient_id,complaint_codes_json,description_enc,onset_date,severity,relation_patient,item_key,patient_med_id,inn_id,med_text_enc,source,thread_id,reported_by,status,visible_from,psychiatrist_id,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
         )
         .run(
           req.user.id,
@@ -402,6 +467,10 @@ function install(app, { db, P, config, now, makeUndo, crisis, activeSetting, aud
           fields.itemKey,
           fields.patientMedId,
           fields.innId,
+          fields.medText,
+          fields.source,
+          fields.threadId,
+          req.user.id,
           psych ? 'submitted' : 'service_queue',
           visible,
           psych?.clinician_id || null,
@@ -411,14 +480,21 @@ function install(app, { db, P, config, now, makeUndo, crisis, activeSetting, aud
       id = Number(info.lastInsertRowid);
     }
     syncFiles(id);
+    // Нет психиатра: запись остаётся только у пациента (status service_queue без psychiatrist_id), службе не уходит.
     if (psych)
       notify(psych.clinician_id, 'ae', 'adverse_event', id, req.user.id, 'Новое сообщение о переносимости', visible);
-    else
-      db.prepare(
-        "INSERT INTO service_queue(kind,patient_id,ref_type,ref_id,status,created_at) VALUES ('ae_no_psychiatrist',?,'adverse_event',?,'new',?)",
-      ).run(req.user.id, id, iso());
+    let summary;
+    if (intakeThread) {
+      const saved = db.prepare('SELECT * FROM adverse_events WHERE id=?').get(id);
+      summary = aeIntake.writeSummary(db, {
+        threadId: intakeThread.id,
+        iso,
+        text: aeIntake.summaryText(psych ? 'sent' : 'saved_private', saved, { drug: aeIntake.drugName(db, saved) }),
+      });
+    }
     res.status(201).json({
-      ae: { id, version: 1, status: 'awaiting_visibility' },
+      ae: { id, version: 1, status: psych ? 'awaiting_visibility' : 'saved_private', attached: Boolean(psych) },
+      ...(summary ? { summary } : {}),
       undo: makeUndo(req.user.id, 'ae.report', 'adverse_event', id),
       ...(c ? { crisis: c } : {}),
     });
@@ -426,16 +502,20 @@ function install(app, { db, P, config, now, makeUndo, crisis, activeSetting, aud
   secured.get('/api/v1/me/adverse-events', (req, res) => {
     const items = db
       .prepare(
-        "SELECT id,status,visible_from,created_at FROM adverse_events WHERE patient_id=? AND status<>'draft' AND status<>'cancelled' ORDER BY id DESC",
+        "SELECT id,status,visible_from,created_at,psychiatrist_id FROM adverse_events WHERE patient_id=? AND status<>'draft' AND status<>'cancelled' ORDER BY id DESC",
       )
       .all(req.user.id)
-      .map((x) => ({
+      .map(({ psychiatrist_id: psychiatristId, ...x }) => ({
         ...x,
+        // Личная запись без врача (status service_queue, psychiatrist_id пуст) - «Сохранено у вас».
+        attached: !(x.status === 'service_queue' && !psychiatristId),
         status: ['related_likely', 'not_related', 'insufficient'].includes(x.status)
           ? 'reviewed'
           : x.status === 'submitted' && x.visible_from <= iso()
             ? 'awaiting_doctor'
-            : x.status,
+            : x.status === 'service_queue' && !psychiatristId
+              ? 'saved_private'
+              : x.status,
       }));
     // F-45: активный draft пациента с редактируемыми полями, med_ref и файлами.
     const draftRow = db
@@ -469,6 +549,7 @@ function install(app, { db, P, config, now, makeUndo, crisis, activeSetting, aud
     const id = Number(req.params.aeId);
     const ae = db.prepare('SELECT * FROM adverse_events WHERE id=?').get(id);
     if (!ae || !assigned(req.user.id, ae.patient_id)) return P.sendError(req, res, 404, 'E-NOT-FOUND');
+    if (ae.status === 'service_queue' && !ae.psychiatrist_id) return P.sendError(req, res, 404, 'E-NOT-FOUND');
     if (ae.decision_by && ae.decision_by !== req.user.id)
       return P.sendError(req, res, 409, 'E-CONFLICT', { details: { decided_by: ae.decision_by } });
     if (!['submitted', 'awaiting_doctor', 'service_queue'].includes(ae.status))
@@ -513,6 +594,9 @@ function install(app, { db, P, config, now, makeUndo, crisis, activeSetting, aud
       [item.dose_value, item.dose_unit, ...JSON.parse(item.times_json || '[]')]
         .filter((value) => value != null && value !== '')
         .join(' ');
+    const symptoms = JSON.parse(ae.complaint_codes_json || '[]').map(
+      (code) => NOTICE_LABELS[`msg.ae.chip.${code}`] || String(code),
+    );
     // Порядок и состав — по «Рекомендуемой форме» (Приложение № 1 к Порядку фармаконадзора Росздравнадзора).
     return {
       report_type: 'Первичное',
@@ -524,7 +608,7 @@ function install(app, { db, P, config, now, makeUndo, crisis, activeSetting, aud
       pregnancy: '',
       allergy: '',
       treatment_setting: '',
-      trade_name: suspected?.trade_name || suspected?.inn_name || '',
+      trade_name: suspected?.trade_name || suspected?.inn_name || (suspected ? '' : ae.med_text_enc || ''),
       inn: suspected?.inn_name || '',
       manufacturer: suspected?.manufacturer || '',
       batch: '',
@@ -534,7 +618,12 @@ function install(app, { db, P, config, now, makeUndo, crisis, activeSetting, aud
       drug_stopped_on: suspected?.end_date || '',
       indication: '',
       onset_date: ae.onset_date || '',
-      description: ae.description_enc || '',
+      description: [
+        ae.description_enc,
+        symptoms.length ? `${NOTICE_LABELS['msg.ae.chat.part.symptoms']} ${symptoms.join(', ')}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n'),
       resolved_on: '',
       seriousness_criteria: '',
       measures: '',
@@ -615,6 +704,8 @@ function install(app, { db, P, config, now, makeUndo, crisis, activeSetting, aud
     ).run(req.user.id, req.ae.patient_id, iso());
     res.type(exporter.FORMATS[format].mime).attachment(`notice-draft.${format}`).send(data);
   });
+
+  aeIntake.install(secured, { db, P, iso, notify, assigned });
 
   secured.post('/api/v1/patients/:patientId/visits', (req, res) => {
     const patient = Number(req.params.patientId);

@@ -291,7 +291,7 @@ function insightsDb(patients, { program = patients, doctors = 4, consent = 1 } =
     ).run(id);
     if (i < program)
       db.prepare(
-        "INSERT INTO consent_events(user_id,consent_kind,action,content_version_id,text_sha256,sign_method) VALUES (?,'program','given',1,'x','demo')",
+        "INSERT INTO consent_events(user_id,consent_kind,action,content_version_id,text_sha256,sign_method) VALUES (?,'research','given',1,'x','demo')",
       ).run(id);
     db.prepare("INSERT INTO patient_diagnoses(patient_id,code,set_by) VALUES (?,'F41.2',1)").run(id);
     db.prepare(
@@ -324,17 +324,17 @@ test('программа: только согласившиеся, без иде
     // отзыв согласия на программу: осталось 9 — всё скрыто
     t.db
       .prepare(
-        "INSERT INTO consent_events(user_id,consent_kind,action,content_version_id,text_sha256,sign_method) VALUES (100,'program','revoked',1,'x','demo')",
+        "INSERT INTO consent_events(user_id,consent_kind,action,content_version_id,text_sha256,sign_method) VALUES (100,'research','revoked',1,'x','demo')",
       )
       .run();
     t.db
       .prepare(
-        "INSERT INTO consent_events(user_id,consent_kind,action,content_version_id,text_sha256,sign_method) VALUES (101,'program','revoked',1,'x','demo')",
+        "INSERT INTO consent_events(user_id,consent_kind,action,content_version_id,text_sha256,sign_method) VALUES (101,'research','revoked',1,'x','demo')",
       )
       .run();
     t.db
       .prepare(
-        "INSERT INTO consent_events(user_id,consent_kind,action,content_version_id,text_sha256,sign_method) VALUES (102,'program','revoked',1,'x','demo')",
+        "INSERT INTO consent_events(user_id,consent_kind,action,content_version_id,text_sha256,sign_method) VALUES (102,'research','revoked',1,'x','demo')",
       )
       .run();
     const after = admin(load(t, { scope: 'program' }), { dx: 'F41.2' });

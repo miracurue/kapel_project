@@ -1,0 +1,56 @@
+"""A1: ALL-014 (подмена role при регистрации), SEC-010 (спецсимволы в поиске), SEC-016 (open redirect next), admin_action_log, длинные ФИО (NFR-016)."""
+from a0_common import *
+
+
+def log(*a):
+    print(*a, flush=True)
+
+
+with sync_playwright() as p:
+    b = launch(p)
+    ctx = b.new_context(**DESK)
+    pg = ctx.new_page()
+    r = pg.request.post(BASE + '/register', form={'role': 'admin', 'full_name': 'Тест Админ', 'email': 'a1.tamper@example.com', 'password': 'demo-pass-123', 'consent_given': 'on', 'clinical_consent_given': 'on'}, max_redirects=0)
+    log('register role=admin ->', r.status, r.headers.get('location'))
+    ctx.close()
+    ctx = b.new_context(**DESK)
+    pg = ctx.new_page()
+    pg.goto(BASE + '/login')
+    pg.fill('input[name=email]', 'a1.tamper@example.com')
+    pg.fill('input[name=password]', 'demo-pass-123')
+    pg.click('form[action="/login"] button[type=submit]')
+    pg.wait_for_load_state()
+    log('tamper user lands', pg.url.replace(BASE, ''), '| greeting:', pg.inner_text('main')[:60].replace('\n', ' | '))
+    r = pg.request.get(BASE + '/admin/users', max_redirects=0)
+    log('tamper user /admin/users', r.status)
+    ctx.close()
+    ctx = b.new_context(**DESK)
+    pg = ctx.new_page()
+    r = pg.request.post(BASE + '/login?next=//evil.example.com', form={'email': ACC['p1'], 'password': PWD}, max_redirects=0)
+    log('login next=//evil ->', r.status, r.headers.get('location'))
+    r = pg.request.post(BASE + '/login', form={'email': ACC['p1'], 'password': PWD, 'next': 'https://evil.example.com'}, max_redirects=0)
+    log('login body next=https://evil ->', r.status, r.headers.get('location'))
+    ctx.close()
+    ctx, psy = login(b, 'psy1')
+    for q in ["'", "%' OR 1=1 --", '"; DROP TABLE users;--']:
+        r = psy.request.get(BASE + '/patients', params={'q': q})
+        log('patients?q=', repr(q), r.status)
+    ctx.close()
+    ctx, ad = login(b, 'admin')
+    t = ad.request.get(BASE + '/admin/audit?log=admin').text()
+    log('admin action log has rows:', t.count('<tr'), '| mentions reset/deactiv:', 'сброс' in t.lower() or 'reset' in t.lower())
+    ad.goto(BASE + '/admin/users?q=Иванов-Петров')
+    shot(ad, 'admin_users_longname_mob' if False else 'admin_users_longname_desk', full=False)
+    ctx.close()
+    ctx, pl2 = b.new_context(**MOB), None
+    pg = ctx.new_page()
+    pg.goto(BASE + '/login')
+    pg.fill('input[name=email]', 'psychologist2@example.com')
+    pg.fill('input[name=password]', PWD)
+    pg.click('form[action="/login"] button[type=submit]')
+    pg.wait_for_load_state()
+    pg.goto(BASE + '/patients')
+    log('plg2 patients list sw/iw', pg.evaluate('[document.documentElement.scrollWidth, 390]'))
+    shot(pg, 'longname_psychologist2_patients_mob', full=False)
+    ctx.close()
+    b.close()

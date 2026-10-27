@@ -11,6 +11,8 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
+const catalog = require('./promptCatalog');
+
 const ROOT = path.join(__dirname, '..', '..');
 const PURPOSES = [
   'patient_assistant',
@@ -21,21 +23,17 @@ const PURPOSES = [
   'order_parse',
   'admin_assistant',
 ];
-// Ключ промпта по умолчанию равен назначению; подключи вида `document_draft.template` выбирает вызывающий код
-// (gateway.run({ promptKey })), привязка модели и лимиты остаются по назначению.
-const PROMPT_KEYS = [
-  ...PURPOSES.filter((p) => p !== 'admin_assistant'),
-  'document_draft.template',
-  'article_draft.patient',
-  'article_draft.specialist',
-  'article_rewrite',
-];
+// Ключи промптов — слои роль/инструменты/навык/задача (promptCatalog); привязка модели и лимиты остаются по назначению.
+const PROMPT_KEYS = catalog.KEYS;
 // Основная модель GigaChat по назначению, если она не GigaChat-2-Max.
 const GIGA_PRIMARY = { document_draft: 'GigaChat-3-Ultra' };
 const CACHE_TTL_MS = 30 * 1000;
-const PATIENT_EXPLANATION_PROMPTS = ['patient_assistant', 'article_draft.patient', 'article_rewrite'];
 
-function createRegistry({ db, config, now }) {
+const sha = (text) => crypto.createHash('sha256').update(text).digest('hex');
+const promptFile = (dir, key, version) =>
+  path.join(dir, catalog.categoryOf(key), catalog.nameOf(key), `v${String(version).padStart(3, '0')}.md`);
+
+function createRegistry({ db, config, now, promptsDir = path.join(ROOT, 'prompts') }) {
   let cache = { at: 0, bindings: new Map() };
 
   function modelById(id) {
@@ -74,33 +72,42 @@ function createRegistry({ db, config, now }) {
   }
 
   /**
-   * Загрузка начальных промптов из prompts/<ключ>/v001.md при первом запуске (S-08).
-   * Существующие версии не трогаются (тексты версий неизменяемы — триггер prompt_body_immutable).
+   * Загрузка промптов из prompts/<слой>/<имя>/vNNN.md (S-08). Первый запуск берёт v001. Дальше, если действует
+   * нетронутая версия из файла и рядом лежит файл следующей версии, он становится действующим; версии, созданные
+   * людьми, и ручные откаты не трогаются (тексты версий неизменяемы — триггер prompt_body_immutable).
    */
   function ensurePrompts() {
-    for (const key of PROMPT_KEYS) {
-      const exists = db.prepare('SELECT 1 FROM prompt_versions WHERE prompt_key = ? LIMIT 1').get(key);
-      if (exists) continue;
-      const file = path.join(ROOT, 'prompts', key, 'v001.md');
-      if (!fs.existsSync(file)) continue;
-      const body = fs.readFileSync(file, 'utf8');
-      db.prepare(
-        "INSERT INTO prompt_versions(prompt_key, version, body, body_sha256, status, author_id, comment) VALUES (?, 1, ?, ?, 'active', NULL, ?)",
-      ).run(key, body, crypto.createHash('sha256').update(body).digest('hex'), 'Начальная версия из prompts/<ключ>/v001.md (W-30); текст review-required');
-    }
-    // Уточнение владельца: объяснять лекарства пациенту можно, самостоятельно лечить — нельзя.
-    // Обновляем только нетронутую стартовую v1. Пользовательские версии и откаты сохраняются.
+    const insert = db.prepare(
+      'INSERT INTO prompt_versions(prompt_key, version, body, body_sha256, status, author_id, comment) VALUES (?, ?, ?, ?, ?, NULL, ?)',
+    );
     db.transaction(() => {
-      for (const key of PATIENT_EXPLANATION_PROMPTS) {
-        const versions = db.prepare('SELECT version, body_sha256, status FROM prompt_versions WHERE prompt_key = ?').all(key);
-        if (versions.length !== 1 || versions[0].version !== 1 || versions[0].status !== 'active') continue;
-        const original = fs.readFileSync(path.join(ROOT, 'prompts', key, 'v001.md'), 'utf8');
-        if (versions[0].body_sha256 !== crypto.createHash('sha256').update(original).digest('hex')) continue;
-        const body = fs.readFileSync(path.join(ROOT, 'prompts', key, 'v002.md'), 'utf8');
-        db.prepare("UPDATE prompt_versions SET status = 'previous' WHERE prompt_key = ? AND version = 1").run(key);
-        db.prepare(
-          "INSERT INTO prompt_versions(prompt_key, version, body, body_sha256, status, author_id, comment) VALUES (?, 2, ?, ?, 'active', NULL, ?)",
-        ).run(key, body, crypto.createHash('sha256').update(body).digest('hex'), 'Уточнение владельца 2026-10-21: понятное объяснение лекарств и поддержка плана врача; review-required');
+      for (const key of PROMPT_KEYS) {
+        const rows = db.prepare('SELECT version, body_sha256, status FROM prompt_versions WHERE prompt_key = ?').all(key);
+        if (!rows.length) {
+          const file = promptFile(promptsDir, key, 1);
+          if (!fs.existsSync(file)) continue;
+          const body = fs.readFileSync(file, 'utf8');
+          insert.run(key, 1, body, sha(body), 'active', 'Начальная версия из prompts/<слой>/<имя>/v001.md; текст review-required');
+          // Чистая база: сразу идём по цепочке файлов vNNN+1.md, как при последующих запусках.
+          let n = 1;
+          while (fs.existsSync(promptFile(promptsDir, key, n + 1))) {
+            const next = fs.readFileSync(promptFile(promptsDir, key, n + 1), 'utf8');
+            db.prepare("UPDATE prompt_versions SET status = 'previous' WHERE prompt_key = ? AND version = ?").run(key, n);
+            insert.run(key, n + 1, next, sha(next), 'active', `Версия из файла v${String(n + 1).padStart(3, '0')}.md; текст review-required`);
+            n += 1;
+          }
+          continue;
+        }
+        const latest = rows.reduce((max, r) => Math.max(max, r.version), 0);
+        const active = rows.find((r) => r.status === 'active');
+        if (!active || active.version !== latest) continue;
+        const currentFile = promptFile(promptsDir, key, active.version);
+        const nextFile = promptFile(promptsDir, key, active.version + 1);
+        if (!fs.existsSync(currentFile) || !fs.existsSync(nextFile)) continue;
+        if (active.body_sha256 !== sha(fs.readFileSync(currentFile, 'utf8'))) continue;
+        const body = fs.readFileSync(nextFile, 'utf8');
+        db.prepare("UPDATE prompt_versions SET status = 'previous' WHERE prompt_key = ? AND version = ?").run(key, active.version);
+        insert.run(key, active.version + 1, body, sha(body), 'active', `Версия из файла v${String(active.version + 1).padStart(3, '0')}.md; текст review-required`);
       }
     }).immediate();
   }
@@ -116,6 +123,8 @@ function createRegistry({ db, config, now }) {
     for (const purpose of PURPOSES) {
       const binding = activeBinding(purpose);
       const primary = binding ? modelById(binding.primary_model_id) : null;
+      // Привязку, заданную человеком (автор или пометка «Ручная настройка»), автонастройка не переписывает.
+      if (binding && (binding.author_id || String(binding.comment || '').startsWith('Ручная настройка'))) continue;
       const wantGiga = hasGigaKey && config.dataMode !== 'real';
       const isGiga = primary && primary.adapter === 'gigachat_api';
       const gigaModel = (ident) => db.prepare("SELECT id FROM ai_models WHERE adapter='gigachat_api' AND model_ident=?").get(ident);

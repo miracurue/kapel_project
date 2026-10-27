@@ -21,6 +21,8 @@
  *  5 — сообщение о текущем самоповреждении «прямо сейчас» / «только что»
  */
 
+const crisisText = require('./crisisText');
+
 const CATEGORIES = Object.freeze({
   PLAN: 1,
   MEANS_ACCESS: 2,
@@ -92,12 +94,16 @@ function setActiveRules(rules) {
  */
 function classifyFreeText(text) {
   if (!text) return [];
-  if (activeRules) return classifyWithRules(activeRules, text);
   const t = text.toLowerCase();
   const hit = [];
-  for (const [category, phrases] of Object.entries(DRAFT_KEYWORDS)) {
-    if (phrases.some((p) => t.includes(p))) hit.push(Number(category));
-  }
+  if (activeRules) hit.push(...classifyWithRules(activeRules, text));
+  else
+    for (const [category, phrases] of Object.entries(DRAFT_KEYWORDS)) {
+      if (phrases.some((p) => t.includes(p))) hit.push(Number(category));
+    }
+  // Дополнительный слой (src/crisisText.js): опечатки, ё/е, склейка пробелов, формулировки про способ.
+  // Он только добавляет категории и работает и при включённом словаре из настройки crisis.rules.
+  for (const category of crisisText.detect(text)) if (!hit.includes(category)) hit.push(category);
   return hit;
 }
 

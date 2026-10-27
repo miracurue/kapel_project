@@ -70,16 +70,14 @@ test('страница «Шаблоны» открывается и содерж
   assert.match(String(page.body), /data-tpl-new/);
 });
 
-test('«В черновик документа»: вкладка читает cc.doc_prefill и открывает новый шаблон с текстом ответа', async () => {
-  const fs = require('node:fs');
-  const path = require('node:path');
-  const docs = fs.readFileSync(path.join(__dirname, '../../public/js/work_docs.js'), 'utf8');
-  const chat = fs.readFileSync(path.join(__dirname, '../../public/js/work_chat.js'), 'utf8');
-  assert.match(chat, /setItem\(\s*'cc\.doc_prefill'/);
-  assert.match(docs, /getItem\('cc\.doc_prefill'\)/);
-  const psy = await ctx.as('psy1');
-  const page = await psy.get('/work?tab=docs', { headers: { accept: 'text/html' } });
-  assert.match(String(page.body), /data-t-from-chat="[^"]+"/);
+test('вкладка «Шаблоны и документы»: у психиатра переключатель и форма извещения, у психолога только шаблоны', async () => {
+  const psy = await (await ctx.as('psy1')).get('/work?tab=docs', { headers: { accept: 'text/html' } });
+  assert.match(String(psy.body), /data-doc-seg/);
+  assert.match(String(psy.body), /data-doc-fill/);
+  assert.match(String(psy.body), /Шаблоны и документы/);
+  assert.doesNotMatch(String(psy.body), /Заготовк|Мои шаблоны|PDF/);
+  const plg = await (await ctx.as('plg1')).get('/work?tab=docs', { headers: { accept: 'text/html' } });
+  assert.doesNotMatch(String(plg.body), /data-doc-seg|data-doc-fill|work_documents/);
 });
 
 test('шаблоны: история сохраняется с собственным шаблоном, чужая правка истории — 404', async () => {
@@ -113,4 +111,13 @@ test('шаблоны: постфильтр не возвращает отказ 
     502,
     'E-AI-EMPTY',
   );
+});
+
+test('шаблоны: заключение ЭПИ (Приложение Г21 клинреков) есть у психолога по умолчанию, у психиатра нет', async () => {
+  const plg = expectOk(await (await ctx.as('plg1')).get('/work/api/templates'));
+  const epi = plg.builtin.find((t) => t.id === 'b-epi');
+  assert.ok(epi, 'у психолога есть b-epi');
+  assert.match(epi.body, /Внимание:[^\n]*\n.*Память:/s);
+  const psy = expectOk(await (await ctx.as('psy1')).get('/work/api/templates'));
+  assert.ok(!psy.builtin.some((t) => t.id === 'b-epi'));
 });

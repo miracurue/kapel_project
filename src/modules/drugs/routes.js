@@ -8,13 +8,16 @@
  *  GET  /work/api/drugs/threads           — история: ИИ-чаты по препаратам (purpose = 'drug_chat');
  *  GET  /work/api/drugs/:inn_id           — карточка: группа, АТХ, торговые названия, материалы журнала;
  *  POST /work/api/drugs/:inn_id/open      — открыть препарат = новый чат (пустой чат без вопроса тоже остаётся в истории);
- *  POST /work/api/drugs/threads/:id/messages — вопрос ИИ о препарате этого чата.
+ *  POST /work/api/drugs/threads/:id/messages — вопрос ИИ о препарате этого чата (+ выдержки из инструкций, sources[]).
+ * Инструкции, оглавление, разделы и поиск по хранилищу знаний — instructions.js.
  * Чат — обычный ai_threads/ai_messages: переименование, удаление, срок хранения и чтение сообщений идут общими
  * путями /api/v1/ai/threads. Данных пациентов в запросе к модели нет; текст врача проходит псевдонимизацию F-80.
  */
 
 const { t } = require('../../i18n');
 const { articlesForInn } = require('../library/authoring');
+const instructions = require('./instructions');
+const { createNumbering, snippetOf, stripMarkers } = require('../../ai/workspace/sources');
 
 const PURPOSE = 'drug_chat';
 const TEXT_MAX = 2000;
@@ -40,11 +43,6 @@ const norm = (s) =>
     .toLowerCase()
     .replace(/ё/g, 'е')
     .replace(/\s+/g, ' ');
-
-const INSTRUCTION =
-  'Ты отвечаешь специалисту (врачу или психологу) как справочник по одному препарату. Опирайся на справочную ' +
-  'карточку ниже и общие сведения о препарате. Не назначай и не меняй лечение, не подбирай дозу конкретному ' +
-  'человеку, не называй диагноз; если сведений не хватает, скажи об этом. Ответ — черновик для проверки специалистом.';
 
 function install(app, h) {
   const { db, P, pii, gateway, config, now } = h;
@@ -167,6 +165,10 @@ function install(app, h) {
         .get(n, userId, PURPOSE) || null
     );
   };
+
+  // Инструкции из хранилища знаний: список, оглавление, разделы, поиск (см. instructions.js).
+  const ins = instructions.install(app, h, { guard, innRow, invalid });
+  require('./clinrecs').install(app, h, { guard, invalid });
 
   // Препарат, которого нет в каталоге (например, глицин): врач вносит его сам, дальше он виден всем врачам.
   app.post('/work/api/drugs/custom', (req, res) => {
@@ -299,20 +301,44 @@ function install(app, h) {
       const ner = await pii.nerDetect(text);
       const pseudo = pii.pseudonymize(text, scope, { nerEntities: ner.entities, nerOk: ner.ok });
       userMsg = h.addMessage(thread.id, { role: 'user', text: pseudo.text });
+      // Выдержки из инструкций: область поиска — только документы МНН этого треда, задаёт сервер.
+      const numbering = createNumbering();
+      // Выдержки получают номера [n]; карточка — только у процитированных (как в основном чате психиатра).
+      const rag = await instructions.retrieveForChat({
+        knowledge: ins.knowledge,
+        query: pseudo.text,
+        innName: inn.name,
+        register: (r) =>
+          numbering.add(`med|${r.document_id}|${r.section_id}`, {
+            kind: 'drug',
+            drug: true,
+            document_id: r.document_id,
+            label: r.label,
+            section_id: r.section_id,
+            chunk_id: r.chunk_id || null,
+            snippet: snippetOf(r.text),
+            path: r.path || '',
+            page: r.page || null,
+            inn_id: inn.id,
+          }),
+      });
+      if (rag.mode !== 'off') ins.audit(user, 'knowledge.retrieve', 'ai_thread', thread.id);
       const out = await gateway.run({
         purpose: 'clinician_chat',
+        promptKey: 'task.drug_chat',
         user,
         patientId: null,
-        drugReference: true,
         threadId: thread.id,
-        text: `${INSTRUCTION}\n\n${contextFor(inn)}\n\nВопрос специалиста: ${pseudo.text}`,
-        history: h.historyFor(thread.id, userMsg.id),
+        text: `${contextFor(inn)}${rag.block ? `\n\n${rag.block}` : ''}\n\nВопрос специалиста: ${pseudo.text}`,
+        question: pseudo.text,
+        history: h.historyFor(thread.id, userMsg.id).map((m) => (m.role === 'assistant' ? { ...m, text: stripMarkers(m.text) } : m)),
         piiCounts: pseudo.counts || {},
         piiMode: pseudo.mode,
       });
+      const final = numbering.finish(out.text);
       const asMsg = h.addMessage(thread.id, {
         role: 'assistant',
-        text: out.text,
+        text: final.text,
         kind: out.status === 'filtered' ? 'filtered' : 'normal',
         aiGenerated: 1,
         modelId: out.model.id,
@@ -320,11 +346,16 @@ function install(app, h) {
         promptVersion: out.promptVersion,
         flags: { provider: out.model.adapter },
       });
+      if (final.sources.length)
+        db.prepare('UPDATE ai_messages SET sources_json=? WHERE id=?').run(JSON.stringify(final.sources), asMsg.id);
+      if (gateway.attachTraceMessage) gateway.attachTraceMessage(out.traceId, asMsg.id);
       const shown = pii.reveal(asMsg.text, scope);
       return res.status(201).json({
         thread: threadItem(db.prepare('SELECT * FROM ai_threads WHERE id=?').get(thread.id)),
-        reply: h.replyView(asMsg, shown.text),
+        reply: { ...h.replyView(asMsg, shown.text), sources: final.sources },
         warnings: h.warningsOf(shown.warnings),
+        sources: final.sources,
+        knowledge: { mode: rag.mode },
       });
     } catch (e) {
       if (userMsg) db.prepare("UPDATE ai_messages SET kind='error' WHERE id=?").run(userMsg.id);

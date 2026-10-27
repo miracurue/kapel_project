@@ -12,21 +12,24 @@ const B = require('../lib/browser');
 const ctx = useBrowserApp();
 
 const TABS = {
-  patA: ['msg.nav.patient.chat', 'msg.nav.patient.meds', 'msg.nav.patient.tests', 'msg.nav.patient.diary', 'msg.nav.patient.visits', 'msg.nav.patient.doctor'],
-  psy1: ['msg.nav.clinician.chat', 'msg.nav.clinician.patients', 'msg.nav.clinician.signals', 'msg.nav.psychiatrist.docs', 'msg.nav.clinician.tests', 'msg.nav.clinician.blog'],
-  plg1: ['msg.nav.clinician.chat', 'msg.nav.clinician.patients', 'msg.nav.clinician.signals', 'msg.nav.psychologist.conclusions', 'msg.nav.clinician.tests', 'msg.nav.clinician.blog'],
-  admin1: ['msg.nav.admin.chat', 'msg.nav.admin.requests', 'msg.nav.admin.people', 'msg.nav.admin.settings', 'msg.nav.admin.log', 'msg.shell.more'],
+  // Пациент после редизайна навигации: 5 вкладок, «Визиты» — ссылкой во вкладке «Врач».
+  patA: ['msg.nav.patient.chat', 'msg.nav.patient.meds', 'msg.nav.patient.tests', 'msg.nav.patient.diary', 'msg.nav.patient.doctor'],
+  // Все разделы — вкладками в шапке, без «Ещё» (решение владельца 2026-10-25).
+  psy1: ['msg.nav.clinician.chat', 'msg.nav.clinician.patients', 'msg.nav.clinician.signals', 'msg.nav.psychiatrist.docs', 'msg.nav.clinician.tests', 'msg.nav.clinician.blog', 'msg.nav.clinician.more.analytics'],
+  plg1: ['msg.nav.clinician.chat', 'msg.nav.clinician.patients', 'msg.nav.clinician.signals', 'msg.nav.psychologist.conclusions', 'msg.nav.clinician.tests', 'msg.nav.clinician.blog', 'msg.nav.clinician.more.analytics'],
+  admin1: ['msg.nav.admin.dashboard', 'msg.nav.admin.requests', 'msg.nav.admin.people', 'msg.nav.admin.settings', 'msg.nav.admin.log', 'msg.nav.admin.more.content', 'msg.nav.admin.more.analytics', 'msg.nav.admin.more.program', 'msg.nav.admin.more.service'],
 };
 const HOME = { patA: ['/app', 'P-13'], psy1: ['/work', 'P-20'], plg1: ['/work', 'P-20'], admin1: ['/admin', 'P-34'] };
 
 // covers: T-400, UC-39, UC-18, F-09, F-10, F-25, R-02, R-03, R-04, R-05
-test('T-400 [W-06] вкладки роли v5: пациент 7 на компьютере и 5 + «Ещё» на 390 px; у специалистов и админа свои; «Мне нужна помощь · 112» только у пациента; колокольчик и аватар у всех', async () => {
+test('T-400 [W-06] вкладки роли v5: пациент 5 на компьютере и на 390 px, «Визиты» из «Врача»; у специалистов и админа свои; «Мне нужна помощь · 112» только у пациента; колокольчик и аватар у всех', async () => {
   for (const [who, tabs] of Object.entries(TABS)) {
     const { ctx: c, page } = await B.contextAs(ctx.browser, ctx.app, who, B.DESKTOP);
     ctx.track(c);
     await B.open(page, ctx.app, HOME[who][0]);
     await B.expectPage(page, HOME[who][1]);
     for (const t of tabs) await B.expectVisible(page, t);
+    await B.expectHidden(page, 'msg.shell.more');
     await B.expectVisible(page, 'msg.shell.bell');
     await B.expectVisible(page, 'msg.shell.avatar');
     if (who === 'patA') await B.expectVisible(page, 'msg.shell.crisis_link');
@@ -37,12 +40,12 @@ test('T-400 [W-06] вкладки роли v5: пациент 7 на компь�
   ctx.track(c2);
   await B.open(page, ctx.app, '/app');
   const visible = await page.locator('nav [data-testid^="msg.nav.patient."]:visible').count();
-  assert.equal(visible, 5, 'на телефоне 5 вкладок + «Ещё»');
-  await B.expectVisible(page, 'msg.shell.more');
-  await page.click(B.tid('msg.shell.more'));
-  await B.expectVisible(page, 'msg.nav.patient.visits');
-  await B.expectVisible(page, 'msg.nav.patient.doctor');
+  assert.equal(visible, 5, 'на телефоне все 5 вкладок пациента, без «Ещё»');
+  await B.expectHidden(page, 'msg.shell.more');
   assert.ok(await B.noHorizontalOverflow(page), 'нет горизонтальной прокрутки на 390 px');
+  await page.click(`nav ${B.tid('msg.nav.patient.doctor')}`);
+  await page.click(B.tid('msg.nav.patient.visits'));
+  await B.expectPage(page, 'P-30');
 });
 
 // covers: T-401, UC-39, F-09, F-46
@@ -66,10 +69,12 @@ test('T-401 [W-06] первый вход — знакомство 3–5 шаго
 test('T-402 [W-04] сессия истекла при отправке: «Сессия истекла — введённое сохранено», после входа текст восстановлен тому же пользователю; другому — нет', async () => {
   const { ctx: c, page } = await B.contextAs(ctx.browser, ctx.app, 'patA');
   ctx.track(c);
+  // После редизайна дневника заметка — поле «Что хочется запомнить?» с кнопкой «Сохранить».
+  const NOTE = 'msg.diary.workspace.static.048';
   await B.open(page, ctx.app, '/app?tab=diary');
-  await page.fill(`${B.tid('msg.diary.note')}`, 'Синтетический черновик заметки Т13');
+  await page.fill(B.tid(NOTE), 'Синтетический черновик заметки Т13');
   await c.clearCookies();
-  await page.click(B.tid('msg.diary.save'));
+  await page.click(B.tid('msg.diary.workspace.static.050'));
   await page.waitForURL(/\/login/);
   await B.expectVisible(page, 'msg.login.session_expired');
   await page.fill(B.tid('msg.login.email'), 'pat.a@cc.example.test');
@@ -77,15 +82,18 @@ test('T-402 [W-04] сессия истекла при отправке: «Сес
   await page.click(B.tid('msg.login.submit'));
   await B.expectPage(page, 'P-29');
   await B.expectVisible(page, 'msg.composer.draft_restored');
-  assert.equal(await page.inputValue(B.tid('msg.diary.note')), 'Синтетический черновик заметки Т13');
+  assert.equal(await page.inputValue(B.tid(NOTE)), 'Синтетический черновик заметки Т13');
   await c.clearCookies();
   await B.open(page, ctx.app, '/login');
   await page.fill(B.tid('msg.login.email'), 'pat.b@cc.example.test');
   await page.fill(B.tid('msg.login.password'), 'Synthetic-Pass-2026');
   await page.click(B.tid('msg.login.submit'));
   await B.open(page, ctx.app, '/app?tab=diary');
+  await page.locator(B.tid(NOTE)).waitFor();
+  await page.waitForFunction(() => document.querySelector('.diary-workspace')?.getAttribute('aria-busy') === 'false');
+  await page.waitForLoadState('networkidle');
   await B.expectHidden(page, 'msg.composer.draft_restored');
-  assert.equal(await page.inputValue(B.tid('msg.diary.note')), '', 'чужой черновик не показан и стёрт');
+  assert.equal(await page.inputValue(B.tid(NOTE)), '', 'чужой черновик не показан и стёрт');
   assert.ok(!ctx.app.logs().includes('Синтетический черновик заметки Т13'), 'черновик живёт только в браузере');
 });
 

@@ -26,61 +26,6 @@ const hide = (selector) => {
   return node;
 };
 
-const CONSENT_TEXT = {
-  pd: [
-    'Согласие на обработку данных, включая сведения о здоровье',
-    'Обязательно для работы сервиса. Мы обрабатываем ваши ответы, дневник и назначения, чтобы врач видел динамику. Кто видит: ваш врач и закреплённый психолог. Срок: пока вы пользуетесь сервисом и 30 дней после удаления. Полный текст документа — заглушка, требует проверки юристом.',
-  ],
-  ai: [
-    'Согласие на ИИ-помощника',
-    'ИИ-помощник отвечает на вопросы о лекарствах, тестах и самочувствии. Он получает только то, что вы прикрепили, без имён и контактов. Можно включить позже в «Моих данных». Без него ИИ-помощник выключен, всё остальное работает.',
-  ],
-  research: [
-    'Согласие на научные исследования',
-    'Только баллы тестов, без имени и текста. Данные используются в обезличенном виде. Отозвать можно в любой момент.',
-  ],
-  program: [
-    'Согласие на статистику программы поддержки',
-    'Спонсор видит только общие цифры по группам от 10 человек. Отозвать можно в любой момент.',
-  ],
-};
-
-function consentPage(number) {
-  const main = document.querySelector('main');
-  const mandatory = number === 1;
-  const kind = mandatory ? 'pd' : ['ai', 'research', 'program'][number - 2];
-  main.dataset.page = `P-0${number + 3}`;
-  main.dataset.consentStep = String(number);
-  const [title, text] = CONSENT_TEXT[kind];
-  main.innerHTML = `<p class="kicker">Согласие ${number} из 4</p>
-    <h1 data-testid="msg.consent.${kind}.title">${title}</h1>
-    <section class="card soft consent-text"><p>${text}</p></section>
-    ${mandatory ? '<label class="check-row"><input type="checkbox" data-testid="msg.consent.pd.checkbox"> Я прочитал(а) и согласен(на) с обработкой моих персональных данных, включая данные о здоровье, на условиях выше.</label>' : ''}
-    <div class="acts consent-acts"><button class="btn primary" data-testid="msg.consent.agree">${mandatory ? 'Согласен(на)' : 'Принять'}</button>
-    ${mandatory ? '' : '<button class="btn ghost" data-testid="msg.consent.not_now">Не сейчас</button>'}</div>
-    <p class="small muted" data-testid="err.e-consent-required" hidden>Без этого согласия кабинет не создаётся. Номер 112 работает всегда.</p>
-    <p class="small muted">Согласия можно отозвать в меню профиля → «Мои данные и согласия».</p>`;
-}
-
-async function submitConsent(number, accepted) {
-  const kinds = ['base', 'ai', 'research', 'program'];
-  const checkbox = document.querySelector(testId('msg.consent.pd.checkbox'));
-  if (number === 1 && !checkbox?.checked) {
-    show(testId('err.e-consent-required'));
-    return;
-  }
-  const response = await api(`/api/v1/consents/${kinds[number - 1]}`, {
-    action: accepted ? 'give' : 'revoke',
-    checkbox: Boolean(checkbox?.checked),
-  });
-  if (!response.ok && number === 1) {
-    show(testId('err.e-consent-required'));
-    return;
-  }
-  if (number < 4) consentPage(number + 1);
-  else location.assign('/app');
-}
-
 async function pollNotifications() {
   if (!document.querySelector(testId('msg.shell.bell'))) return;
   try {
@@ -164,9 +109,11 @@ function markCurrentTab() {
   const params = new URLSearchParams(location.search);
   let current = params.get('tab');
   if (location.pathname.startsWith('/work/patients/')) current = 'patients';
+  else if (location.pathname.startsWith('/work/approvals')) current = 'approvals';
+  else if (location.pathname.startsWith('/methods/'))
+    current = tabs.find((tab) => ['tests', 'tools'].includes(tab.dataset.tab))?.dataset.tab || current;
   else if (['/account', '/notifications'].some((path) => location.pathname.startsWith(path))) current = '__none__';
   else if (!current) current = tabs[0].dataset.tab;
-  if (current === 'analytics') current = '__none__';
   if (current === 'visits') current = 'doctor';
   tabs.forEach((tab) => {
     if (tab.dataset.tab === current) tab.setAttribute('aria-current', 'page');
@@ -174,33 +121,13 @@ function markCurrentTab() {
   });
 }
 
-// Вкладки не сжимаются: если шапка не помещается (или это телефон), последние уходят в «Ещё ▾» (спецификация 8.1).
-const PHONE_TABS = 4;
-function fitTabs() {
-  const top = document.querySelector('header.top');
-  const more = top?.querySelector('.tabs a.tab[data-tab="more"]');
-  const menu = top?.querySelector('.more-menu');
-  if (!top || !more || !menu) return;
-  const phone = window.matchMedia('(max-width: 960px)').matches;
-  const tabs = [...top.querySelectorAll('.tabs a.tab[data-tab]')].filter((tab) => tab !== more);
-  menu.querySelectorAll('[data-overflow]').forEach((node) => node.remove());
-  tabs.forEach((tab) => {
-    tab.hidden = false;
-  });
-  let hidden = 0;
-  const overflow = () => (phone ? tabs.length - hidden > PHONE_TABS : top.scrollWidth > top.clientWidth + 1);
-  while (hidden < tabs.length && overflow()) {
-    tabs[tabs.length - 1 - hidden].hidden = true;
-    hidden += 1;
-  }
-  const moved = tabs.filter((tab) => tab.hidden);
-  moved.reverse().forEach((tab) => {
-    const link = document.createElement('a');
-    link.href = tab.getAttribute('href');
-    link.dataset.overflow = '1';
-    link.textContent = tab.querySelector('.lbl')?.textContent || '';
-    menu.prepend(link);
-  });
+// Все вкладки в шапке, без «Ещё»: если на узком экране они не помещаются, полоса вкладок листается вбок —
+// открытая вкладка сразу видна.
+function revealCurrentTab() {
+  const nav = document.querySelector('header.top .tabs');
+  const current = nav?.querySelector('a.tab[aria-current]');
+  if (!nav || !current || nav.scrollWidth <= nav.clientWidth + 1) return;
+  nav.scrollLeft = current.offsetLeft - (nav.clientWidth - current.offsetWidth) / 2;
 }
 
 function setBadge(tab, count, grey) {
@@ -251,16 +178,6 @@ document.addEventListener('submit', async (event) => {
     return;
   }
   event.preventDefault();
-  if (event.target.id === 'register-form') {
-    const form = event.target;
-    const response = await api('/api/v1/auth/register', {
-      invite_code: form.invite_code.value,
-      email: form.email.value,
-      password: form.password.value,
-    });
-    if (response.ok) consentPage(1);
-    else form.querySelector('.form-error').textContent = 'Проверьте код и данные';
-  }
   if (event.target.id === 'reset-request-form') {
     await api('/api/v1/auth/password-reset', { email: event.target.email.value });
     show(testId('msg.reset.sent'));
@@ -279,19 +196,6 @@ document.addEventListener('submit', async (event) => {
 
 document.addEventListener('click', async (event) => {
   const target = event.target;
-  const moreTab = target.closest('.tabs a.tab[data-tab="more"]');
-  const moreMenu = document.querySelector('.more-menu');
-  if (moreTab && moreMenu) {
-    event.preventDefault();
-    const wasOpen = !moreMenu.hidden;
-    closeMenus();
-    if (!wasOpen) {
-      const box = moreTab.getBoundingClientRect();
-      moreMenu.style.left = `${Math.max(8, Math.min(box.left, window.innerWidth - 268))}px`;
-      moreMenu.hidden = false;
-    }
-    return;
-  }
   if (target.closest(testId('msg.shell.avatar'))) {
     const menu = document.querySelector('.avatar-menu');
     const wasOpen = menu && !menu.hidden;
@@ -312,10 +216,6 @@ document.addEventListener('click', async (event) => {
       location.assign(`/${result.next}`);
     }
   }
-  if (target.closest(testId('msg.consent.agree')))
-    await submitConsent(Number(document.querySelector('main').dataset.consentStep), true);
-  if (target.closest(testId('msg.consent.not_now')))
-    await submitConsent(Number(document.querySelector('main').dataset.consentStep), false);
   if (target.closest(testId('msg.diary.save'))) {
     const text = document.querySelector(testId('msg.diary.note')).value;
     const pick = window.__diaryPick || {};
@@ -339,8 +239,8 @@ document.addEventListener('click', async (event) => {
   if (target.closest(testId('msg.composer.send'))) {
     const doctorField = document.querySelector(testId('msg.doctor.placeholder'));
     if (!doctorField) return;
+    // Отправку выполняет public/v2.js (doctor()); здесь только пометка «нет сети», второй POST давал дубль сообщения.
     if (!navigator.onLine) show(testId('msg.shell.offline'));
-    else await api('/api/v1/me/messages', { text: doctorField.value });
   }
   if (target.closest(testId('msg.shell.bell'))) {
     const existing = document.querySelector('.notifications-menu');
@@ -398,10 +298,14 @@ window.addEventListener('offline', () => show(testId('msg.shell.offline')));
     }
   }
   markCurrentTab();
-  fitTabs();
-  window.addEventListener('resize', fitTabs);
-  document.fonts?.ready.then(fitTabs);
+  revealCurrentTab();
   loadBadges();
   await pollNotifications();
-  setInterval(pollNotifications, 1000);
+  // Значок колокольчика: раз в 15 с (F-19 — не позже 30 с), пока вкладка видна; при возврате на вкладку — сразу.
+  setInterval(() => {
+    if (!document.hidden) pollNotifications();
+  }, 15000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) pollNotifications();
+  });
 })();

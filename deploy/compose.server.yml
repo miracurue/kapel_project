@@ -1,0 +1,107 @@
+# Демо на общем сервере rita_server (kapel.1gb.ru). Рядом работают чужие проекты:
+# свой проект compose, свои сети и тома, наружу только 127.0.0.1:8001 (дальше — nginx хоста).
+# Образы собираются локально и передаются `docker save | ssh … docker load`, на сервере не собираются.
+# Запуск: CC_VERSION=<тег> docker compose -f compose.server.yml up -d  (рядом лежит .env, права 600).
+name: clinical-compass
+
+x-hardening: &hardening
+  read_only: true
+  tmpfs: ["/tmp"]
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: ["ALL"]
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+
+services:
+  app:
+    <<: *hardening
+    image: clinical-compass-app:${CC_VERSION:?задайте CC_VERSION}
+    pull_policy: never
+    user: "1000:1000"
+    mem_limit: 768m
+    pids_limit: 256
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      DEMO_MODE: 1
+      DATA_MODE: synthetic
+      DB_PATH: /app/data/tdr.sqlite3
+      DATA_DIR: /app/data
+      PUBLIC_BASE_URL: https://kapel.1gb.ru
+      BASE_URL: https://kapel.1gb.ru
+      TRUST_PROXY: 1
+      COOKIE_SECURE: "true"
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      SMTP_SECURE: 0
+      ML_WORKER_URL: http://ml-worker:8000
+      KNOWLEDGE_DATABASE_URL: postgres://knowledge:${KNOWLEDGE_DB_PASSWORD:?задайте KNOWLEDGE_DB_PASSWORD}@knowledge-db:5432/knowledge
+      NODE_EXTRA_CA_CERTS: /app/certs/russian_trusted_root_ca.pem
+    # Единственная публикация порта на хосте — только loopback (Docker обходит ufw).
+    ports: ["127.0.0.1:8001:3000"]
+    volumes: ["cc_data:/app/data", "./certs:/app/certs:ro"]
+    depends_on: [ml-worker, mailpit, knowledge-db]
+    networks: [default, internal]
+
+  ml-worker:
+    <<: *hardening
+    image: clinical-compass-ml:${CC_VERSION:?задайте CC_VERSION}
+    pull_policy: never
+    user: "10001:10001"
+    # Лимит уточнить по замеру пика памяти при расшифровке; своп отключён (memswap = mem).
+    mem_limit: 2560m
+    memswap_limit: 2560m
+    cpus: 1.5
+    pids_limit: 128
+    environment:
+      ML_WORKER_TOKEN: ${ML_WORKER_TOKEN:?задайте ML_WORKER_TOKEN}
+    volumes: ["${ML_MODELS_DIR:?задайте ML_MODELS_DIR}:/models:ro"]
+    expose: ["8000"]
+    networks: [internal]
+
+  # Хранилище знаний (схемы med и clinrec). Порт не публикуется; доступ только из сети internal.
+  knowledge-db:
+    <<: *hardening
+    image: pgvector/pgvector:pg17
+    user: "999:999"
+    mem_limit: 1536m
+    memswap_limit: 1536m
+    cpus: 1.5
+    pids_limit: 256
+    shm_size: 256m
+    environment:
+      POSTGRES_USER: knowledge
+      POSTGRES_DB: knowledge
+      POSTGRES_PASSWORD: ${KNOWLEDGE_DB_PASSWORD:?задайте KNOWLEDGE_DB_PASSWORD}
+    command: ["postgres", "-c", "shared_buffers=256MB", "-c", "maintenance_work_mem=384MB", "-c", "max_parallel_maintenance_workers=0"]
+    # /var/run/postgresql нужен сокету и pid-файлу при read_only
+    tmpfs: ["/tmp", "/var/run/postgresql"]
+    volumes: ["knowledge_pg:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U knowledge -d knowledge"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    expose: ["5432"]
+    networks: [internal]
+
+  mailpit:
+    <<: *hardening
+    image: axllent/mailpit:v1.27.9
+    mem_limit: 128m
+    pids_limit: 64
+    expose: ["1025"]
+    networks: [internal]
+
+volumes:
+  cc_data:
+  knowledge_pg:
+
+networks:
+  # без выхода наружу: ml-worker и mailpit изолированы; app подключён ещё и к default (GigaChat)
+  internal:
+    internal: true

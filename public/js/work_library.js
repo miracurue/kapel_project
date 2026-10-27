@@ -585,7 +585,7 @@
     for (const m of chatLog) {
       const d = document.createElement('div');
       d.className = m.role === 'user' ? 'u' : 'a';
-      d.textContent = m.role === 'user' ? m.text : T('chat.ai');
+      d.textContent = m.role === 'user' || m.status === 'notice' ? m.text : T('chat.ai');
       if (m.role !== 'user') d.prepend(sparkle());
       if (m.status === 'error') {
         const err = document.createElement('span');
@@ -655,6 +655,14 @@
         item_id: current.id,
         current: { title: el.title.value.trim(), body_md: el.body.value },
       });
+      // Нецелевой запрос: сообщение сервера в чате, статья не меняется, попытка на сервере не сохранена.
+      if (ok && data.off_topic) {
+        chatLog[chatLog.length - 1].status = 'notice';
+        chatLog.push({ role: 'assistant', text: data.message, status: 'notice' });
+        el.aiInput.value = '';
+        say('');
+        return;
+      }
       if (!ok || !data.body_md) throw new Error('ai');
       el.title.value = data.title || el.title.value;
       el.summary.value = data.summary || '';
@@ -746,6 +754,7 @@
         context_before: el.body.value.slice(0, mark.start),
         context_after: el.body.value.slice(mark.end),
       });
+      if (ok && data.off_topic) return say(data.message);
       if (!ok || !data.text) return say(T('rw.failed'));
       say('');
       sel = mark;
@@ -823,7 +832,7 @@
     field.addEventListener('input', () => {
       dirty = true;
     });
-  for (const b of root.querySelectorAll('[data-lib-close], [data-lib-back]'))
+  for (const b of root.querySelectorAll('[data-lib-close]'))
     b.addEventListener('click', () => {
       editing = false;
       previewing = false;

@@ -70,9 +70,13 @@ function chipContent(db, chip, user) {
       return row ? `Покупка препарата ${shortDate(row.created_at)}.` : null;
     }
     case 'adverse_event': {
-      const row = db.prepare('SELECT created_at, kind, severity FROM adverse_events WHERE id=?').get(id);
+      const row = db
+        .prepare(
+          "SELECT created_at, severity FROM adverse_events WHERE id=? AND status NOT IN ('draft','cancelled') AND NOT (status='service_queue' AND psychiatrist_id IS NULL)",
+        )
+        .get(id);
       return row
-        ? `Нежелательное явление ${shortDate(row.created_at)}: ${row.kind || 'уточняется'}${row.severity ? `, тяжесть ${row.severity}` : ''}.`
+        ? `Нежелательное явление ${shortDate(row.created_at)}${row.severity ? `, тяжесть ${row.severity}` : ''}.`
         : null;
     }
     case 'visit': {

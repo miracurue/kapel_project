@@ -5,10 +5,13 @@
  * Вызывается из общего цикла планировщика src/server.js (никаких своих setInterval):
  *  - треды ИИ с expires_at <= сейчас (30 дней с последнего сообщения) — сообщения, чипы, тред;
  *    вместе с тредом стираются pii_values области треда (scope_type='thread');
- *  - черновики гипотез hint_drafts с истёкшим expires_at.
+ *  - черновики гипотез hint_drafts с истёкшим expires_at;
+ *  - трассировки агента ai_agent_runs с истёкшим expires_at (30 дней), шаги — каскадом (src/ai/agentTrace.js).
  * Пакеты по 500 строк, каждая порция — короткая транзакция (BUILD_RULES §4).
  * Журналы ai_audit и crisis_* не трогаются (REQ-AIP-016, без текстов — PD-17).
  */
+
+const { purgeExpiredRuns } = require('../ai/agentTrace');
 
 function purgeExpiredThreads(db, nowIsoValue) {
   const rows = db.prepare('SELECT id FROM ai_threads WHERE expires_at IS NOT NULL AND expires_at <= ? LIMIT 500').all(nowIsoValue);
@@ -38,7 +41,8 @@ function runPurge({ db, nowIso }) {
   const current = nowIso();
   const threadsResult = purgeExpiredThreads(db, current);
   const hintsResult = purgeExpiredHints(db, current);
-  return { at: current, ...threadsResult, ...hintsResult };
+  const runsResult = purgeExpiredRuns(db, current);
+  return { at: current, ...threadsResult, ...hintsResult, ...runsResult };
 }
 
 module.exports = { runPurge, purgeExpiredThreads, purgeExpiredHints };

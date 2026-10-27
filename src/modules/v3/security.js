@@ -1,15 +1,12 @@
 'use strict';
 
+const { isFullyAssigned } = require('../../access/assignment');
+
 // Shared guards for the synchronous V3 operations. Replays recheck current access;
 // only identifiers, status and hashes enter the idempotency store.
 function create(app, { db, P, config, now, auditPatient, baseConsentGiven, crisis, activeSetting }) {
   const iso = () => P.iso(now(config));
-  const assigned = (actor, patient, signal = false) =>
-    db
-      .prepare(
-        "SELECT 1 FROM care_assignments WHERE clinician_id=? AND patient_id=? AND ended_at IS NULL AND (? OR COALESCE(end_reason,'')<>'signal_only')",
-      )
-      .get(actor, patient, signal ? 1 : 0);
+  const assigned = (actor, patient, signal = false) => isFullyAssigned(db, patient, actor, { signal });
   const safe = (value) => {
     if (Array.isArray(value)) return value.map(safe);
     if (!value || typeof value !== 'object') return value;
@@ -82,7 +79,8 @@ function create(app, { db, P, config, now, auditPatient, baseConsentGiven, crisi
         if (write && req.user.role === 'patient') {
           const text = req.body.answers
             ? Object.values(req.body.answers).flat().join(' ')
-            : String(req.body.text || '');
+            : // Свободное название препарата из опроса о побочном эффекте тоже проходит кризисную проверку.
+              [req.body.text, req.body.med && req.body.med.name].filter((x) => typeof x === 'string').join(' ');
           req.crisisResult = crisis(
             text,
             req.body.answers ? 'previsit' : req.path.includes('messages') ? 'message' : 'ae',

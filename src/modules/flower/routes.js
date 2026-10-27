@@ -8,6 +8,8 @@
  */
 
 const service = require('./service');
+const phrases = require('./phrases');
+const techniques = require('../techniques/catalog');
 
 const WRITE = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -20,7 +22,11 @@ function install(app, { db, P, config, now, activeSetting, idemCached, saveIdem 
       month: '2-digit',
       day: '2-digit',
     }).format(now(config));
-  const svc = service.create(db, { now: () => P.iso(now(config)), today });
+  const hour = () =>
+    Number(
+      new Intl.DateTimeFormat('en-GB', { timeZone: timezone(), hour: '2-digit', hourCycle: 'h23' }).format(now(config)),
+    );
+  const svc = service.create(db, { now: () => P.iso(now(config)), today, hour });
 
   // После успешной записи пациента просматриваем источники и сообщаем «+N» заголовком: тело ответа не меняется.
   app.use((req, res, next) => {
@@ -29,8 +35,10 @@ function install(app, { db, P, config, now, activeSetting, idemCached, saveIdem 
     const json = res.json.bind(res);
     res.json = (body) => {
       if (res.statusCode < 400) {
-        const { gained } = svc.sync(req.user.id);
+        const { gained, items } = svc.sync(req.user.id);
         res.set('X-Flower-Gain', String(gained));
+        // Какие действия принесли капельки: по ним клиент просит тёплую фразу (одну, самую важную).
+        res.set('X-Flower-Actions', [...new Set(items.map((x) => x.action))].join(','));
         res.set('X-Flower-Balance', String(svc.balance(req.user.id)));
       }
       return json(body);
@@ -39,8 +47,29 @@ function install(app, { db, P, config, now, activeSetting, idemCached, saveIdem 
   });
 
   app.get('/api/v1/me/flower', (req, res) => {
-    svc.sync(req.user.id);
-    res.json(svc.state(req.user.id));
+    const fresh = svc.sync(req.user.id);
+    // Первый вход за день: вместе с капельками приходит приветствие (если режим фраз и пределы позволяют).
+    const greeting = fresh.items.some((x) => x.action === 'login')
+      ? svc.message(req.user.id, 'login', 'greeting')
+      : null;
+    res.json({ ...svc.state(req.user.id), fresh: { gained: fresh.gained, items: fresh.items }, greeting });
+  });
+
+  // «Я выполнил(а) методику»: раз в день на методику, капельки начисляются сразу.
+  app.post('/api/v1/me/flower/technique', (req, res) => {
+    const slug = req.body?.slug;
+    if (typeof slug !== 'string' || !techniques.bySlug(slug))
+      return P.sendError(req, res, 422, 'E-VALIDATION', { fields: [{ field: 'slug', key: 'err.e-validation' }] });
+    const result = svc.technique(req.user.id, slug);
+    return res.json({ gained: result.gained, ...svc.state(req.user.id) });
+  });
+
+  // Тёплая фраза для окошка под капелькой: пределы и подбор на сервере, текст по форме обращения пациента.
+  app.post('/api/v1/me/flower/message', (req, res) => {
+    const action = req.body?.action;
+    if (typeof action !== 'string' || !phrases.ACTIONS.includes(action))
+      return P.sendError(req, res, 422, 'E-VALIDATION', { fields: [{ field: 'action', key: 'err.e-validation' }] });
+    return res.json({ message: svc.message(req.user.id, action, 'bubble') });
   });
 
   app.post('/api/v1/me/flower/water', (req, res) => {

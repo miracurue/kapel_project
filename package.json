@@ -9,12 +9,12 @@
     "dev": "node scripts/migrate.js && node src/server.js",
     "test": "node tests/tools/gate.js --upto В3 --kind all",
     "seed": "node scripts/seed-demo.js",
-    "e2e": "node e2e/run.js",
-    "e2e:shots": "node e2e/shots.js",
+    "e2e:shots:v3": "node scripts/screenshots-v3.js",
     "test:api": "node --test --test-concurrency=1 \"tests/api/*.test.js\"",
     "test:acceptance": "node --test --test-concurrency=1 \"tests/acceptance/*.spec.js\"",
     "test:perf": "node --test --test-concurrency=1 --test-timeout=3600000 \"tests/performance/*.test.js\"",
     "test:gate": "node tests/tools/gate.js",
+    "test:contract:build": "python3 tests/tools/build_contract.py",
     "migrate": "node scripts/migrate.js",
     "admin:create": "node scripts/admin-create.js",
     "format:check": "node scripts/check-format.js",
@@ -24,6 +24,7 @@
     "openapi": "node scripts/check-openapi.js",
     "texts": "node scripts/check-texts.js",
     "secrets": "node scripts/check-secrets.js",
+    "docker": "python3 /home/morrigue/REPS/_agent-kit/skills/web-dev-standards/tools/check_docker.py .",
     "ci": "bash scripts/ci.sh",
     "test:regression": "node --test --test-concurrency=1 \"tests/regression/*.test.js\""
   },
@@ -33,8 +34,11 @@
     "ejs": "3.1.10",
     "express": "4.22.3",
     "express-session": "1.19.0",
-    "nodemailer": "10.1.2",
-    "sharp": "0.35.5"
+    "nodemailer": "10.2.1",
+    "pg": "8.23.1",
+    "qrcode": "1.5.4",
+    "sharp": "0.35.5",
+    "web-push": "3.6.7"
   },
   "devDependencies": {
     "@types/node": "26.0.0",

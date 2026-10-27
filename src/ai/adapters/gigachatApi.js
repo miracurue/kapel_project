@@ -59,7 +59,7 @@ function createGigachatApi() {
         model: model.model_ident,
         messages: [
           ...(payload.system ? [{ role: 'system', content: payload.system }] : []),
-          ...(payload.messages || []),
+          ...(payload.messages || []).map(toGigaMessage),
         ],
         ...(payload.tools && payload.tools.length ? { functions: payload.tools } : {}),
         ...(model.params_json && model.params_json.temperature !== undefined ? { temperature: model.params_json.temperature } : {}),
@@ -79,11 +79,25 @@ function createGigachatApi() {
       const message = choice && choice.message;
       const usage = data && data.usage ? { prompt: data.usage.prompt_tokens, completion: data.usage.completion_tokens } : null;
       if (message && message.function_call) {
-        return { text: '', tool: { name: message.function_call.name, arguments: safeParse(message.function_call.arguments) }, usage };
+        const fc = message.function_call;
+        return {
+          text: '',
+          tool: { id: fc.id, name: fc.name, arguments: typeof fc.arguments === 'string' ? safeParse(fc.arguments) : fc.arguments || {} },
+          usage,
+        };
       }
       return { text: String((message && message.content) || ''), usage };
     },
   };
+}
+
+// Нейтральные сообщения шлюза (assistant.tool_call, role 'tool') -> формат functions GigaChat.
+function toGigaMessage(m) {
+  if (m.role === 'assistant' && m.tool_call)
+    return { role: 'assistant', content: '', function_call: { name: m.tool_call.name, arguments: m.tool_call.arguments || {} } };
+  // Результат функции GigaChat принимает только JSON-строкой: обычный текст заворачиваем в {"result": …}.
+  if (m.role === 'tool') return { role: 'function', name: m.name, content: JSON.stringify({ result: m.content }) };
+  return m;
 }
 
 function safeParse(raw) {

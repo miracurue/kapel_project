@@ -2,7 +2,8 @@
 
 /**
  * Демо-наполнение журнала (STAND-IN): статьи из articles.js с картинками из public/journal-img и лайками демо-пользователей.
- * Идемпотентно по slug «journal-<ключ>»: уже внесённые статьи не трогаются, админские правки сохраняются.
+ * Идемпотентно по slug «journal-<ключ>»: новые статьи добавляются; тексты внесённых обновляются, если изменились в
+ * articles.js и статью не правил администратор (его версия 2 не трогается).
  * Авторы — первые активные психиатр и психолог; если их нет, статьи подписываются без привязки к пользователю.
  */
 
@@ -13,6 +14,7 @@ const IMG = {
   'anxiety-window': 'anxiety-window',
   breathing: 'breathing',
   sleep: 'sleep-dusk',
+  aviandr: 'notebook',
   diary: 'diary-desk',
   'first-weeks': 'first-weeks',
   walk: 'walk-forest',
@@ -46,8 +48,18 @@ function ensureJournalSeed(db, P, nowDate) {
     .prepare("SELECT id FROM users WHERE role IN ('patient','psychiatrist','psychologist') AND status='active' ORDER BY id")
     .all();
   const authorOf = (index) => doctors[index % Math.max(1, doctors.length)] || null;
-  const have = new Set(db.prepare("SELECT slug FROM library_items WHERE slug LIKE 'journal-%'").all().map((r) => r.slug));
+  const have = new Map(
+    db
+      .prepare("SELECT id, slug, current_version FROM library_items WHERE slug LIKE 'journal-%'")
+      .all()
+      .map((r) => [r.slug, r]),
+  );
   let added = 0;
+  // Тексты уже внесённых статей обновляются, если в articles.js они изменились, а администратор статью не правил
+  // (правка администратора создаёт версию 2, её тексты не трогаем).
+  const sameText = db.prepare('SELECT title, summary, body_md, source FROM library_versions WHERE item_id=? AND version=1');
+  const refresh = db.prepare('UPDATE library_versions SET title=?, summary=?, body_md=?, source=? WHERE item_id=? AND version=1');
+  const retag = db.prepare('UPDATE library_items SET tags_json=? WHERE id=?');
   const insertItem = db.prepare(
     "INSERT INTO library_items(slug,media,status,current_version,tags_json,owner_user_id,audience,published_at,created_at,updated_at) VALUES (?,'read','published',1,?,?,?,?,?,?)",
   );
@@ -62,7 +74,18 @@ function ensureJournalSeed(db, P, nowDate) {
     ]) {
       for (const a of list) {
         const slug = `journal-${audience}-${a.key}`;
-        if (have.has(slug)) continue;
+        const existing = have.get(slug);
+        if (existing) {
+          if (existing.current_version !== 1) continue;
+          const old = sameText.get(existing.id);
+          const source = a.source || SOURCE;
+          if (old && (old.title !== a.title || old.summary !== a.summary || old.body_md !== a.body || old.source !== source)) {
+            refresh.run(a.title, a.summary, a.body, source, existing.id);
+            retag.run(JSON.stringify(a.tags), existing.id);
+            added += 1;
+          }
+          continue;
+        }
         const owner = authorOf(a.author);
         const when = P.iso(new Date(nowDate.getTime() - a.days * 86400000));
         const info = insertItem.run(slug, JSON.stringify(a.tags), owner ? owner.id : null, audience, when, when, when);
@@ -73,7 +96,7 @@ function ensureJournalSeed(db, P, nowDate) {
           a.summary,
           a.body,
           owner ? owner.full_name : FALLBACK_AUTHORS[a.author % 2],
-          SOURCE,
+          a.source || SOURCE,
           when.slice(0, 10),
           `/journal-img/${IMG[a.key]}.jpg`,
           owner ? owner.id : null,
